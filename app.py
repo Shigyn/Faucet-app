@@ -6,7 +6,16 @@ from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 import random
 from datetime import datetime
-from config import GOOGLE_SHEET_ID, TELEGRAM_BOT_API_KEY, GOOGLE_CREDS_URL, USER_RANGE, TRANSACTION_RANGE, GITHUB_TOKEN
+import os
+
+# Récupérer les informations sensibles depuis des variables d'environnement
+GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
+TELEGRAM_BOT_API_KEY = os.environ.get('TELEGRAM_BOT_API_KEY')
+GOOGLE_SHEET_ID = os.environ.get('GOOGLE_SHEET_ID')
+GOOGLE_CREDS_URL = os.environ.get('GOOGLE_CREDS_URL')
+USER_RANGE = os.environ.get('USER_RANGE')
+TRANSACTION_RANGE = os.environ.get('TRANSACTION_RANGE')
+
 import base64
 from io import BytesIO
 

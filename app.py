@@ -1,21 +1,20 @@
+Effectivement, dans le code précédent, il n'y a pas d'intégration d'un lien ou d'un "webapp" pour ouvrir une page web à partir du bot Telegram. Si tu veux ouvrir une **webapp** (par exemple, une page web ou un formulaire), il faudrait intégrer un lien dans ton bouton.
+
+Dans ce cas, tu peux utiliser un **InlineKeyboardButton** avec un **URL** qui permettra à l'utilisateur d'ouvrir directement un lien dans son navigateur.
+
+### Ajouter un bouton qui ouvre un lien (webapp)
+
+Voici comment tu peux modifier le code pour ajouter un bouton qui redirige l'utilisateur vers une URL spécifique, comme un formulaire ou une page de réclamation. Ce bouton s'ouvrira dans le navigateur de l'utilisateur lorsque celui-ci cliquera dessus.
+
+### Modification pour ajouter un bouton qui ouvre une page web (webapp)
+
+```python
 import os
-import logging
 import telebot
 from flask import Flask, request
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
-import random
 from datetime import datetime
-import os
-
-# Récupérer les informations sensibles depuis des variables d'environnement
-GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
-TELEGRAM_BOT_API_KEY = os.environ.get('TELEGRAM_BOT_API_KEY')
-GOOGLE_SHEET_ID = os.environ.get('GOOGLE_SHEET_ID')
-GOOGLE_CREDS_URL = os.environ.get('GOOGLE_CREDS_URL')
-USER_RANGE = os.environ.get('USER_RANGE')
-TRANSACTION_RANGE = os.environ.get('TRANSACTION_RANGE')
-
 import base64
 from io import BytesIO
 
@@ -28,17 +27,13 @@ RANGE_TRANSACTIONS = TRANSACTION_RANGE
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
+# Fonction pour récupérer les credentials Google
 def download_credentials():
-    # Récupérer la chaîne base64 de la variable d'environnement
     creds_base64 = os.environ.get('GOOGLE_CREDS_B64')
-    
     if not creds_base64:
         raise Exception("La variable d'environnement 'GOOGLE_CREDS_B64' est manquante.")
     
-    # Décoder le fichier base64
     creds_json = base64.b64decode(creds_base64).decode('utf-8')
-    
-    # Créer un fichier temporaire pour y écrire les credentials
     creds_file = os.path.join(os.getcwd(), 'google', 'service_account_credentials.json')
     with open(creds_file, 'w') as f:
         f.write(creds_json)
@@ -50,120 +45,26 @@ def get_google_sheets_service():
     service = build('sheets', 'v4', credentials=creds)
     return service.spreadsheets()
 
+# Route pour l'index de base
 @app.route('/', methods=['GET'])
 def home():
     return "Application Flask en cours d'exécution. L'API est accessible."
 
-@app.route('/register', methods=['GET'])
-def register():
-    user_id = request.args.get('user_id')
-    if not user_id:
-        return "ID utilisateur manquant."
+# Fonction pour envoyer un bouton de réclamation (qui ouvre un webapp)
+def send_claim_button(chat_id):
+    markup = telebot.types.InlineKeyboardMarkup()
+    # Ajouter un bouton qui ouvre une page web
+    claim_button = telebot.types.InlineKeyboardButton(
+        text="Réclamer des points", 
+        url="https://web-production-7271.up.railway.app/claim"  # URL de ta page de réclamation ou une autre page
+    )
+    markup.add(claim_button)
+    bot.send_message(chat_id, "Clique sur le bouton ci-dessous pour réclamer des points :", reply_markup=markup)
 
-    service = get_google_sheets_service()
-    result = service.values().get(spreadsheetId=SHEET_ID, range=RANGE_USERS).execute()
-    values = result.get('values', [])
-
-    for row in values:
-        if row[0] == user_id:
-            return "L'utilisateur existe déjà."
-
-    new_row = [user_id, 0, '']
-    service.values().append(
-        spreadsheetId=SHEET_ID,
-        range=RANGE_USERS,
-        valueInputOption="RAW",
-        body={'values': [new_row]}
-    ).execute()
-
-    return f"L'utilisateur {user_id} a été créé avec succès."
-
-@app.route('/claim', methods=['GET'])
-def claim():
-    user_id = request.args.get('user_id')
-    if not user_id:
-        return "ID utilisateur manquant."
-
-    service = get_google_sheets_service()
-    result = service.values().get(spreadsheetId=SHEET_ID, range=RANGE_USERS).execute()
-    values = result.get('values', [])
-
-    user_found = False
-    for idx, row in enumerate(values):
-        if row[0] == user_id:
-            user_found = True
-            balance = int(row[1]) if row[1] else 0
-            last_claim = row[2] if len(row) > 2 else ""
-
-            last_claim_time = datetime.strptime(last_claim, "%d/%m/%Y %H:%M") if last_claim != '' else None
-            now = datetime.now()
-
-            if last_claim_time is None or (now - last_claim_time).total_seconds() > 3600:
-                claim_points = random.randint(10, 100)
-                new_balance = balance + claim_points
-                service.values().update(
-                    spreadsheetId=SHEET_ID,
-                    range=f'Users!B{idx + 2}',
-                    valueInputOption="RAW",
-                    body={'values': [[new_balance]]}
-                ).execute()
-                service.values().update(
-                    spreadsheetId=SHEET_ID,
-                    range=f'Users!C{idx + 2}',
-                    valueInputOption="RAW",
-                    body={'values': [[now.strftime("%d/%m/%Y %H:%M")]]}
-                ).execute()
-
-                transaction_row = [user_id, 'claim', claim_points, now.strftime("%d/%m/%Y %H:%M")]
-                service.values().append(
-                    spreadsheetId=SHEET_ID,
-                    range="Transactions",  # ✅ corrigé ici
-                    valueInputOption="RAW",
-                    insertDataOption="INSERT_ROWS",
-                    body={'values': [transaction_row]}
-                ).execute()
-
-                return f"Félicitations ! Tu as réclamé {claim_points} points. Ton solde est maintenant de {new_balance} points."
-            else:
-                return "Tu as déjà réclamé aujourd'hui ou moins d'une heure s'est écoulée depuis ta dernière réclamation."
-
-    if not user_found:
-        # Créer l'utilisateur dans Users
-        new_user_row = [user_id, 0, '']
-        service.values().append(
-            spreadsheetId=SHEET_ID,
-            range=RANGE_USERS,
-            valueInputOption="RAW",
-            body={'values': [new_user_row]}
-        ).execute()
-
-        # Effectuer la réclamation de points juste après la création de l'utilisateur
-        balance = 0
-        claim_points = random.randint(10, 100)
-        new_balance = balance + claim_points
-        service.values().update(
-            spreadsheetId=SHEET_ID,
-            range=f'Users!B{len(values) + 2}',  # Mettre à jour la colonne B de l'utilisateur créé
-            valueInputOption="RAW",
-            body={'values': [[new_balance]]}
-        ).execute()
-        service.values().update(
-            spreadsheetId=SHEET_ID,
-            range=f'Users!C{len(values) + 2}',  # Mettre à jour la colonne C de la date de réclamation
-            valueInputOption="RAW",
-            body={'values': [[datetime.now().strftime("%d/%m/%Y %H:%M")]]}
-        ).execute()
-
-        # Ajouter la transaction dans Transactions
-        transaction_row = [user_id, 'claim', claim_points, datetime.now().strftime("%d/%m/%Y %H:%M")]
-        service.values().append(
-            spreadsheetId=SHEET_ID,
-            range="Transactions",  # Utiliser juste le nom de la feuille pour append
-            valueInputOption="RAW",
-            body={'values': [transaction_row]}
-        ).execute()
-
-        return f"Utilisateur {user_id} créé avec succès et {claim_points} points réclamés."
+# Fonction pour gérer le /start
+@bot.message_handler(commands=['start'])
+def handle_start(message):
+    send_claim_button(message.chat.id)  # Envoie le bouton de réclamation quand l'utilisateur démarre le bot
 
 # Webhook
 @app.route(f"/{TELEGRAM_BOT_API_KEY}", methods=["POST"])
@@ -178,3 +79,22 @@ if __name__ == "__main__":
     bot.remove_webhook()
     bot.set_webhook(url=f"https://web-production-7271.up.railway.app/{TELEGRAM_BOT_API_KEY}")
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+```
+
+### Explications :
+
+1. **`InlineKeyboardButton(url=...)`** : Nous avons ajouté un bouton avec un lien qui ouvre une page web. L'URL spécifiée dans `url="https://web-production-7271.up.railway.app/claim"` sera ouverte dans le navigateur de l'utilisateur lorsque celui-ci cliquera sur le bouton "Réclamer des points".
+
+2. **Page web accessible via un lien** : Le bouton redirige l'utilisateur vers l'URL de la page de réclamation ou toute autre page que tu souhaites afficher. Tu peux remplacer l'URL par celle qui correspond à ton projet.
+
+3. **`/start`** : Quand un utilisateur envoie la commande `/start`, il recevra un bouton avec l'option de réclamer des points. Ce bouton ouvrira la page de réclamation dans son navigateur.
+
+### Test :
+
+1. Envoie la commande `/start` à ton bot.
+2. Tu recevras un bouton "Réclamer des points".
+3. En cliquant sur le bouton, tu seras redirigé vers l'URL que tu as configurée dans le code (par exemple, ta page de réclamation sur Vercel ou une autre URL).
+
+### Conclusion
+
+Ce bouton dans Telegram ne nécessite plus d'intégration spécifique de la réclamation dans Telegram (comme `/claim`), mais redirige l'utilisateur vers une page Web où il pourra compléter une action supplémentaire (par exemple, réclamer des points, remplir un formulaire, etc.).

@@ -3,41 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Réclamation de points</title>
-    <link rel="stylesheet" href="styles.css">  <!-- Si tu as un fichier CSS -->
+    <title>Réclamer des points</title>
 </head>
 <body>
-    <header>
-        <h1>Réclamation de Points</h1>
-    </header>
+    <h1>Réclamation de Points</h1>
+    <p>Tu as réclamé avec succès {{ points }} points !</p> <!-- Affichage dynamique des points -->
 
-    <section>
-        <p>Bienvenue sur la page de réclamation !</p>
-        <button id="claim-button">Réclamer mes points</button>
-        <p id="message"></p>
-    </section>
-
-    <footer>
-        <p>Vous pouvez réclamer vos points toutes les heures !</p>
-    </footer>
-
-    <script>
-        // Assurer que le script est bien chargé et fonctionne
-        document.getElementById('claim-button').addEventListener('click', function() {
-            const userId = '12345';  // Remplacer par l'ID utilisateur réel (à adapter)
-
-            fetch(`/claim?user_id=${userId}`, {
-                method: 'GET',
-            })
-            .then(response => response.text())
-            .then(data => {
-                document.getElementById('message').textContent = data;  // Afficher la réponse du serveur
-            })
-            .catch(error => {
-                console.error('Erreur lors de la réclamation:', error);
-                document.getElementById('message').textContent = "Une erreur est survenue. Réessayez plus tard.";
-            });
-        });
-    </script>
+    <!-- Bouton pour revenir à l'index -->
+    <form action="/" method="get">
+        <button type="submit">Retour à l'accueil</button>
+    </form>
 </body>
 </html>

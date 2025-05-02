@@ -3,104 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Faucet Telegram</title>
-    <style>
-        /* Mise en page générale */
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #2C3E50;
-            color: #ECF0F1;
-            text-align: center;
-            padding: 60px;
-        }
-
-        h1 {
-            font-size: 36px;
-            color: #F39C12;
-        }
-
-        p {
-            font-size: 18px;
-            margin-bottom: 40px;
-        }
-
-        /* Style des boutons */
-        .button {
-            background-color: #F39C12;
-            border: none;
-            color: white;
-            padding: 20px 40px;
-            font-size: 18px;
-            cursor: pointer;
-            border-radius: 12px;
-            text-decoration: none;
-            transition: background-color 0.3s ease;
-        }
-
-        .button:hover {
-            background-color: #E67E22;
-        }
-
-        /* Section du tableau de bord */
-        .dashboard {
-            background-color: #34495E;
-            padding: 40px;
-            margin-top: 50px;
-            border-radius: 15px;
-        }
-
-        .dashboard h2 {
-            font-size: 28px;
-            color: #ECF0F1;
-        }
-
-        .dashboard .stats {
-            font-size: 20px;
-            color: #F39C12;
-        }
-
-        /* Style des liens */
-        a {
-            text-decoration: none;
-        }
-
-        /* Responsivité pour les petits écrans */
-        @media (max-width: 600px) {
-            body {
-                padding: 30px;
-            }
-
-            h1 {
-                font-size: 28px;
-            }
-
-            .button {
-                padding: 15px 30px;
-                font-size: 16px;
-            }
-
-            .dashboard h2 {
-                font-size: 24px;
-            }
-
-            .dashboard .stats {
-                font-size: 18px;
-            }
-        }
-    </style>
+    <title>Page d'Accueil</title>
 </head>
 <body>
-    <h1>Bienvenue sur notre Faucet Telegram !</h1>
-    <p>Gagnez des points chaque jour en cliquant ci-dessous.</p>
-
-    <a href="/claim?user_id=TON_USER_ID_TELEGRAM" class="button">Réclamer mes points</a>
-
-    <div class="dashboard">
-        <h2>Tableau de bord</h2>
-        <div class="stats">
-            <p><strong>Solde actuel:</strong> 1000 Points</p>
-            <p><strong>Dernière réclamation:</strong> 1 jour</p>
-        </div>
-    </div>
+    <h1>Bienvenue sur le Faucet</h1>
+    <p>Cliquez ci-dessous pour réclamer des points.</p>
+    
+    <form action="/claim" method="get">
+        <!-- Remplacer 3 par l'ID utilisateur approprié -->
+        <input type="hidden" name="user_id" value="3">  
+        <button type="submit">Réclamer des points</button>
+    </form>
 </body>
 </html>

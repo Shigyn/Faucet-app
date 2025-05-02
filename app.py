@@ -40,12 +40,12 @@ def home():
     return "Application Flask en cours d'exécution. L'API est accessible."
 
 # Fonction pour envoyer un bouton de réclamation (qui ouvre un webapp)
-def send_claim_button(chat_id):
+def send_claim_button(chat_id, user_id):
     markup = telebot.types.InlineKeyboardMarkup()
-    # Ajouter un bouton qui ouvre une page web
+    # Ajouter un bouton qui ouvre une page web avec le user_id dynamique
     claim_button = telebot.types.InlineKeyboardButton(
         text="Réclamer des points", 
-        url="https://faucet-app-psi.vercel.app/claim"  # URL mise à jour vers la page de réclamation sur le domaine Vercel
+        url=f"https://faucet-app-psi.vercel.app/claim?user_id={user_id}"  # URL avec user_id dynamique
     )
     markup.add(claim_button)
     bot.send_message(chat_id, "Clique sur le bouton ci-dessous pour réclamer des points :", reply_markup=markup)
@@ -53,7 +53,8 @@ def send_claim_button(chat_id):
 # Fonction pour gérer le /start
 @bot.message_handler(commands=['start'])
 def handle_start(message):
-    send_claim_button(message.chat.id)  # Envoie le bouton de réclamation quand l'utilisateur démarre le bot
+    user_id = message.chat.id  # Utilise l'ID du chat comme user_id
+    send_claim_button(message.chat.id, user_id)  # Envoie le bouton de réclamation avec l'ID utilisateur
 
 # Webhook
 @app.route(f"/{TELEGRAM_BOT_API_KEY}", methods=["POST"])

@@ -58,11 +58,12 @@ def handle_start(message):
 
 @app.route('/claim', methods=['GET'])
 def claim_page():
-    # Le user_id est récupéré via JS dans la WebApp
+    # Le user_id est récupéré via JavaScript dans la WebApp
     return render_template("claim.html")
 
 @app.route('/submit_claim', methods=['POST'])
 def submit_claim():
+    # Récupérer l'user_id depuis l'URL
     user_id = request.form.get('user_id')
     if not user_id:
         return "ID utilisateur manquant."
@@ -76,6 +77,7 @@ def submit_claim():
 
     user_found = False
     for idx, row in enumerate(values):
+        # Assurez-vous que l'ID utilisateur est correctement comparé
         if str(row[0]) == str(user_id):
             user_found = True
             last_claim = row[2] if len(row) > 2 else None
@@ -87,22 +89,25 @@ def submit_claim():
             current_balance = int(row[1]) if row[1] else 0
             new_balance = current_balance + points
 
+            # Mettre à jour le solde de l'utilisateur
             service.values().update(
                 spreadsheetId=GOOGLE_SHEET_ID,
-                range=f'Users!B{idx + 2}',
+                range=f'Users!B{idx + 2}',  # Mettre à jour le solde de l'utilisateur
                 valueInputOption="RAW",
                 body={'values': [[new_balance]]}
             ).execute()
 
+            # Mettre à jour le dernier claim de l'utilisateur
             service.values().update(
                 spreadsheetId=GOOGLE_SHEET_ID,
-                range=f'Users!C{idx + 2}',
+                range=f'Users!C{idx + 2}',  # Mettre à jour la colonne C pour 'last_claim'
                 valueInputOption="RAW",
                 body={'values': [[datetime.now().strftime("%d/%m/%Y %H:%M")]]}
             ).execute()
 
             break
 
+    # Si l'utilisateur n'existe pas, l'ajouter à la feuille
     if not user_found:
         new_user_row = [user_id, points, datetime.now().strftime("%d/%m/%Y %H:%M")]
         service.values().append(
@@ -112,6 +117,7 @@ def submit_claim():
             body={'values': [new_user_row]}
         ).execute()
 
+    # Enregistrer la transaction dans la feuille "Transactions"
     transaction_row = [user_id, 'claim', points, datetime.now().strftime("%d/%m/%Y %H:%M")]
     service.values().append(
         spreadsheetId=GOOGLE_SHEET_ID,

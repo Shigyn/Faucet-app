@@ -4,7 +4,7 @@ import telebot
 from flask import Flask, request, render_template
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
-from datetime import datetime, timedelta
+from datetime import datetime
 
 app = Flask(__name__)
 

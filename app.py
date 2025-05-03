@@ -46,7 +46,7 @@ def home():
 # Fonction pour envoyer un bouton de réclamation (qui ouvre un webapp)
 def send_claim_button(chat_id):
     markup = telebot.types.InlineKeyboardMarkup()
-    # Ajouter un bouton qui ouvre une page web
+    # Ajouter un bouton qui ouvre la page de réclamation
     claim_button = telebot.types.InlineKeyboardButton(
         text="Réclamer des points", 
         url=f"https://faucet-app.onrender.com/claim?user_id={chat_id}"  # URL mise à jour pour inclure l'ID utilisateur
@@ -60,7 +60,7 @@ def handle_start(message):
     user_id = message.chat.id  # Récupère l'ID utilisateur directement à partir du message
     send_claim_button(user_id)  # Envoie le bouton de réclamation avec l'ID utilisateur
 
-# Route pour afficher la page de réclamation
+# Route pour afficher la page de réclamation et mettre à jour les points
 @app.route('/claim', methods=['GET'])
 def claim_page():
     # Récupère l'ID Telegram à partir de l'URL
@@ -69,7 +69,7 @@ def claim_page():
         return "ID utilisateur manquant."
 
     # Log de l'ID pour vérifier ce qui est récupéré
-    print(f"ID utilisateur récupéré : {user_id}")  # Ajoute cette ligne pour vérifier l'ID
+    print(f"ID utilisateur récupéré : {user_id}")  # Vérifie la valeur de user_id
 
     # Générer un nombre de points aléatoires entre 10 et 100
     points = random.randint(10, 100)
@@ -81,7 +81,7 @@ def claim_page():
 
     user_found = False
     for idx, row in enumerate(values):
-        if row[0] == user_id:  # Vérifie si l'ID Telegram de l'utilisateur correspond à l'ID dans la feuille
+        if str(row[0]) == str(user_id):  # Assurer que les deux sont des chaînes de caractères
             user_found = True
             # Vérifier si l'utilisateur a réclamé dans les 10 dernières minutes
             last_claim = row[2] if len(row) > 2 else None
@@ -131,7 +131,7 @@ def claim_page():
         body={'values': [transaction_row]}
     ).execute()
 
-    # Afficher la page claim.html avec les points générés
+    # Afficher la page claim.html avec les points générés et un bouton retour au menu
     return render_template("claim.html", points=points)
 
 # Webhook pour recevoir les mises à jour Telegram

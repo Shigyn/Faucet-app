@@ -12,7 +12,7 @@
             text-align: center;
             padding: 50px;
         }
-        
+
         h1 {
             font-size: 3em;
             margin-bottom: 20px;
@@ -60,8 +60,6 @@
         <p style="color: red;"><strong>{{ error }}</strong></p>
     {% elif points %}
         <p>Tu as réclamé avec succès <strong>{{ points }}</strong> points !</p>
-    {% elif balance is none %}
-        <p>Une erreur inattendue s'est produite.</p>
     {% endif %}
 
     {% if balance is not none %}
@@ -71,6 +69,7 @@
     {% endif %}
 
     <form action="/" method="get">
+        <input type="hidden" name="user_id" value="{{ user_id }}">
         <button type="submit">Retour à l'accueil</button>
     </form>
 </body>

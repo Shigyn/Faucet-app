@@ -34,6 +34,10 @@
         .claim-button:hover {
             background-color: #8B4513;
         }
+        .claim-button:disabled {
+            background-color: gray;
+            cursor: not-allowed;
+        }
         .balance-box {
             background-color: #D2691E;
             color: white;
@@ -68,6 +72,7 @@
             width: 120px;
             height: 120px;
             animation: spin 2s linear infinite;
+            margin: 0 auto 20px;
         }
         @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -99,12 +104,13 @@
             const userId = tg.initDataUnsafe?.user?.id;
 
             if (!userId) {
-                alert("Impossible de récupérer l'ID utilisateur Telegram.");
+                alert("Veuillez utiliser ce bouton dans Telegram pour réclamer vos points.");
                 return;
             }
 
             document.getElementById("loading").style.display = "block";
-            document.querySelector(".claim-button").disabled = true;
+            const btn = document.querySelector(".claim-button");
+            btn.disabled = true;
 
             try {
                 const response = await fetch('/submit_claim', {
@@ -122,13 +128,13 @@
                 } else {
                     alert("Erreur : " + text);
                     document.getElementById("loading").style.display = "none";
-                    document.querySelector(".claim-button").disabled = false;
+                    btn.disabled = false;
                 }
 
             } catch (e) {
                 alert("Erreur réseau.");
                 document.getElementById("loading").style.display = "none";
-                document.querySelector(".claim-button").disabled = false;
+                btn.disabled = false;
             }
         }
     </script>

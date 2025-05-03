@@ -28,7 +28,6 @@ def get_google_sheets_service():
     creds_json = os.environ.get('GOOGLE_CREDS')
     if not creds_json:
         raise Exception("La variable d'environnement 'GOOGLE_CREDS' est manquante.")
-    
     creds = Credentials.from_service_account_info(eval(creds_json), scopes=SCOPES)
     service = build('sheets', 'v4', credentials=creds)
     return service.spreadsheets()
@@ -36,33 +35,14 @@ def get_google_sheets_service():
 @app.route('/')
 def index():
     user_id = request.args.get('user_id')
-    if user_id:
-        balance = get_user_balance(user_id)
-        return render_template("index.html", balance=balance)
-    return render_template("index.html", balance=None)
+    balance = get_user_balance(user_id) if user_id else None
+    return render_template("index.html", balance=balance, user_id=user_id)
 
 @app.route('/claim', methods=['GET'])
 def claim_page():
     user_id = request.args.get('user_id')
-    if user_id:
-        user_balance = get_user_balance(user_id)
-        return render_template("claim.html", balance=user_balance)
-    return render_template("claim.html")
-
-def send_claim_button(chat_id):
-    markup = telebot.types.InlineKeyboardMarkup()
-    web_app = telebot.types.WebAppInfo(url="https://faucet-app.onrender.com/claim")
-    claim_button = telebot.types.InlineKeyboardButton(
-        text="Réclamer des points", 
-        web_app=web_app
-    )
-    markup.add(claim_button)
-    bot.send_message(chat_id, "Clique sur le bouton ci-dessous pour réclamer des points :", reply_markup=markup)
-
-@bot.message_handler(commands=['start'])
-def handle_start(message):
-    user_id = message.chat.id
-    send_claim_button(user_id)
+    user_balance = get_user_balance(user_id) if user_id else None
+    return render_template("claim.html", balance=user_balance, user_id=user_id)
 
 @app.route('/submit_claim', methods=['POST'])
 def submit_claim():
@@ -70,9 +50,7 @@ def submit_claim():
     if not user_id:
         return "ID utilisateur manquant."
 
-    print(f"ID utilisateur récupéré via POST : {user_id}")
     points = 100
-
     service = get_google_sheets_service()
     result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
     values = result.get('values', [])
@@ -85,7 +63,7 @@ def submit_claim():
             if last_claim:
                 last_claim_time = datetime.strptime(last_claim, "%d/%m/%Y %H:%M")
                 if datetime.now() - last_claim_time < timedelta(minutes=5):
-                    return render_template("claim.html", error="Tu as déjà réclamé des points il y a moins de 5 minutes. Essaie plus tard.", balance=int(row[1]))
+                    return render_template("claim.html", error="Tu as déjà réclamé des points il y a moins de 5 minutes. Essaie plus tard.", balance=int(row[1]), user_id=user_id)
 
             current_balance = int(row[1]) if row[1] else 0
             new_balance = current_balance + points
@@ -117,12 +95,13 @@ def submit_claim():
     transaction_row = [user_id, 'claim', points, datetime.now().strftime("%d/%m/%Y %H:%M")]
     service.values().append(
         spreadsheetId=GOOGLE_SHEET_ID,
-        range="Transactions",
+        range=TRANSACTION_RANGE,
         valueInputOption="RAW",
         body={'values': [transaction_row]}
     ).execute()
 
-    return render_template("claim.html", points=points, balance=get_user_balance(user_id))
+    balance = get_user_balance(user_id)
+    return render_template("claim.html", points=points, balance=balance, user_id=user_id)
 
 @app.route(f"/{TELEGRAM_BOT_API_KEY}", methods=["POST"])
 def webhook():
@@ -145,13 +124,15 @@ def favicon():
     return send_from_directory(os.path.join(app.root_path, 'static'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 def get_user_balance(user_id):
+    if not user_id:
+        return None
     service = get_google_sheets_service()
     result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
     values = result.get('values', [])
 
     for row in values:
         if str(row[0]) == str(user_id):
-            return int(row[1]) if row[1] else 0
+            return int(row[1]) if len(row) > 1 and row[1] else 0
 
     return 0
 

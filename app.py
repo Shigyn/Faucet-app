@@ -1,6 +1,6 @@
 import os
 import telebot
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, send_from_directory
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
@@ -33,6 +33,10 @@ def get_google_sheets_service():
     service = build('sheets', 'v4', credentials=creds)
     return service.spreadsheets()
 
+@app.route('/')
+def index():
+    return render_template("index.html")
+
 @app.route('/claim', methods=['GET'])
 def claim_page():
     user_id = request.args.get('user_id')  # Récupérer l'user_id de la requête
@@ -41,18 +45,7 @@ def claim_page():
         return render_template("claim.html", balance=user_balance)
     return render_template("claim.html")
 
-# Fonction pour obtenir la balance de l'utilisateur
-def get_user_balance(user_id):
-    service = get_google_sheets_service()
-    result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
-    values = result.get('values', [])
-
-    for row in values:
-        if str(row[0]) == str(user_id):
-            return int(row[1]) if row[1] else 0
-    return 0
-
-# Bouton avec WebAppInfo (sans user_id dans URL)
+# Fonction pour envoyer le bouton de réclamation via Telegram
 def send_claim_button(chat_id):
     markup = telebot.types.InlineKeyboardMarkup()
     web_app = telebot.types.WebAppInfo(url="https://faucet-app.onrender.com/claim")
@@ -143,6 +136,21 @@ def set_telegram_webhook():
     webhook_url = "https://faucet-app.onrender.com/" + TELEGRAM_BOT_API_KEY
     bot.remove_webhook()
     bot.set_webhook(url=webhook_url)
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(os.path.join(app.root_path, 'static'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
+def get_user_balance(user_id):
+    service = get_google_sheets_service()
+    result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
+    values = result.get('values', [])
+
+    for row in values:
+        if str(row[0]) == str(user_id):
+            return int(row[1]) if row[1] else 0
+
+    return 0
 
 if __name__ == "__main__":
     set_telegram_webhook()

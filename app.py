@@ -58,8 +58,18 @@ def handle_start(message):
 
 @app.route('/claim', methods=['GET'])
 def claim_page():
-    # Le user_id est récupéré via JavaScript dans la WebApp
-    return render_template("claim.html")
+    # Ici, nous allons vérifier si l'utilisateur a bien réclamé des points et définir les messages.
+    user_id = request.args.get('user_id')  # On récupère l'user_id passé dans l'URL
+
+    if not user_id:
+        error = "ID utilisateur manquant."
+        points = None
+    else:
+        points = random.randint(10, 100)  # On génère des points pour l'exemple
+        error = None
+
+    # Passe les variables points et error à la page claim.html
+    return render_template("claim.html", points=points, error=error)
 
 @app.route('/submit_claim', methods=['POST'])
 def submit_claim():

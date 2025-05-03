@@ -106,7 +106,7 @@
                 const text = await response.text();
 
                 if (response.ok) {
-                    window.location.href = "/claim?user_id=" + userId; // Redirection avec user_id
+                    window.location.href = "/claim?user_id=" + userId; // Redirection vers la page de réclamation avec user_id
                 } else {
                     alert("Erreur : " + text);
                     document.getElementById("loading").style.display = "none";

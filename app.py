@@ -35,15 +35,26 @@ def get_google_sheets_service():
     service = build('sheets', 'v4', credentials=creds)
     return service.spreadsheets()
 
-@app.route('/', methods=['GET'])
-def home():
-    # Récupérer l'user_id depuis la session ou un paramètre URL
-    user_id = request.args.get('user_id')  # Vous pouvez également utiliser une autre méthode pour récupérer l'ID
+@app.route('/claim', methods=['GET'])
+def claim_page():
+    user_id = request.args.get('user_id')
+    balance = None
+
     if user_id:
-        # Récupérer la balance de l'utilisateur depuis Google Sheets
-        user_balance = get_user_balance(user_id)
-        return render_template('index.html', balance=user_balance)
-    return render_template('index.html')
+        try:
+            service = get_google_sheets_service()
+            result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
+            values = result.get('values', [])
+
+            for row in values:
+                if str(row[0]) == str(user_id):
+                    balance = int(row[1]) if len(row) > 1 else 0
+                    break
+        except Exception as e:
+            print(f"Erreur en récupérant la balance : {e}")
+
+    return render_template("claim.html", balance=balance)
+
 
 # Mise à jour : bouton avec WebAppInfo (pas d'user_id dans URL)
 def send_claim_button(chat_id):

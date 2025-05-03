@@ -65,11 +65,12 @@ def handle_start(message):
 def claim_page():
     # Récupère l'ID Telegram à partir de l'URL
     user_id = request.args.get('user_id')
+    
     if not user_id:
         return "ID utilisateur manquant."
-
+    
     # Log de l'ID pour vérifier ce qui est récupéré
-    print(f"ID utilisateur récupéré : {user_id}")  # Vérifie la valeur de user_id
+    print(f"ID utilisateur récupéré dans l'URL : {user_id}")  # Vérifie la valeur de user_id
 
     # Générer un nombre de points aléatoires entre 10 et 100
     points = random.randint(10, 100)

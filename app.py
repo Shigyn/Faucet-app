@@ -1,5 +1,4 @@
 import os
-import random
 import telebot
 from flask import Flask, request, render_template
 from googleapiclient.discovery import build
@@ -58,18 +57,8 @@ def handle_start(message):
 
 @app.route('/claim', methods=['GET'])
 def claim_page():
-    # Ici, nous allons vérifier si l'utilisateur a bien réclamé des points et définir les messages.
-    user_id = request.args.get('user_id')  # On récupère l'user_id passé dans l'URL
-
-    if not user_id:
-        error = "ID utilisateur manquant."
-        points = None
-    else:
-        points = random.randint(10, 100)  # On génère des points pour l'exemple
-        error = None
-
-    # Passe les variables points et error à la page claim.html
-    return render_template("claim.html", points=points, error=error)
+    # Le user_id est récupéré via JavaScript dans la WebApp
+    return render_template("claim.html")
 
 @app.route('/submit_claim', methods=['POST'])
 def submit_claim():
@@ -80,7 +69,10 @@ def submit_claim():
 
     print(f"ID utilisateur récupéré via POST : {user_id}")
 
-    points = random.randint(10, 100)
+    # Nombre de points à 100 pour chaque réclamation
+    points = 100
+
+    # Initialiser le service Google Sheets
     service = get_google_sheets_service()
     result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
     values = result.get('values', [])
@@ -94,12 +86,12 @@ def submit_claim():
             if last_claim:
                 last_claim_time = datetime.strptime(last_claim, "%d/%m/%Y %H:%M")
                 if datetime.now() - last_claim_time < timedelta(minutes=1):
-                    return "Tu as déjà réclamé des points il y a moins d'une minute. Essaie à nouveau plus tard."
+                    return render_template("claim.html", error="Tu as déjà réclamé des points il y a moins d'une minute. Essaie à nouveau plus tard.")
 
             current_balance = int(row[1]) if row[1] else 0
             new_balance = current_balance + points
 
-            # Mettre à jour le solde de l'utilisateur
+            # Mettre à jour le solde de l'utilisateur dans Google Sheets
             service.values().update(
                 spreadsheetId=GOOGLE_SHEET_ID,
                 range=f'Users!B{idx + 2}',  # Mettre à jour le solde de l'utilisateur
@@ -136,7 +128,8 @@ def submit_claim():
         body={'values': [transaction_row]}
     ).execute()
 
-    return f"Réclamation réussie ! Tu as gagné {points} points."
+    # Retourner le nombre de points réclamés
+    return render_template("claim.html", points=points)
 
 @app.route(f"/{TELEGRAM_BOT_API_KEY}", methods=["POST"])
 def webhook():

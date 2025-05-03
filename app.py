@@ -6,7 +6,6 @@ from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 import base64
-from io import BytesIO
 
 app = Flask(__name__)
 
@@ -85,4 +84,50 @@ def claim_page():
     values = result.get('values', [])
 
     # Trouver l'utilisateur dans la feuille et mettre à jour ses points
-    for idx, row in
+    for idx, row in enumerate(values):
+        if row[0] == user_id:
+            # Ajouter les points réclamés au solde actuel
+            current_balance = int(row[1]) if row[1] else 0
+            new_balance = current_balance + points
+            service.values().update(
+                spreadsheetId=GOOGLE_SHEET_ID,
+                range=f'Users!B{idx + 2}',  # Mettre à jour le solde de l'utilisateur
+                valueInputOption="RAW",
+                body={'values': [[new_balance]]}
+            ).execute()
+
+            # Enregistrer la transaction dans la feuille "Transactions"
+            transaction_row = [user_id, 'claim', points, datetime.now().strftime("%d/%m/%Y %H:%M")]
+            service.values().append(
+                spreadsheetId=GOOGLE_SHEET_ID,
+                range="Transactions",
+                valueInputOption="RAW",
+                body={'values': [transaction_row]}
+            ).execute()
+
+            break
+
+    # Afficher la page claim.html avec les points générés
+    return render_template("claim.html", points=points)
+
+# Webhook pour recevoir les mises à jour Telegram
+@app.route(f"/{TELEGRAM_BOT_API_KEY}", methods=["POST"])
+def webhook():
+    try:
+        json_str = request.get_data().decode("UTF-8")
+        update = telebot.types.Update.de_json(json_str)
+        bot.process_new_updates([update])
+        return '', 200  # Réponse OK
+    except Exception as e:
+        print(f"Erreur dans le traitement du webhook : {e}")
+        return '', 500  # Erreur interne
+
+# Configurer le webhook Telegram
+def set_telegram_webhook():
+    webhook_url = "https://faucet-app.onrender.com/" + TELEGRAM_BOT_API_KEY
+    bot.remove_webhook()  # Supprime tout ancien webhook
+    bot.set_webhook(url=webhook_url)  # Définit le nouveau webhook
+
+if __name__ == "__main__":
+    set_telegram_webhook()  # Appel pour configurer le webhook
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))  # Démarrer l'application Flask

@@ -49,7 +49,7 @@ def send_claim_button(chat_id):
     # Ajouter un bouton qui ouvre une page web
     claim_button = telebot.types.InlineKeyboardButton(
         text="Réclamer des points", 
-        url="https://faucet-app.onrender.com/claim"  # URL mise à jour vers le domaine Render
+        url=f"https://faucet-app.onrender.com/claim?user_id={chat_id}"  # URL mise à jour pour inclure l'ID utilisateur
     )
     markup.add(claim_button)
     bot.send_message(chat_id, "Clique sur le bouton ci-dessous pour réclamer des points :", reply_markup=markup)
@@ -62,7 +62,7 @@ def handle_start(message):
 # Route pour afficher la page de réclamation
 @app.route('/claim', methods=['GET'])
 def claim_page():
-    # Récupère l'ID Telegram à partir de la session utilisateur (pas dans l'URL)
+    # Récupère l'ID Telegram à partir de l'URL
     user_id = request.args.get('user_id')
     if not user_id:
         return "ID utilisateur manquant."

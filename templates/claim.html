@@ -36,12 +36,26 @@
         button:hover {
             background-color: #45a049;
         }
+
+        .balance-box {
+            background-color: #D2691E;
+            color: white;
+            font-size: 1.5em;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
+        }
+
+        .balance-box strong {
+            font-size: 1.8em;
+        }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
 <body>
     <h1>Réclamation de Points</h1>
-    
+
     {% if points %}
         <p>Tu as réclamé avec succès <strong>{{ points }}</strong> points !</p>
     {% elif error %}
@@ -49,6 +63,10 @@
     {% else %}
         <p>Une erreur inattendue s'est produite.</p>
     {% endif %}
+
+    <div class="balance-box">
+        <p>Ton solde actuel est : <strong>{{ balance }}</strong> points</p>
+    </div>
 
     <form action="/" method="get">
         <button type="submit">Retour à l'accueil</button>

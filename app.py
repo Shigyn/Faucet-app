@@ -37,6 +37,12 @@ def get_google_sheets_service():
 
 @app.route('/', methods=['GET'])
 def home():
+    # Récupérer l'user_id depuis la session ou un paramètre URL
+    user_id = request.args.get('user_id')  # Vous pouvez également utiliser une autre méthode pour récupérer l'ID
+    if user_id:
+        # Récupérer la balance de l'utilisateur depuis Google Sheets
+        user_balance = get_user_balance(user_id)
+        return render_template('index.html', balance=user_balance)
     return render_template('index.html')
 
 # Mise à jour : bouton avec WebAppInfo (pas d'user_id dans URL)
@@ -57,12 +63,16 @@ def handle_start(message):
 
 @app.route('/claim', methods=['GET'])
 def claim_page():
-    # Le user_id est récupéré via JavaScript dans la WebApp
+    user_id = request.args.get('user_id')  # Récupérer l'user_id de la requête
+    if user_id:
+        # Récupérer la balance de l'utilisateur
+        user_balance = get_user_balance(user_id)
+        return render_template("claim.html", balance=user_balance)
     return render_template("claim.html")
 
 @app.route('/submit_claim', methods=['POST'])
 def submit_claim():
-    # Récupérer l'user_id depuis l'URL
+    # Récupérer l'user_id depuis la requête POST
     user_id = request.form.get('user_id')
     if not user_id:
         return "ID utilisateur manquant."
@@ -146,6 +156,20 @@ def set_telegram_webhook():
     webhook_url = "https://faucet-app.onrender.com/" + TELEGRAM_BOT_API_KEY
     bot.remove_webhook()
     bot.set_webhook(url=webhook_url)
+
+def get_user_balance(user_id):
+    # Fonction pour récupérer la balance de l'utilisateur depuis Google Sheets
+    service = get_google_sheets_service()
+    result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
+    values = result.get('values', [])
+
+    # Rechercher l'utilisateur dans les données et retourner sa balance
+    for row in values:
+        if str(row[0]) == str(user_id):  # Comparer l'ID utilisateur
+            balance = int(row[1]) if row[1] else 0  # Assurez-vous que la balance est un nombre entier
+            return balance
+
+    return 0  # Si l'utilisateur n'est pas trouvé, on retourne 0 comme balance
 
 if __name__ == "__main__":
     set_telegram_webhook()

@@ -42,15 +42,17 @@ def home():
 @app.route('/claim', methods=['GET'])
 def claim_page():
     user_id = request.args.get('user_id')  # Récupérer l'user_id de la requête
+    balance = 0  # Valeur par défaut
+    
     if user_id:
-        user_balance = get_user_balance(user_id)
-        return render_template("claim.html", balance=user_balance)
-    return render_template("claim.html")
+        balance = get_user_balance(user_id)  # Récupérer la balance de l'utilisateur
+    
+    return render_template("claim.html", balance=balance)
 
 # Bouton avec WebAppInfo (sans user_id dans URL)
 def send_claim_button(chat_id):
     markup = telebot.types.InlineKeyboardMarkup()
-    web_app = telebot.types.WebAppInfo(url="https://faucet-app.onrender.com/claim")
+    web_app = telebot.types.WebAppInfo(url="https://faucet-app.onrender.com/claim?user_id=" + str(chat_id))  # Ajouter le user_id dans l'URL
     claim_button = telebot.types.InlineKeyboardButton(
         text="Réclamer des points", 
         web_app=web_app

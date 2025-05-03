@@ -49,7 +49,7 @@ def send_claim_button(chat_id):
     # Ajouter un bouton qui ouvre une page web
     claim_button = telebot.types.InlineKeyboardButton(
         text="Réclamer des points", 
-        url="https://faucet-app-psi.vercel.app/claim"  # URL mise à jour vers la page de réclamation sur le domaine Vercel
+        url="https://faucet-app.onrender.com/claim"  # URL mise à jour vers le domaine Render
     )
     markup.add(claim_button)
     bot.send_message(chat_id, "Clique sur le bouton ci-dessous pour réclamer des points :", reply_markup=markup)
@@ -74,9 +74,11 @@ def claim_page():
     result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
     values = result.get('values', [])
 
-    # Trouver l'utilisateur dans la feuille et mettre à jour ses points
+    # Vérifier si l'utilisateur existe déjà
+    user_found = False
     for idx, row in enumerate(values):
-        if row[0] == user_id:
+        if row[0] == user_id:  # Vérifie si l'ID Telegram de l'utilisateur correspond à l'ID dans la feuille
+            user_found = True
             # Ajouter les points réclamés au solde actuel
             current_balance = int(row[1]) if row[1] else 0
             new_balance = current_balance + points
@@ -86,17 +88,26 @@ def claim_page():
                 valueInputOption="RAW",
                 body={'values': [[new_balance]]}
             ).execute()
-
-            # Enregistrer la transaction dans la feuille "Transactions"
-            transaction_row = [user_id, 'claim', points, datetime.now().strftime("%d/%m/%Y %H:%M")]
-            service.values().append(
-                spreadsheetId=GOOGLE_SHEET_ID,
-                range="Transactions",
-                valueInputOption="RAW",
-                body={'values': [transaction_row]}
-            ).execute()
-
             break
+
+    # Si l'utilisateur n'existe pas, l'ajouter à la feuille
+    if not user_found:
+        new_user_row = [user_id, points]  # Crée une nouvelle ligne avec l'ID de l'utilisateur et ses points
+        service.values().append(
+            spreadsheetId=GOOGLE_SHEET_ID,
+            range=USER_RANGE,
+            valueInputOption="RAW",
+            body={'values': [new_user_row]}
+        ).execute()
+
+    # Enregistrer la transaction dans la feuille "Transactions"
+    transaction_row = [user_id, 'claim', points, datetime.now().strftime("%d/%m/%Y %H:%M")]
+    service.values().append(
+        spreadsheetId=GOOGLE_SHEET_ID,
+        range="Transactions",
+        valueInputOption="RAW",
+        body={'values': [transaction_row]}
+    ).execute()
 
     # Afficher la page claim.html avec les points générés
     return render_template("claim.html", points=points)

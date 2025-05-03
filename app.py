@@ -79,11 +79,11 @@ def claim_page():
     for idx, row in enumerate(values):
         if row[0] == user_id:  # Vérifie si l'ID Telegram de l'utilisateur correspond à l'ID dans la feuille
             user_found = True
-            # Vérifier si l'utilisateur a réclamé dans les dernières 24h
+            # Vérifier si l'utilisateur a réclamé dans les 10 dernières minutes
             last_claim = row[2] if len(row) > 2 else None
             if last_claim:
                 last_claim_time = datetime.strptime(last_claim, "%d/%m/%Y %H:%M")
-                if datetime.now() - last_claim_time < timedelta(hours=1):
+                if datetime.now() - last_claim_time < timedelta(minutes=1):
                     return "Tu as déjà réclamé des points il y a moins d'une heure. Essaie à nouveau plus tard."
 
             # Ajouter les points réclamés au solde actuel

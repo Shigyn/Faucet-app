@@ -14,7 +14,6 @@ GOOGLE_SHEET_ID = os.getenv('GOOGLE_SHEET_ID')
 USER_RANGE = os.getenv('USER_RANGE')
 TRANSACTION_RANGE = os.getenv('TRANSACTION_RANGE')
 
-# Assure-toi que ces variables sont présentes
 if not TELEGRAM_BOT_API_KEY:
     raise ValueError("La variable d'environnement 'TELEGRAM_BOT_API_KEY' est manquante.")
 if not GOOGLE_SHEET_ID:
@@ -28,7 +27,6 @@ bot = telebot.TeleBot(TELEGRAM_BOT_API_KEY)
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
-# Fonction pour récupérer les credentials Google
 def get_google_sheets_service():
     creds_json = os.environ.get('GOOGLE_CREDS')
     if not creds_json:
@@ -38,84 +36,75 @@ def get_google_sheets_service():
     service = build('sheets', 'v4', credentials=creds)
     return service.spreadsheets()
 
-# Route pour l'index de base
 @app.route('/', methods=['GET'])
 def home():
     return render_template('index.html')
 
-# Fonction pour envoyer un bouton de réclamation (qui ouvre un webapp)
+# Mise à jour : bouton avec WebAppInfo (pas d'user_id dans URL)
 def send_claim_button(chat_id):
     markup = telebot.types.InlineKeyboardMarkup()
-    # Ajouter un bouton qui ouvre la page de réclamation
+    web_app = telebot.types.WebAppInfo(url="https://faucet-app.onrender.com/claim")
     claim_button = telebot.types.InlineKeyboardButton(
         text="Réclamer des points", 
-        url=f"https://faucet-app.onrender.com/claim?user_id={chat_id}"  # URL mise à jour pour inclure l'ID utilisateur
+        web_app=web_app
     )
     markup.add(claim_button)
     bot.send_message(chat_id, "Clique sur le bouton ci-dessous pour réclamer des points :", reply_markup=markup)
 
-# Fonction pour gérer le /start
 @bot.message_handler(commands=['start'])
 def handle_start(message):
-    user_id = message.chat.id  # Récupère l'ID utilisateur directement à partir du message
-    send_claim_button(user_id)  # Envoie le bouton de réclamation avec l'ID utilisateur
+    user_id = message.chat.id
+    send_claim_button(user_id)
 
-# Route pour afficher la page de réclamation et mettre à jour les points
 @app.route('/claim', methods=['GET'])
 def claim_page():
-    # Récupère l'ID Telegram à partir de l'URL
-    user_id = request.args.get('user_id')
-    
+    # Le user_id est récupéré via JS dans la WebApp
+    return render_template("claim.html")
+
+@app.route('/submit_claim', methods=['POST'])
+def submit_claim():
+    user_id = request.form.get('user_id')
     if not user_id:
         return "ID utilisateur manquant."
-    
-    # Log de l'ID pour vérifier ce qui est récupéré
-    print(f"ID utilisateur récupéré dans l'URL : {user_id}")  # Vérifie la valeur de user_id
 
-    # Générer un nombre de points aléatoires entre 10 et 100
+    print(f"ID utilisateur récupéré via POST : {user_id}")
+
     points = random.randint(10, 100)
-
-    # Enregistrer les points réclamés dans Google Sheets ou autre logique pour mettre à jour la base de données
     service = get_google_sheets_service()
     result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
     values = result.get('values', [])
 
     user_found = False
     for idx, row in enumerate(values):
-        if str(row[0]) == str(user_id):  # Assurer que les deux sont des chaînes de caractères
+        if str(row[0]) == str(user_id):
             user_found = True
-            # Vérifier si l'utilisateur a réclamé dans les 10 dernières minutes
             last_claim = row[2] if len(row) > 2 else None
             if last_claim:
                 last_claim_time = datetime.strptime(last_claim, "%d/%m/%Y %H:%M")
-                if datetime.now() - last_claim_time < timedelta(minutes=1):  # 1 minute au lieu de 1 heure
+                if datetime.now() - last_claim_time < timedelta(minutes=1):
                     return "Tu as déjà réclamé des points il y a moins d'une minute. Essaie à nouveau plus tard."
 
-            # Ajouter les points réclamés au solde actuel
             current_balance = int(row[1]) if row[1] else 0
             new_balance = current_balance + points
 
-            # Mettre à jour le solde de l'utilisateur et son dernier claim
             service.values().update(
                 spreadsheetId=GOOGLE_SHEET_ID,
-                range=f'Users!B{idx + 2}',  # Mettre à jour le solde de l'utilisateur
+                range=f'Users!B{idx + 2}',
                 valueInputOption="RAW",
                 body={'values': [[new_balance]]}
             ).execute()
 
-            # Mettre à jour le dernier claim de l'utilisateur
             service.values().update(
                 spreadsheetId=GOOGLE_SHEET_ID,
-                range=f'Users!C{idx + 2}',  # Mettre à jour la colonne C pour 'last_claim'
+                range=f'Users!C{idx + 2}',
                 valueInputOption="RAW",
                 body={'values': [[datetime.now().strftime("%d/%m/%Y %H:%M")]]}
             ).execute()
 
             break
 
-    # Si l'utilisateur n'existe pas, l'ajouter à la feuille
     if not user_found:
-        new_user_row = [user_id, points, datetime.now().strftime("%d/%m/%Y %H:%M")]  # Crée une nouvelle ligne avec l'ID de l'utilisateur, ses points et la date de réclamation
+        new_user_row = [user_id, points, datetime.now().strftime("%d/%m/%Y %H:%M")]
         service.values().append(
             spreadsheetId=GOOGLE_SHEET_ID,
             range=USER_RANGE,
@@ -123,7 +112,6 @@ def claim_page():
             body={'values': [new_user_row]}
         ).execute()
 
-    # Enregistrer la transaction dans la feuille "Transactions"
     transaction_row = [user_id, 'claim', points, datetime.now().strftime("%d/%m/%Y %H:%M")]
     service.values().append(
         spreadsheetId=GOOGLE_SHEET_ID,
@@ -132,27 +120,24 @@ def claim_page():
         body={'values': [transaction_row]}
     ).execute()
 
-    # Afficher la page claim.html avec les points générés et un bouton retour au menu
-    return render_template("claim.html", points=points)
+    return f"Réclamation réussie ! Tu as gagné {points} points."
 
-# Webhook pour recevoir les mises à jour Telegram
 @app.route(f"/{TELEGRAM_BOT_API_KEY}", methods=["POST"])
 def webhook():
     try:
         json_str = request.get_data().decode("UTF-8")
         update = telebot.types.Update.de_json(json_str)
         bot.process_new_updates([update])
-        return '', 200  # Réponse OK
+        return '', 200
     except Exception as e:
         print(f"Erreur dans le traitement du webhook : {e}")
-        return '', 500  # Erreur interne
+        return '', 500
 
-# Configurer le webhook Telegram
 def set_telegram_webhook():
     webhook_url = "https://faucet-app.onrender.com/" + TELEGRAM_BOT_API_KEY
-    bot.remove_webhook()  # Supprime tout ancien webhook
-    bot.set_webhook(url=webhook_url)  # Définit le nouveau webhook
+    bot.remove_webhook()
+    bot.set_webhook(url=webhook_url)
 
 if __name__ == "__main__":
-    set_telegram_webhook()  # Appel pour configurer le webhook
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))  # Démarrer l'application Flask
+    set_telegram_webhook()
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))

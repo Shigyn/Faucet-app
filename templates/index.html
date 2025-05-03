@@ -4,10 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Réclamer des points</title>
-    <link href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&display=swap" rel="stylesheet"> <!-- Police RPG -->
+    <link href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&display=swap" rel="stylesheet">
 
     <style>
-        /* Fond de mur en briques */
         body {
             background-image: url('https://www.w3schools.com/w3images/brickwall.jpg');
             background-size: cover;
@@ -16,18 +15,16 @@
             text-align: center;
         }
 
-        /* Style du titre */
         h1 {
             font-size: 50px;
             margin-top: 50px;
             text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.7);
         }
 
-        /* Styles pour le bouton */
         .claim-button {
             display: inline-block;
             padding: 20px 40px;
-            background-color: #D2691E; /* Couleur d'un bouton ancien avec touche rustique */
+            background-color: #D2691E;
             color: white;
             border: none;
             border-radius: 10px;
@@ -39,10 +36,9 @@
         }
 
         .claim-button:hover {
-            background-color: #8B4513; /* Ombre du bouton */
+            background-color: #8B4513;
         }
 
-        /* Styles pour la fenêtre de chargement */
         .loading {
             display: none;
             position: fixed;
@@ -60,8 +56,8 @@
         }
 
         .loading .spinner {
-            border: 16px solid #f3f3f3; /* Light gray */
-            border-top: 16px solid #3498db; /* Blue */
+            border: 16px solid #f3f3f3;
+            border-top: 16px solid #3498db;
             border-radius: 50%;
             width: 120px;
             height: 120px;
@@ -72,40 +68,56 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-
     </style>
 </head>
 <body>
 
     <h1>Réclamez vos points, aventurier !</h1>
-    <!-- Bouton pour réclamer des points -->
     <button class="claim-button" onclick="startLoading()">Réclamer des points</button>
 
-    <!-- Fenêtre de chargement -->
     <div class="loading" id="loading">
         <div class="spinner"></div>
         <p>Veuillez patienter...</p>
     </div>
 
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
-        function startLoading() {
-            // Afficher la fenêtre de chargement
-            document.getElementById("loading").style.display = "block";
+        async function startLoading() {
+            const tg = window.Telegram.WebApp;
+            const userId = tg.initDataUnsafe?.user?.id;
 
-            // Empêcher plusieurs clics
+            if (!userId) {
+                alert("Impossible de récupérer l'ID utilisateur Telegram.");
+                return;
+            }
+
+            document.getElementById("loading").style.display = "block";
             document.querySelector(".claim-button").disabled = true;
 
-            // Simuler un délai de traitement (remplacer par la vraie logique si nécessaire)
-            setTimeout(function() {
-                // Cacher la fenêtre de chargement après un délai
+            try {
+                const response = await fetch('/submit_claim', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: new URLSearchParams({ user_id: userId })
+                });
+
+                const text = await response.text();
+
+                if (response.ok) {
+                    window.location.href = "/claim";
+                } else {
+                    alert("Erreur : " + text);
+                    document.getElementById("loading").style.display = "none";
+                    document.querySelector(".claim-button").disabled = false;
+                }
+
+            } catch (e) {
+                alert("Erreur réseau.");
                 document.getElementById("loading").style.display = "none";
-
-                // Réactiver le bouton après le délai (une fois le claim terminé)
                 document.querySelector(".claim-button").disabled = false;
-
-                // Rediriger vers la page de réclamation ou un autre lien
-                window.location.href = "/claim?user_id=USER_ID"; // Remplacer USER_ID par l'ID utilisateur réel
-            }, 3000); // Temps de simulation (ici 3 secondes)
+            }
         }
     </script>
 

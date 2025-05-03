@@ -37,14 +37,19 @@
             background-color: #45a049;
         }
     </style>
-    <!-- Google font "Press Start 2P" pour un effet rétro RPG -->
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
 <body>
     <h1>Réclamation de Points</h1>
-    <p>Tu as réclamé avec succès <strong>{{ points }}</strong> points !</p> <!-- Affichage dynamique des points -->
+    
+    {% if points %}
+        <p>Tu as réclamé avec succès <strong>{{ points }}</strong> points !</p>
+    {% elif error %}
+        <p style="color: red;"><strong>{{ error }}</strong></p>
+    {% else %}
+        <p>Une erreur inattendue s'est produite.</p>
+    {% endif %}
 
-    <!-- Bouton pour revenir à l'index -->
     <form action="/" method="get">
         <button type="submit">Retour à l'accueil</button>
     </form>

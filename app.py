@@ -4,7 +4,7 @@ import telebot
 from flask import Flask, request, render_template
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
@@ -38,56 +38,27 @@ def get_google_sheets_service():
     service = build('sheets', 'v4', credentials=creds)
     return service.spreadsheets()
 
-# Fonction pour enregistrer ou mettre à jour les informations de l'utilisateur dans Google Sheets
-def register_user_in_sheets(user_id, first_name, last_name):
-    # Récupère la feuille Google Sheets
-    service = get_google_sheets_service()
-    result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
-    values = result.get('values', [])
-    
-    # Vérifier si l'utilisateur existe déjà dans la feuille
-    user_found = False
-    for idx, row in enumerate(values):
-        if row[0] == user_id:  # Si l'ID utilisateur existe déjà
-            user_found = True
-            break
-    
-    # Si l'utilisateur n'est pas trouvé, on l'ajoute
-    if not user_found:
-        full_name = f"{first_name} {last_name}" if last_name else first_name
-        # Ajouter l'utilisateur avec son ID, son nom, et d'autres données (par exemple, points = 0)
-        new_user_row = [user_id, 0, datetime.now().strftime("%d/%m/%Y %H:%M"), full_name]
-        service.values().append(
-            spreadsheetId=GOOGLE_SHEET_ID,
-            range=USER_RANGE,
-            valueInputOption="RAW",
-            body={'values': [new_user_row]}
-        ).execute()
+# Route pour l'index de base
+@app.route('/', methods=['GET'])
+def home():
+    return render_template('index.html')
 
-# Fonction pour envoyer un bouton de réclamation
-def send_claim_button(chat_id, first_name, last_name):
-    full_name = f"{first_name} {last_name}" if last_name else first_name
+# Fonction pour envoyer un bouton de réclamation (qui ouvre un webapp)
+def send_claim_button(chat_id):
     markup = telebot.types.InlineKeyboardMarkup()
     # Ajouter un bouton qui ouvre une page web
     claim_button = telebot.types.InlineKeyboardButton(
-        text=f"Réclamer des points pour {full_name}",  # Utiliser le nom dans le texte du bouton
+        text="Réclamer des points", 
         url=f"https://faucet-app.onrender.com/claim?user_id={chat_id}"  # URL mise à jour pour inclure l'ID utilisateur
     )
     markup.add(claim_button)
-    bot.send_message(chat_id, f"Bonjour {full_name}, clique sur le bouton ci-dessous pour réclamer des points :", reply_markup=markup)
+    bot.send_message(chat_id, "Clique sur le bouton ci-dessous pour réclamer des points :", reply_markup=markup)
 
 # Fonction pour gérer le /start
 @bot.message_handler(commands=['start'])
 def handle_start(message):
-    user_id = message.chat.id  # Récupère l'ID utilisateur
-    first_name = message.chat.first_name  # Récupère le prénom de l'utilisateur
-    last_name = message.chat.last_name  # Récupère le nom de famille si disponible
-    
-    # Enregistrer l'utilisateur dans Google Sheets
-    register_user_in_sheets(user_id, first_name, last_name)
-    
-    # Envoyer le bouton de réclamation
-    send_claim_button(user_id, first_name, last_name)
+    user_id = message.chat.id  # Récupère l'ID utilisateur directement à partir du message
+    send_claim_button(user_id)  # Envoie le bouton de réclamation avec l'ID utilisateur
 
 # Route pour afficher la page de réclamation
 @app.route('/claim', methods=['GET'])
@@ -96,14 +67,14 @@ def claim_page():
     user_id = request.args.get('user_id')
     if not user_id:
         return "ID utilisateur manquant."
-    
+
     # Log de l'ID pour vérifier ce qui est récupéré
-    print(f"ID utilisateur récupéré : {user_id}")
+    print(f"ID utilisateur récupéré : {user_id}")  # Ajoute cette ligne pour vérifier l'ID
 
     # Générer un nombre de points aléatoires entre 10 et 100
     points = random.randint(10, 100)
 
-    # Enregistrer les points réclamés dans Google Sheets
+    # Enregistrer les points réclamés dans Google Sheets ou autre logique pour mettre à jour la base de données
     service = get_google_sheets_service()
     result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
     values = result.get('values', [])
@@ -112,6 +83,13 @@ def claim_page():
     for idx, row in enumerate(values):
         if row[0] == user_id:  # Vérifie si l'ID Telegram de l'utilisateur correspond à l'ID dans la feuille
             user_found = True
+            # Vérifier si l'utilisateur a réclamé dans les 10 dernières minutes
+            last_claim = row[2] if len(row) > 2 else None
+            if last_claim:
+                last_claim_time = datetime.strptime(last_claim, "%d/%m/%Y %H:%M")
+                if datetime.now() - last_claim_time < timedelta(minutes=1):  # 1 minute au lieu de 1 heure
+                    return "Tu as déjà réclamé des points il y a moins d'une minute. Essaie à nouveau plus tard."
+
             # Ajouter les points réclamés au solde actuel
             current_balance = int(row[1]) if row[1] else 0
             new_balance = current_balance + points

@@ -4,7 +4,7 @@ import telebot
 from flask import Flask, request, render_template
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
@@ -38,10 +38,10 @@ def get_google_sheets_service():
     service = build('sheets', 'v4', credentials=creds)
     return service.spreadsheets()
 
-# Route pour l'index de base qui affiche index.html avec un bouton claim
+# Route pour l'index de base
 @app.route('/', methods=['GET'])
 def home():
-    return render_template('index.html')  # Afficher la page index.html avec le bouton claim
+    return render_template('index.html')
 
 # Fonction pour envoyer un bouton de réclamation (qui ouvre un webapp)
 def send_claim_button(chat_id):
@@ -74,25 +74,42 @@ def claim_page():
     result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
     values = result.get('values', [])
 
-    # Vérifier si l'utilisateur existe déjà
     user_found = False
     for idx, row in enumerate(values):
         if row[0] == user_id:  # Vérifie si l'ID Telegram de l'utilisateur correspond à l'ID dans la feuille
             user_found = True
+            # Vérifier si l'utilisateur a réclamé dans les dernières 24h
+            last_claim = row[2] if len(row) > 2 else None
+            if last_claim:
+                last_claim_time = datetime.strptime(last_claim, "%d/%m/%Y %H:%M")
+                if datetime.now() - last_claim_time < timedelta(hours=1):
+                    return "Tu as déjà réclamé des points il y a moins d'une heure. Essaie à nouveau plus tard."
+
             # Ajouter les points réclamés au solde actuel
             current_balance = int(row[1]) if row[1] else 0
             new_balance = current_balance + points
+
+            # Mettre à jour le solde de l'utilisateur et son dernier claim
             service.values().update(
                 spreadsheetId=GOOGLE_SHEET_ID,
                 range=f'Users!B{idx + 2}',  # Mettre à jour le solde de l'utilisateur
                 valueInputOption="RAW",
                 body={'values': [[new_balance]]}
             ).execute()
+
+            # Mettre à jour le dernier claim de l'utilisateur
+            service.values().update(
+                spreadsheetId=GOOGLE_SHEET_ID,
+                range=f'Users!C{idx + 2}',  # Mettre à jour la colonne C pour 'last_claim'
+                valueInputOption="RAW",
+                body={'values': [[datetime.now().strftime("%d/%m/%Y %H:%M")]]}
+            ).execute()
+
             break
 
     # Si l'utilisateur n'existe pas, l'ajouter à la feuille
     if not user_found:
-        new_user_row = [user_id, points]  # Crée une nouvelle ligne avec l'ID de l'utilisateur et ses points
+        new_user_row = [user_id, points, datetime.now().strftime("%d/%m/%Y %H:%M")]  # Crée une nouvelle ligne avec l'ID de l'utilisateur, ses points et la date de réclamation
         service.values().append(
             spreadsheetId=GOOGLE_SHEET_ID,
             range=USER_RANGE,

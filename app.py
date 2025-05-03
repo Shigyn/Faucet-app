@@ -106,7 +106,7 @@ def submit_claim():
             last_claim = row[2] if len(row) > 2 else None
             if last_claim:
                 last_claim_time = datetime.strptime(last_claim, "%d/%m/%Y %H:%M")
-                if datetime.now() - last_claim_time < timedelta(minutes=1):
+                if datetime.now() - last_claim_time < timedelta(minutes=5):
                     return render_template("claim.html", error="Tu as déjà réclamé des points il y a moins d'une minute. Essaie à nouveau plus tard.")
 
             current_balance = int(row[1]) if row[1] else 0

@@ -62,10 +62,11 @@ def handle_start(message):
 # Route pour afficher la page de réclamation
 @app.route('/claim', methods=['GET'])
 def claim_page():
+    # Extraire l'ID utilisateur depuis la requête GET
     user_id = request.args.get('user_id')
     if not user_id:
         return "ID utilisateur manquant."
-    
+
     # Générer un nombre de points aléatoires entre 10 et 100
     points = random.randint(10, 100)
 

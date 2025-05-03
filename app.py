@@ -57,7 +57,8 @@ def send_claim_button(chat_id):
 # Fonction pour gérer le /start
 @bot.message_handler(commands=['start'])
 def handle_start(message):
-    send_claim_button(message.chat.id)  # Envoie le bouton de réclamation quand l'utilisateur démarre le bot
+    user_id = message.chat.id  # Récupère l'ID utilisateur directement à partir du message
+    send_claim_button(user_id)  # Envoie le bouton de réclamation avec l'ID utilisateur
 
 # Route pour afficher la page de réclamation
 @app.route('/claim', methods=['GET'])

@@ -9,17 +9,11 @@ import base64
 from io import BytesIO
 
 app = Flask(__name__)
-
-# Chargement des variables d'environnement
-TELEGRAM_BOT_API_KEY = os.environ.get("TELEGRAM_BOT_API_KEY")
-GOOGLE_SHEET_ID = os.environ.get("GOOGLE_SHEET_ID")
-USER_RANGE = os.environ.get("USER_RANGE")
-TRANSACTION_RANGE = os.environ.get("TRANSACTION_RANGE")
-
-if not TELEGRAM_BOT_API_KEY:
-    raise Exception("La variable TELEGRAM_BOT_API_KEY est manquante.")
-
 bot = telebot.TeleBot(TELEGRAM_BOT_API_KEY)
+
+SHEET_ID = GOOGLE_SHEET_ID
+RANGE_USERS = USER_RANGE
+RANGE_TRANSACTIONS = TRANSACTION_RANGE
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
@@ -74,7 +68,7 @@ def claim_page():
 
     # Enregistrer les points réclamés dans Google Sheets ou autre logique pour mettre à jour la base de données
     service = get_google_sheets_service()
-    result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
+    result = service.values().get(spreadsheetId=SHEET_ID, range=RANGE_USERS).execute()
     values = result.get('values', [])
 
     # Trouver l'utilisateur dans la feuille et mettre à jour ses points
@@ -84,3 +78,36 @@ def claim_page():
             current_balance = int(row[1]) if row[1] else 0
             new_balance = current_balance + points
             service.values().update(
+                spreadsheetId=SHEET_ID,
+                range=f'Users!B{idx + 2}',  # Mettre à jour le solde de l'utilisateur
+                valueInputOption="RAW",
+                body={'values': [[new_balance]]}
+            ).execute()
+
+            # Enregistrer la transaction dans la feuille "Transactions"
+            transaction_row = [user_id, 'claim', points, datetime.now().strftime("%d/%m/%Y %H:%M")]
+            service.values().append(
+                spreadsheetId=SHEET_ID,
+                range="Transactions",
+                valueInputOption="RAW",
+                body={'values': [transaction_row]}
+            ).execute()
+
+            break
+
+    # Afficher la page claim.html avec les points générés
+    return render_template("claim.html", points=points)
+
+# Webhook
+@app.route(f"/{TELEGRAM_BOT_API_KEY}", methods=["POST"])
+def webhook():
+    json_str = request.get_data().decode("UTF-8")
+    update = telebot.types.Update.de_json(json_str)
+    bot.process_new_updates([update])
+    return "", 200
+
+if __name__ == "__main__":
+    # Configurer le webhook pour Telegram
+    bot.remove_webhook()
+    bot.set_webhook(url=f"https://faucet-app-psi.vercel.app/{TELEGRAM_BOT_API_KEY}")
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))

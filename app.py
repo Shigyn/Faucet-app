@@ -1,6 +1,6 @@
 import os
 import telebot
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, redirect
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
@@ -33,6 +33,12 @@ def get_google_sheets_service():
     service = build('sheets', 'v4', credentials=creds)
     return service.spreadsheets()
 
+# Page d'accueil redirigeant vers /claim
+@app.route("/", methods=["GET"])
+def home():
+    return redirect("/claim")
+
+# Route pour afficher la page de réclamation
 @app.route('/claim', methods=['GET'])
 def claim_page():
     user_id = request.args.get('user_id')  # Récupérer l'user_id de la requête
@@ -57,6 +63,7 @@ def handle_start(message):
     user_id = message.chat.id
     send_claim_button(user_id)
 
+# Route pour traiter la réclamation
 @app.route('/submit_claim', methods=['POST'])
 def submit_claim():
     user_id = request.form.get('user_id')
@@ -117,6 +124,7 @@ def submit_claim():
 
     return render_template("claim.html", points=points, balance=get_user_balance(user_id))
 
+# Webhook pour recevoir les mises à jour Telegram
 @app.route(f"/{TELEGRAM_BOT_API_KEY}", methods=["POST"])
 def webhook():
     try:
@@ -133,6 +141,7 @@ def set_telegram_webhook():
     bot.remove_webhook()
     bot.set_webhook(url=webhook_url)
 
+# Fonction pour récupérer le solde de l'utilisateur depuis Google Sheets
 def get_user_balance(user_id):
     service = get_google_sheets_service()
     result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
@@ -144,6 +153,7 @@ def get_user_balance(user_id):
 
     return 0
 
+# Lancer l'application Flask et configurer le webhook
 if __name__ == "__main__":
     set_telegram_webhook()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))

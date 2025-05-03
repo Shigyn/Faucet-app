@@ -1,145 +1,63 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Réclamer des points</title>
-    <link href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&display=swap" rel="stylesheet">
+@app.route('/submit_claim', methods=['POST'])
+def submit_claim():
+    user_id = request.form.get('user_id')
+    if not user_id:
+        return "ID utilisateur manquant."
 
-    <style>
-        body {
-            background-image: url('https://www.w3schools.com/w3images/brickwall.jpg');
-            background-size: cover;
-            font-family: 'UnifrakturCook', cursive;
-            color: white;
-            text-align: center;
-        }
+    points = 100
+    service = get_google_sheets_service()
+    result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
+    values = result.get('values', [])
 
-        h1 {
-            font-size: 50px;
-            margin-top: 50px;
-            text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.7);
-        }
+    user_found = False
+    current_balance = 0
+    new_balance = 0
 
-        .claim-button {
-            display: inline-block;
-            padding: 20px 40px;
-            background-color: #D2691E;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 22px;
-            margin-top: 30px;
-            text-align: center;
-            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
-        }
+    for idx, row in enumerate(values):
+        if str(row[0]) == str(user_id):
+            user_found = True
+            last_claim = row[2] if len(row) > 2 else None
 
-        .claim-button:hover {
-            background-color: #8B4513;
-        }
+            if last_claim:
+                last_claim_time = datetime.strptime(last_claim, "%d/%m/%Y %H:%M")
+                if datetime.now() - last_claim_time < timedelta(minutes=1):
+                    current_balance = int(row[1]) if len(row) > 1 else 0
+                    return render_template("claim.html", error="Tu as déjà réclamé des points il y a moins d'une minute. Essaie à nouveau plus tard.", balance=current_balance)
 
-        .balance-box {
-            background-color: #D2691E;
-            color: white;
-            font-size: 1.5em;
-            padding: 20px;
-            border-radius: 10px;
-            margin-top: 20px;
-            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
-        }
+            current_balance = int(row[1]) if row[1] else 0
+            new_balance = current_balance + points
 
-        .balance-box strong {
-            font-size: 1.8em;
-        }
+            service.values().update(
+                spreadsheetId=GOOGLE_SHEET_ID,
+                range=f'Users!B{idx + 2}',
+                valueInputOption="RAW",
+                body={'values': [[new_balance]]}
+            ).execute()
 
-        .loading {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            text-align: center;
-            font-size: 30px;
-            padding-top: 200px;
-            z-index: 9999;
-            font-family: 'UnifrakturCook', cursive;
-        }
+            service.values().update(
+                spreadsheetId=GOOGLE_SHEET_ID,
+                range=f'Users!C{idx + 2}',
+                valueInputOption="RAW",
+                body={'values': [[datetime.now().strftime("%d/%m/%Y %H:%M")]]}
+            ).execute()
+            break
 
-        .loading .spinner {
-            border: 16px solid #f3f3f3;
-            border-top: 16px solid #3498db;
-            border-radius: 50%;
-            width: 120px;
-            height: 120px;
-            animation: spin 2s linear infinite;
-        }
+    if not user_found:
+        new_balance = points
+        new_user_row = [user_id, new_balance, datetime.now().strftime("%d/%m/%Y %H:%M")]
+        service.values().append(
+            spreadsheetId=GOOGLE_SHEET_ID,
+            range=USER_RANGE,
+            valueInputOption="RAW",
+            body={'values': [new_user_row]}
+        ).execute()
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
-</head>
-<body>
+    transaction_row = [user_id, 'claim', points, datetime.now().strftime("%d/%m/%Y %H:%M")]
+    service.values().append(
+        spreadsheetId=GOOGLE_SHEET_ID,
+        range="Transactions",
+        valueInputOption="RAW",
+        body={'values': [transaction_row]}
+    ).execute()
 
-    <h1>Réclamez vos points, aventurier !</h1>
-
-    <!-- Affichage de la balance ici -->
-    <div class="balance-box">
-        <p>Ton solde actuel est : <strong>{{ balance }}</strong> points</p>
-    </div>
-
-    <button class="claim-button" onclick="startLoading()">Réclamer des points</button>
-
-    <div class="loading" id="loading">
-        <div class="spinner"></div>
-        <p>Veuillez patienter...</p>
-    </div>
-
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script>
-        async function startLoading() {
-            const tg = window.Telegram.WebApp;
-            const userId = tg.initDataUnsafe?.user?.id;
-
-            if (!userId) {
-                alert("Impossible de récupérer l'ID utilisateur Telegram.");
-                return;
-            }
-
-            document.getElementById("loading").style.display = "block";
-            document.querySelector(".claim-button").disabled = true;
-
-            try {
-                const response = await fetch('/submit_claim', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: new URLSearchParams({ user_id: userId })
-                });
-
-                const text = await response.text();
-
-                if (response.ok) {
-                    window.location.href = "/claim?user_id=" + userId; // Redirection vers la page de réclamation avec user_id
-                } else {
-                    alert("Erreur : " + text);
-                    document.getElementById("loading").style.display = "none";
-                    document.querySelector(".claim-button").disabled = false;
-                }
-
-            } catch (e) {
-                alert("Erreur réseau.");
-                document.getElementById("loading").style.display = "none";
-                document.querySelector(".claim-button").disabled = false;
-            }
-        }
-    </script>
-
-</body>
-</html>
+    return render_template("claim.html", points=points, balance=new_balance)

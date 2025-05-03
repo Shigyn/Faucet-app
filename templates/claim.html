@@ -56,17 +56,19 @@
 <body>
     <h1>Réclamation de Points</h1>
 
-    {% if points %}
-        <p>Tu as réclamé avec succès <strong>{{ points }}</strong> points !</p>
-    {% elif error %}
+    {% if error %}
         <p style="color: red;"><strong>{{ error }}</strong></p>
-    {% else %}
+    {% elif points %}
+        <p>Tu as réclamé avec succès <strong>{{ points }}</strong> points !</p>
+    {% elif balance is none %}
         <p>Une erreur inattendue s'est produite.</p>
     {% endif %}
 
-    <div class="balance-box">
-        <p>Ton solde actuel est : <strong>{{ balance }}</strong> points</p>
-    </div>
+    {% if balance is not none %}
+        <div class="balance-box">
+            <p>Ton solde actuel est : <strong>{{ balance }}</strong> points</p>
+        </div>
+    {% endif %}
 
     <form action="/" method="get">
         <button type="submit">Retour à l'accueil</button>

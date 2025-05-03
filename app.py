@@ -5,7 +5,6 @@ from flask import Flask, request, render_template
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 from datetime import datetime
-import base64
 
 app = Flask(__name__)
 
@@ -30,20 +29,12 @@ bot = telebot.TeleBot(TELEGRAM_BOT_API_KEY)
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
 # Fonction pour récupérer les credentials Google
-def download_credentials():
-    creds_base64 = os.environ.get('GOOGLE_CREDS_B64')
-    if not creds_base64:
-        raise Exception("La variable d'environnement 'GOOGLE_CREDS_B64' est manquante.")
-    
-    creds_json = base64.b64decode(creds_base64).decode('utf-8')
-    creds_file = os.path.join(os.getcwd(), 'google', 'service_account_credentials.json')
-    with open(creds_file, 'w') as f:
-        f.write(creds_json)
-    
-    return creds_file
-
 def get_google_sheets_service():
-    creds = Credentials.from_service_account_file(download_credentials(), scopes=SCOPES)
+    creds_json = os.environ.get('GOOGLE_CREDS')
+    if not creds_json:
+        raise Exception("La variable d'environnement 'GOOGLE_CREDS' est manquante.")
+    
+    creds = Credentials.from_service_account_info(eval(creds_json), scopes=SCOPES)
     service = build('sheets', 'v4', credentials=creds)
     return service.spreadsheets()
 

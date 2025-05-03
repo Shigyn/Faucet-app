@@ -4,10 +4,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Réclamer des points</title>
+    <style>
+        body {
+            background: url('https://www.transparenttextures.com/patterns/brick-wall.png');
+            font-family: 'Press Start 2P', cursive;
+            color: white;
+            text-align: center;
+            padding: 50px;
+        }
+        
+        h1 {
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
+
+        p {
+            font-size: 1.5em;
+            margin-bottom: 30px;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            font-size: 1.2em;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+    <!-- Google font "Press Start 2P" pour un effet rétro RPG -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
 <body>
     <h1>Réclamation de Points</h1>
-    <p>Tu as réclamé avec succès {{ points }} points !</p> <!-- Affichage dynamique des points -->
+    <p>Tu as réclamé avec succès <strong>{{ points }}</strong> points !</p> <!-- Affichage dynamique des points -->
 
     <!-- Bouton pour revenir à l'index -->
     <form action="/" method="get">

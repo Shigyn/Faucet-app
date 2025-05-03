@@ -62,7 +62,7 @@ def handle_start(message):
 # Route pour afficher la page de réclamation
 @app.route('/claim', methods=['GET'])
 def claim_page():
-    # Extraire l'ID utilisateur depuis la requête GET
+    # Récupère l'ID Telegram à partir de la session utilisateur (pas dans l'URL)
     user_id = request.args.get('user_id')
     if not user_id:
         return "ID utilisateur manquant."

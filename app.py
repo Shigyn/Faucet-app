@@ -35,17 +35,20 @@ def get_google_sheets_service():
 
 @app.route('/')
 def index():
-    return render_template("index.html")
+    user_id = request.args.get('user_id')
+    if user_id:
+        balance = get_user_balance(user_id)
+        return render_template("index.html", balance=balance)
+    return render_template("index.html", balance=None)
 
 @app.route('/claim', methods=['GET'])
 def claim_page():
-    user_id = request.args.get('user_id')  # Récupérer l'user_id de la requête
+    user_id = request.args.get('user_id')
     if user_id:
         user_balance = get_user_balance(user_id)
         return render_template("claim.html", balance=user_balance)
     return render_template("claim.html")
 
-# Fonction pour envoyer le bouton de réclamation via Telegram
 def send_claim_button(chat_id):
     markup = telebot.types.InlineKeyboardMarkup()
     web_app = telebot.types.WebAppInfo(url="https://faucet-app.onrender.com/claim")

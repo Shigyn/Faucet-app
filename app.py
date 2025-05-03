@@ -38,10 +38,10 @@ def get_google_sheets_service():
     service = build('sheets', 'v4', credentials=creds)
     return service.spreadsheets()
 
-# Route pour l'index de base
+# Route pour l'index de base qui affiche index.html avec un bouton claim
 @app.route('/', methods=['GET'])
 def home():
-    return "Application Flask en cours d'exécution. L'API est accessible."
+    return render_template('index.html')  # Afficher la page index.html avec le bouton claim
 
 # Fonction pour envoyer un bouton de réclamation (qui ouvre un webapp)
 def send_claim_button(chat_id):

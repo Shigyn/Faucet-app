@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
-# Vérifier si les variables d'environnement sont définies correctement
 TELEGRAM_BOT_API_KEY = os.getenv('TELEGRAM_BOT_API_KEY')
 GOOGLE_SHEET_ID = os.getenv('GOOGLE_SHEET_ID')
 USER_RANGE = os.getenv('USER_RANGE')
@@ -23,7 +22,6 @@ if not TRANSACTION_RANGE:
     raise ValueError("La variable d'environnement 'TRANSACTION_RANGE' est manquante.")
 
 bot = telebot.TeleBot(TELEGRAM_BOT_API_KEY)
-
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
 def get_google_sheets_service():
@@ -37,26 +35,13 @@ def get_google_sheets_service():
 
 @app.route('/claim', methods=['GET'])
 def claim_page():
-    user_id = request.args.get('user_id')
-    balance = None
-
+    user_id = request.args.get('user_id')  # Récupérer l'user_id de la requête
     if user_id:
-        try:
-            service = get_google_sheets_service()
-            result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
-            values = result.get('values', [])
+        user_balance = get_user_balance(user_id)
+        return render_template("claim.html", balance=user_balance)
+    return render_template("claim.html")
 
-            for row in values:
-                if str(row[0]) == str(user_id):
-                    balance = int(row[1]) if len(row) > 1 else 0
-                    break
-        except Exception as e:
-            print(f"Erreur en récupérant la balance : {e}")
-
-    return render_template("claim.html", balance=balance)
-
-
-# Mise à jour : bouton avec WebAppInfo (pas d'user_id dans URL)
+# Bouton avec WebAppInfo (sans user_id dans URL)
 def send_claim_button(chat_id):
     markup = telebot.types.InlineKeyboardMarkup()
     web_app = telebot.types.WebAppInfo(url="https://faucet-app.onrender.com/claim")
@@ -72,65 +57,47 @@ def handle_start(message):
     user_id = message.chat.id
     send_claim_button(user_id)
 
-@app.route('/claim', methods=['GET'])
-def claim_page():
-    user_id = request.args.get('user_id')  # Récupérer l'user_id de la requête
-    if user_id:
-        # Récupérer la balance de l'utilisateur
-        user_balance = get_user_balance(user_id)
-        return render_template("claim.html", balance=user_balance)
-    return render_template("claim.html")
-
 @app.route('/submit_claim', methods=['POST'])
 def submit_claim():
-    # Récupérer l'user_id depuis la requête POST
     user_id = request.form.get('user_id')
     if not user_id:
         return "ID utilisateur manquant."
 
     print(f"ID utilisateur récupéré via POST : {user_id}")
-
-    # Nombre de points à 100 pour chaque réclamation
     points = 100
 
-    # Initialiser le service Google Sheets
     service = get_google_sheets_service()
     result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
     values = result.get('values', [])
 
     user_found = False
     for idx, row in enumerate(values):
-        # Assurez-vous que l'ID utilisateur est correctement comparé
         if str(row[0]) == str(user_id):
             user_found = True
             last_claim = row[2] if len(row) > 2 else None
             if last_claim:
                 last_claim_time = datetime.strptime(last_claim, "%d/%m/%Y %H:%M")
                 if datetime.now() - last_claim_time < timedelta(minutes=5):
-                    return render_template("claim.html", error="Tu as déjà réclamé des points il y a moins d'une minute. Essaie à nouveau plus tard.")
+                    return render_template("claim.html", error="Tu as déjà réclamé des points il y a moins de 5 minutes. Essaie plus tard.", balance=int(row[1]))
 
             current_balance = int(row[1]) if row[1] else 0
             new_balance = current_balance + points
 
-            # Mettre à jour le solde de l'utilisateur dans Google Sheets
             service.values().update(
                 spreadsheetId=GOOGLE_SHEET_ID,
-                range=f'Users!B{idx + 2}',  # Mettre à jour le solde de l'utilisateur
+                range=f'Users!B{idx + 2}',
                 valueInputOption="RAW",
                 body={'values': [[new_balance]]}
             ).execute()
 
-            # Mettre à jour le dernier claim de l'utilisateur
             service.values().update(
                 spreadsheetId=GOOGLE_SHEET_ID,
-                range=f'Users!C{idx + 2}',  # Mettre à jour la colonne C pour 'last_claim'
+                range=f'Users!C{idx + 2}',
                 valueInputOption="RAW",
                 body={'values': [[datetime.now().strftime("%d/%m/%Y %H:%M")]]}
             ).execute()
-
             break
 
-    # Si l'utilisateur n'existe pas, l'ajouter à la feuille
     if not user_found:
         new_user_row = [user_id, points, datetime.now().strftime("%d/%m/%Y %H:%M")]
         service.values().append(
@@ -140,7 +107,6 @@ def submit_claim():
             body={'values': [new_user_row]}
         ).execute()
 
-    # Enregistrer la transaction dans la feuille "Transactions"
     transaction_row = [user_id, 'claim', points, datetime.now().strftime("%d/%m/%Y %H:%M")]
     service.values().append(
         spreadsheetId=GOOGLE_SHEET_ID,
@@ -149,8 +115,7 @@ def submit_claim():
         body={'values': [transaction_row]}
     ).execute()
 
-    # Retourner le nombre de points réclamés
-    return render_template("claim.html", points=points)
+    return render_template("claim.html", points=points, balance=get_user_balance(user_id))
 
 @app.route(f"/{TELEGRAM_BOT_API_KEY}", methods=["POST"])
 def webhook():
@@ -169,18 +134,15 @@ def set_telegram_webhook():
     bot.set_webhook(url=webhook_url)
 
 def get_user_balance(user_id):
-    # Fonction pour récupérer la balance de l'utilisateur depuis Google Sheets
     service = get_google_sheets_service()
     result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
     values = result.get('values', [])
 
-    # Rechercher l'utilisateur dans les données et retourner sa balance
     for row in values:
-        if str(row[0]) == str(user_id):  # Comparer l'ID utilisateur
-            balance = int(row[1]) if row[1] else 0  # Assurez-vous que la balance est un nombre entier
-            return balance
+        if str(row[0]) == str(user_id):
+            return int(row[1]) if row[1] else 0
 
-    return 0  # Si l'utilisateur n'est pas trouvé, on retourne 0 comme balance
+    return 0
 
 if __name__ == "__main__":
     set_telegram_webhook()

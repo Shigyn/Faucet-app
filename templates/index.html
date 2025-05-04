@@ -46,6 +46,7 @@
             border-radius: 10px;
             margin-top: 20px;
             text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
+            display: none;
         }
         .balance-box strong {
             font-size: 1.8em;
@@ -84,11 +85,9 @@
 
     <h1>Réclamez vos points, aventurier !</h1>
 
-    {% if balance is not none %}
-    <div class="balance-box">
-        <p>Ton solde actuel est : <strong>{{ balance }}</strong> points</p>
+    <div class="balance-box" id="balanceBox">
+        <p>Ton solde actuel est : <strong id="balanceValue">...</strong> points</p>
     </div>
-    {% endif %}
 
     <button class="claim-button" onclick="startLoading()">Réclamer des points</button>
 
@@ -99,10 +98,26 @@
 
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
-        async function startLoading() {
-            const tg = window.Telegram.WebApp;
-            const userId = tg.initDataUnsafe?.user?.id;
+        const tg = window.Telegram.WebApp;
+        const userId = tg.initDataUnsafe?.user?.id;
 
+        window.addEventListener("load", async () => {
+            if (userId) {
+                try {
+                    const res = await fetch(`/get_balance?user_id=${userId}`);
+                    const data = await res.json();
+
+                    if (res.ok && data.balance !== undefined) {
+                        document.getElementById("balanceValue").innerText = data.balance;
+                        document.getElementById("balanceBox").style.display = "block";
+                    }
+                } catch (e) {
+                    console.error("Erreur de récupération du solde", e);
+                }
+            }
+        });
+
+        async function startLoading() {
             if (!userId) {
                 alert("Veuillez utiliser ce bouton dans Telegram pour réclamer vos points.");
                 return;

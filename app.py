@@ -1,6 +1,6 @@
 import os
 import telebot
-from flask import Flask, request, render_template, send_from_directory
+from flask import Flask, request, render_template, send_from_directory, jsonify
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
@@ -103,6 +103,18 @@ def submit_claim():
     balance = get_user_balance(user_id)
     return render_template("claim.html", points=points, balance=balance, user_id=user_id)
 
+@app.route('/get_balance')
+def get_balance():
+    user_id = request.args.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'user_id manquant'}), 400
+
+    try:
+        balance = get_user_balance(user_id)
+        return jsonify({'balance': balance})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route(f"/{TELEGRAM_BOT_API_KEY}", methods=["POST"])
 def webhook():
     try:
@@ -125,7 +137,7 @@ def favicon():
 
 def get_user_balance(user_id):
     if not user_id:
-        return None
+        return 0
     service = get_google_sheets_service()
     result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
     values = result.get('values', [])

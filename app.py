@@ -11,18 +11,20 @@ TELEGRAM_BOT_API_KEY = os.getenv('TELEGRAM_BOT_API_KEY')
 GOOGLE_SHEET_ID = os.getenv('GOOGLE_SHEET_ID')
 USER_RANGE = os.getenv('USER_RANGE')
 TRANSACTION_RANGE = os.getenv('TRANSACTION_RANGE')
-TASKS_RANGE = os.getenv('TASKS_RANGE')  # Nouveau range pour les tâches
+TASKS_RANGE = os.getenv('TASKS_RANGE')
 
-if not TELEGRAM_BOT_API_KEY:
-    raise ValueError("La variable d'environnement 'TELEGRAM_BOT_API_KEY' est manquante.")
-if not GOOGLE_SHEET_ID:
-    raise ValueError("La variable d'environnement 'GOOGLE_SHEET_ID' est manquante.")
-if not USER_RANGE:
-    raise ValueError("La variable d'environnement 'USER_RANGE' est manquante.")
-if not TRANSACTION_RANGE:
-    raise ValueError("La variable d'environnement 'TRANSACTION_RANGE' est manquante.")
-if not TASKS_RANGE:
-    raise ValueError("La variable d'environnement 'TASKS_RANGE' est manquante.")  # Vérification du range des tâches
+# Vérification des variables d’environnement
+required_env_vars = {
+    "TELEGRAM_BOT_API_KEY": TELEGRAM_BOT_API_KEY,
+    "GOOGLE_SHEET_ID": GOOGLE_SHEET_ID,
+    "USER_RANGE": USER_RANGE,
+    "TRANSACTION_RANGE": TRANSACTION_RANGE,
+    "TASKS_RANGE": TASKS_RANGE
+}
+
+for var, val in required_env_vars.items():
+    if not val:
+        raise ValueError(f"La variable d'environnement '{var}' est manquante.")
 
 bot = telebot.TeleBot(TELEGRAM_BOT_API_KEY)
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
@@ -35,38 +37,45 @@ def get_google_sheets_service():
     service = build('sheets', 'v4', credentials=creds)
     return service.spreadsheets()
 
-@app.route('/tasks')
-def tasks_page():
-    user_id = request.args.get('user_id')
-    
-    if not user_id:
-        return "ID utilisateur manquant.", 400
-    
-    user_balance = get_user_balance(user_id) if user_id else None
-    tasks = get_user_tasks(user_id)
-    
-    return render_template("tasks.html", balance=user_balance, tasks=tasks, user_id=user_id)
-
-def get_user_tasks(user_id):
-    service = get_google_sheets_service()
-    result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=TASKS_RANGE).execute()
-    values = result.get('values', [])
-    
-    tasks_list = []
-    
-    for row in values:
-        if str(row[0]) == str(user_id):  # Si on trouve l'utilisateur
-            task_description = row[1] if len(row) > 1 else "Pas de description"
-            task_status = row[2] if len(row) > 2 else "Non complété"
-            tasks_list.append({'description': task_description, 'status': task_status})
-    
-    return tasks_list
-
 @app.route('/')
 def index():
     user_id = request.args.get('user_id')
     balance = get_user_balance(user_id) if user_id else None
     return render_template("index.html", balance=balance, user_id=user_id)
+
+@app.route('/tasks')
+def tasks_page():
+    user_id = request.args.get('user_id')
+    if not user_id:
+        return "ID utilisateur manquant.", 400
+
+    user_balance = get_user_balance(user_id)
+    tasks = get_user_tasks(user_id)
+    return render_template("tasks.html", balance=user_balance, tasks=tasks, user_id=user_id)
+
+def get_user_tasks(user_id):
+    """
+    Récupère les tâches spécifiques d’un utilisateur depuis Google Sheets.
+    Format attendu : user_id | titre | description | points | statut | lien
+    """
+    service = get_google_sheets_service()
+    result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=TASKS_RANGE).execute()
+    values = result.get('values', [])
+
+    tasks_list = []
+    for row in values:
+        if len(row) < 1 or str(row[0]).strip() != str(user_id):
+            continue
+        task = {
+            'title': row[1] if len(row) > 1 else "Tâche",
+            'description': row[2] if len(row) > 2 else "Pas de description",
+            'points': row[3] if len(row) > 3 else "0",
+            'status': row[4].strip().lower() if len(row) > 4 else "non complété",
+            'link': row[5] if len(row) > 5 else "#"
+        }
+        tasks_list.append(task)
+
+    return tasks_list
 
 @app.route('/claim', methods=['GET'])
 def claim_page():
@@ -175,37 +184,30 @@ def get_user_balance(user_id):
     for row in values:
         if str(row[0]) == str(user_id):
             return int(row[1]) if len(row) > 1 and row[1] else 0
-
     return 0
 
-# Nouvelle route pour la page Friends
 @app.route('/friends')
 def friends_page():
     user_id = request.args.get('user_id')
-    
-    # On récupère les informations de l'utilisateur, comme son solde de points
     user_balance = get_user_balance(user_id) if user_id else None
-
-    # Récupérer les amis et leurs points
-    friends = get_user_friends(user_id)  # Cette fonction devra être créée pour récupérer les amis
-    
+    friends = get_user_friends(user_id)
     return render_template("friends.html", balance=user_balance, friends=friends, user_id=user_id)
 
-# Fonction pour récupérer les amis et leurs points
 def get_user_friends(user_id):
     service = get_google_sheets_service()
     result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
     values = result.get('values', [])
-
     friends_list = []
-    
+
     for row in values:
-        if str(row[0]) == str(user_id):  # Si on trouve l'utilisateur
-            # Supposons que les amis sont dans la colonne 3 et les points dans la colonne 2 (ajuste selon ta structure)
-            friends_ids = row[3] if len(row) > 3 else []  # Liste des IDs d'amis (si existante)
-            for friend_id in friends_ids.split(','):  # Si les amis sont séparés par des virgules
-                friend_balance = get_user_balance(friend_id.strip())  # On récupère le solde de chaque ami
-                friends_list.append({'id': friend_id.strip(), 'balance': friend_balance})
+        if str(row[0]) == str(user_id):
+            friends_ids = row[3] if len(row) > 3 else ""
+            for friend_id in friends_ids.split(','):
+                friend_id = friend_id.strip()
+                if friend_id:
+                    balance = get_user_balance(friend_id)
+                    friends_list.append({'id': friend_id, 'balance': balance})
+            break
 
     return friends_list
 

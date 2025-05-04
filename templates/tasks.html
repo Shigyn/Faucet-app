@@ -11,7 +11,7 @@
       font-family: 'UnifrakturCook', cursive;
       color: white;
       text-align: center;
-      padding-bottom: 70px;
+      padding-bottom: 100px;
     }
     h1 {
       font-size: 50px;
@@ -21,14 +21,43 @@
     .task-box {
       background-color: #D2691E;
       color: white;
-      font-size: 1.5em;
+      font-size: 1.2em;
       padding: 20px;
       border-radius: 10px;
-      margin-top: 20px;
+      margin: 20px auto;
+      width: 90%;
+      max-width: 600px;
       text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.4);
     }
-    .task-box strong {
-      font-size: 1.8em;
+    .task-box h2 {
+      font-size: 1.5em;
+      margin-bottom: 10px;
+    }
+    .task-box p {
+      margin: 5px 0;
+    }
+    .task-btn {
+      margin-top: 15px;
+      display: inline-block;
+      padding: 12px 24px;
+      border: none;
+      font-size: 1em;
+      border-radius: 6px;
+      cursor: pointer;
+      color: white;
+      text-decoration: none;
+      transition: background-color 0.3s ease;
+    }
+    .btn-completed {
+      background-color: #28a745;
+      cursor: default;
+    }
+    .btn-do {
+      background-color: #ff8800;
+    }
+    .btn-do:hover {
+      background-color: #e07000;
     }
     .bottom-menu {
       position: fixed;
@@ -38,13 +67,15 @@
       background-color: #333;
       padding: 15px 0;
       text-align: center;
+      box-shadow: 0 -2px 8px rgba(0,0,0,0.4);
     }
     .bottom-menu a {
       color: white;
       text-decoration: none;
       font-size: 18px;
       margin: 0 20px;
-      padding: 10px;
+      padding: 10px 15px;
+      transition: background-color 0.3s ease;
     }
     .bottom-menu a:hover {
       background-color: #D2691E;
@@ -56,14 +87,19 @@
 
   <h1>Liste des Tâches</h1>
 
-  <div class="task-box">
-    <p>Voici vos tâches à accomplir :</p>
-    <ul>
-      {% for task in tasks %}
-        <li><strong>{{ task.description }}</strong> - Statut: {{ task.status }}</li>
-      {% endfor %}
-    </ul>
-  </div>
+  {% for task in tasks %}
+    <div class="task-box">
+      <h2>{{ task.title }}</h2>
+      <p>{{ task.description }}</p>
+      <p><strong>Points :</strong> {{ task.points }}</p>
+      
+      {% if task.status == "complété" %}
+        <button class="task-btn btn-completed" disabled>✅ Terminé</button>
+      {% else %}
+        <a href="{{ task.link }}" class="task-btn btn-do" target="_blank" rel="noopener noreferrer">🚀 Faire la tâche</a>
+      {% endif %}
+    </div>
+  {% endfor %}
 
   <div class="bottom-menu">
     <a href="/claim?user_id={{ user_id }}">Claim</a>

@@ -1,76 +1,135 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Réclamer des points</title>
-    <style>
-        body {
-            background: url('https://www.transparenttextures.com/patterns/brick-wall.png');
-            font-family: 'Press Start 2P', cursive;
-            color: white;
-            text-align: center;
-            padding: 50px;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Réclamer des points</title>
+  <style>
+    body {
+      background: url('https://www.transparenttextures.com/patterns/brick-wall.png');
+      font-family: 'Press Start 2P', cursive;
+      color: white;
+      text-align: center;
+      padding: 50px;
+    }
 
-        h1 {
-            font-size: 3em;
-            margin-bottom: 20px;
-        }
+    h1 {
+      font-size: 3em;
+      margin-bottom: 20px;
+    }
 
-        p {
-            font-size: 1.5em;
-            margin-bottom: 30px;
-        }
+    p {
+      font-size: 1.5em;
+      margin-bottom: 30px;
+    }
 
-        button {
-            background-color: #4CAF50;
-            color: white;
-            font-size: 1.2em;
-            padding: 15px 30px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      font-size: 1.2em;
+      padding: 15px 30px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
 
-        button:hover {
-            background-color: #45a049;
-        }
+    button:hover {
+      background-color: #45a049;
+    }
 
-        .balance-box {
-            background-color: #D2691E;
-            color: white;
-            font-size: 1.5em;
-            padding: 20px;
-            border-radius: 10px;
-            margin: 20px 0;
-            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
-        }
+    .balance-box {
+      background-color: #D2691E;
+      color: white;
+      font-size: 1.5em;
+      padding: 20px;
+      border-radius: 10px;
+      margin: 20px 0;
+      text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
+    }
 
-        .balance-box strong {
-            font-size: 1.8em;
-        }
-    </style>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    .balance-box strong {
+      font-size: 1.8em;
+    }
+
+    .loading {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      text-align: center;
+      font-size: 30px;
+      padding-top: 200px;
+      z-index: 9999;
+      font-family: 'Press Start 2P', cursive;
+    }
+
+    .loading .spinner {
+      border: 16px solid #f3f3f3;
+      border-top: 16px solid #3498db;
+      border-radius: 50%;
+      width: 120px;
+      height: 120px;
+      animation: spin 2s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
 <body>
-    <h1>Réclamation de Points</h1>
 
-    {% if error %}
-        <p style="color: red;"><strong>{{ error }}</strong></p>
-    {% elif points %}
-        <p>Tu as réclamé avec succès <strong>{{ points }}</strong> points !</p>
-    {% endif %}
+  <h1>Réclamation de Points</h1>
 
-    {% if balance is not none %}
-        <div class="balance-box">
-            <p>Ton solde actuel est : <strong>{{ balance }}</strong> points</p>
-        </div>
-    {% endif %}
+  <!-- ✅ Afficher les erreurs ou succès -->
+  {% if error %}
+    <p style="color: red;"><strong>{{ error }}</strong></p>
+  {% elif points %}
+    <p>Tu as réclamé avec succès <strong>{{ points }}</strong> points !</p>
+  {% endif %}
 
-    <form action="/" method="get">
-        <input type="hidden" name="user_id" value="{{ user_id }}">
-        <button type="submit">Retour à l'accueil</button>
-    </form>
+  <!-- ✅ Affichage du solde -->
+  {% if balance is not none %}
+    <div class="balance-box">
+      <p>Ton solde actuel est : <strong>{{ balance }}</strong> points</p>
+    </div>
+  {% endif %}
+
+  <!-- ✅ Affichage du "chargement" pendant la réclamation -->
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p>Veuillez patienter...</p>
+  </div>
+
+  <!-- ✅ Formulaire pour retour à l'accueil -->
+  <form action="/" method="get">
+    <input type="hidden" name="user_id" value="{{ user_id }}">
+    <button type="submit">Retour à l'accueil</button>
+  </form>
+
+  <script>
+    // Si points est non vide, ça signifie qu'un claim a été effectué
+    if ("{{ points }}") {
+      setTimeout(function() {
+        // Cache le spinner après 3 secondes pour une meilleure expérience
+        document.getElementById("loading").style.display = "none";
+      }, 3000);
+    }
+  </script>
+
+<!-- MENU EN BAS -->
+  <div class="bottom-menu">
+    <a href="/claim?user_id={{ user_id }}">Claim</a>
+    <a href="/tasks?user_id={{ user_id }}">Tasks</a>
+    <a href="/friends?user_id={{ user_id }}">Friends</a>
+  </div>
+
 </body>
 </html>

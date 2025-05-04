@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tâches</title>
+  <style>
+    body {
+      background-image: url('https://www.w3schools.com/w3images/brickwall.jpg');
+      background-size: cover;
+      font-family: 'UnifrakturCook', cursive;
+      color: white;
+      text-align: center;
+      padding-bottom: 70px;
+    }
+    h1 {
+      font-size: 50px;
+      margin-top: 50px;
+      text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.7);
+    }
+    .task-box {
+      background-color: #D2691E;
+      color: white;
+      font-size: 1.5em;
+      padding: 20px;
+      border-radius: 10px;
+      margin-top: 20px;
+      text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
+    }
+    .task-box strong {
+      font-size: 1.8em;
+    }
+    .bottom-menu {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      background-color: #333;
+      padding: 15px 0;
+      text-align: center;
+    }
+    .bottom-menu a {
+      color: white;
+      text-decoration: none;
+      font-size: 18px;
+      margin: 0 20px;
+      padding: 10px;
+    }
+    .bottom-menu a:hover {
+      background-color: #D2691E;
+      border-radius: 5px;
+    }
+
+  </style>
+</head>
+<body>
+
+  <h1>Liste des Tâches</h1>
+
+  <div class="task-box">
+    <p>Voici vos tâches à accomplir :</p>
+    <ul>
+      <li>Tâche 1: Compléter le formulaire</li>
+      <li>Tâche 2: Réclamer des points</li>
+      <li>Tâche 3: Inviter un ami</li>
+    </ul>
+  </div>
+
+  <div class="bottom-menu">
+    <a href="/claim?user_id={{ user_id }}">Claim</a>
+    <a href="/tasks?user_id={{ user_id }}">Tasks</a>
+    <a href="/friends?user_id={{ user_id }}">Friends</a>
+  </div>
+
+</body>
+</html>

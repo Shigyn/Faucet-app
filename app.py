@@ -148,6 +148,37 @@ def get_user_balance(user_id):
 
     return 0
 
+# Nouvelle route pour la page Friends
+@app.route('/friends')
+def friends_page():
+    user_id = request.args.get('user_id')
+    
+    # On récupère les informations de l'utilisateur, comme son solde de points
+    user_balance = get_user_balance(user_id) if user_id else None
+
+    # Récupérer les amis et leurs points
+    friends = get_user_friends(user_id)  # Cette fonction devra être créée pour récupérer les amis
+    
+    return render_template("friends.html", balance=user_balance, friends=friends, user_id=user_id)
+
+# Fonction pour récupérer les amis et leurs points
+def get_user_friends(user_id):
+    service = get_google_sheets_service()
+    result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
+    values = result.get('values', [])
+
+    friends_list = []
+    
+    for row in values:
+        if str(row[0]) == str(user_id):  # Si on trouve l'utilisateur
+            # Supposons que les amis sont dans la colonne 3 et les points dans la colonne 2 (ajuste selon ta structure)
+            friends_ids = row[3] if len(row) > 3 else []  # Liste des IDs d'amis (si existante)
+            for friend_id in friends_ids.split(','):  # Si les amis sont séparés par des virgules
+                friend_balance = get_user_balance(friend_id.strip())  # On récupère le solde de chaque ami
+                friends_list.append({'id': friend_id.strip(), 'balance': friend_balance})
+
+    return friends_list
+
 if __name__ == "__main__":
     set_telegram_webhook()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))

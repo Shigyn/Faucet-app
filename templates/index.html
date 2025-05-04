@@ -87,6 +87,29 @@
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+
+    .bottom-menu {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      background-color: #333;
+      padding: 15px 0;
+      text-align: center;
+    }
+
+    .bottom-menu a {
+      color: white;
+      text-decoration: none;
+      font-size: 18px;
+      margin: 0 20px;
+      padding: 10px;
+    }
+
+    .bottom-menu a:hover {
+      background-color: #D2691E;
+      border-radius: 5px;
+    }
   </style>
 </head>
 <body>
@@ -170,7 +193,7 @@
     }
   </script>
 
-<!-- MENU EN BAS -->
+  <!-- MENU EN BAS -->
   <div class="bottom-menu">
     <a href="/claim?user_id={{ user_id }}">Claim</a>
     <a href="/tasks?user_id={{ user_id }}">Tasks</a>

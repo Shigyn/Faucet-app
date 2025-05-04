@@ -114,16 +114,6 @@
     <button type="submit">Retour à l'accueil</button>
   </form>
 
-  <script>
-    // Si points est non vide, ça signifie qu'un claim a été effectué
-    if ("{{ points }}") {
-      setTimeout(function() {
-        // Cache le spinner après 3 secondes pour une meilleure expérience
-        document.getElementById("loading").style.display = "none";
-      }, 3000);
-    }
-  </script>
-
 <!-- MENU EN BAS -->
   <div class="bottom-menu">
     <a href="/claim?user_id={{ user_id }}">Claim</a>

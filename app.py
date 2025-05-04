@@ -11,6 +11,7 @@ TELEGRAM_BOT_API_KEY = os.getenv('TELEGRAM_BOT_API_KEY')
 GOOGLE_SHEET_ID = os.getenv('GOOGLE_SHEET_ID')
 USER_RANGE = os.getenv('USER_RANGE')
 TRANSACTION_RANGE = os.getenv('TRANSACTION_RANGE')
+TASKS_RANGE = os.getenv('TASKS_RANGE')  # Nouveau range pour les tâches
 
 if not TELEGRAM_BOT_API_KEY:
     raise ValueError("La variable d'environnement 'TELEGRAM_BOT_API_KEY' est manquante.")
@@ -20,6 +21,8 @@ if not USER_RANGE:
     raise ValueError("La variable d'environnement 'USER_RANGE' est manquante.")
 if not TRANSACTION_RANGE:
     raise ValueError("La variable d'environnement 'TRANSACTION_RANGE' est manquante.")
+if not TASKS_RANGE:
+    raise ValueError("La variable d'environnement 'TASKS_RANGE' est manquante.")  # Vérification du range des tâches
 
 bot = telebot.TeleBot(TELEGRAM_BOT_API_KEY)
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
@@ -31,6 +34,33 @@ def get_google_sheets_service():
     creds = Credentials.from_service_account_info(eval(creds_json), scopes=SCOPES)
     service = build('sheets', 'v4', credentials=creds)
     return service.spreadsheets()
+
+@app.route('/tasks')
+def tasks_page():
+    user_id = request.args.get('user_id')
+    
+    if not user_id:
+        return "ID utilisateur manquant.", 400
+    
+    user_balance = get_user_balance(user_id) if user_id else None
+    tasks = get_user_tasks(user_id)
+    
+    return render_template("tasks.html", balance=user_balance, tasks=tasks, user_id=user_id)
+
+def get_user_tasks(user_id):
+    service = get_google_sheets_service()
+    result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=TASKS_RANGE).execute()
+    values = result.get('values', [])
+    
+    tasks_list = []
+    
+    for row in values:
+        if str(row[0]) == str(user_id):  # Si on trouve l'utilisateur
+            task_description = row[1] if len(row) > 1 else "Pas de description"
+            task_status = row[2] if len(row) > 2 else "Non complété"
+            tasks_list.append({'description': task_description, 'status': task_status})
+    
+    return tasks_list
 
 @app.route('/')
 def index():

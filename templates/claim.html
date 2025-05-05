@@ -153,6 +153,8 @@
     <p>Ton solde actuel est : <strong id="balanceValue">...</strong> points</p>
   </div>
 
+  <p>Tu as réclamé <strong id="claimedPoints">...</strong> points !</p>
+
   <button class="claim-button" onclick="startLoading()">Réclamer des points</button>
 
   <div class="loading" id="loading">
@@ -186,6 +188,11 @@
       } else {
         document.getElementById("balanceValue").innerText = "inconnu";
       }
+
+      // Afficher le nombre de points réclamés
+      const urlParams = new URLSearchParams(window.location.search);
+      const pointsClaimed = urlParams.get('points') || 0;
+      document.getElementById("claimedPoints").innerText = pointsClaimed;
     });
 
     async function startLoading() {
@@ -210,7 +217,7 @@
         const text = await response.text();
 
         if (response.ok) {
-          window.location.href = "/claim?user_id=" + userId;
+          window.location.href = "/claim?user_id=" + userId + "&points=" + text;
         } else {
           alert("Erreur : " + text);
           document.getElementById("loading").style.display = "none";

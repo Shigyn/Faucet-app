@@ -13,9 +13,6 @@ GOOGLE_CREDS_URL = os.getenv("GOOGLE_CREDS_URL")  # Utilisation de la variable d
 USER_RANGE = os.getenv("USER_RANGE", "Users!A2:C")  # Plage des utilisateurs, colonne A pour l'ID utilisateur, B pour le solde, C pour la dernière réclamation
 TRANSACTION_RANGE = os.getenv("TRANSACTION_RANGE", "Transactions!A2:D")  # Plage des transactions, colonne A pour l'ID utilisateur, B pour la date de transaction, C pour le montant, D pour l'horodatage
 
-# Nombre de points donnés à chaque réclamation - Aléatoire entre 10 et 100
-CLAIM_POINTS = random.randint(10, 100)  # Génère un nombre aléatoire entre 10 et 100
-
 # Génération de token.json si nécessaire
 TOKEN_PATH = "google/token.json"  # Chemin vers le fichier token.json, utilisé après l'authentification avec Google
 

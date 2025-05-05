@@ -4,6 +4,7 @@ from flask import Flask, request, render_template, send_from_directory, jsonify
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
+import random
 
 app = Flask(__name__)
 
@@ -89,7 +90,9 @@ def submit_claim():
     if not user_id:
         return "ID utilisateur manquant."
 
-    points = 100
+    # Générer un nombre aléatoire entre 10 et 100 pour les points
+    points = random.randint(10, 100)  # Génère un nombre aléatoire entre 10 et 100
+
     service = get_google_sheets_service()
     result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
     values = result.get('values', [])

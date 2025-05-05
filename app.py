@@ -38,6 +38,10 @@ def get_google_sheets_service():
     service = build('sheets', 'v4', credentials=creds)
     return service.spreadsheets()
 
+@app.route('/')
+def index():
+    return render_template("index.html")
+
 @app.route('/claim', methods=['GET'])
 def claim_page():
     user_id = request.args.get('user_id')
@@ -106,6 +110,16 @@ def submit_claim():
     return render_template("claim.html", points=points, balance=balance, user_id=user_id)
 
 # Autres routes et fonctions...
+
+def get_user_balance(user_id):
+    service = get_google_sheets_service()
+    result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
+    values = result.get('values', [])
+
+    for row in values:
+        if str(row[0]) == str(user_id):
+            return int(row[1]) if row[1] else 0
+    return 0
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))

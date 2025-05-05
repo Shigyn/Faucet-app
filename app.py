@@ -38,46 +38,6 @@ def get_google_sheets_service():
     service = build('sheets', 'v4', credentials=creds)
     return service.spreadsheets()
 
-@app.route('/')
-def index():
-    user_id = request.args.get('user_id')
-    balance = get_user_balance(user_id) if user_id else None
-    return render_template("index.html", balance=balance, user_id=user_id)
-
-@app.route('/tasks')
-def tasks_page():
-    user_id = request.args.get('user_id')
-    if not user_id:
-        return "ID utilisateur manquant.", 400
-
-    user_balance = get_user_balance(user_id)
-    tasks = get_user_tasks(user_id)
-    return render_template("tasks.html", balance=user_balance, tasks=tasks, user_id=user_id)
-
-def get_user_tasks(user_id):
-    """
-    Récupère les tâches spécifiques d’un utilisateur depuis Google Sheets.
-    Format attendu : user_id | titre | description | points | statut | lien
-    """
-    service = get_google_sheets_service()
-    result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=TASKS_RANGE).execute()
-    values = result.get('values', [])
-
-    tasks_list = []
-    for row in values:
-        if len(row) < 1 or str(row[0]).strip() != str(user_id):
-            continue
-        task = {
-            'title': row[1] if len(row) > 1 else "Tâche",
-            'description': row[2] if len(row) > 2 else "Pas de description",
-            'points': row[3] if len(row) > 3 else "0",
-            'status': row[4].strip().lower() if len(row) > 4 else "non complété",
-            'link': row[5] if len(row) > 5 else "#"
-        }
-        tasks_list.append(task)
-
-    return tasks_list
-
 @app.route('/claim', methods=['GET'])
 def claim_page():
     user_id = request.args.get('user_id')
@@ -145,75 +105,7 @@ def submit_claim():
     balance = get_user_balance(user_id)
     return render_template("claim.html", points=points, balance=balance, user_id=user_id)
 
-@app.route('/get_balance')
-def get_balance():
-    user_id = request.args.get('user_id')
-    if not user_id:
-        return jsonify({'error': 'user_id manquant'}), 400
-
-    try:
-        balance = get_user_balance(user_id)
-        return jsonify({'balance': balance})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route(f"/{TELEGRAM_BOT_API_KEY}", methods=["POST"])
-def webhook():
-    try:
-        json_str = request.get_data().decode("UTF-8")
-        update = telebot.types.Update.de_json(json_str)
-        bot.process_new_updates([update])
-        return '', 200
-    except Exception as e:
-        print(f"Erreur dans le traitement du webhook : {e}")
-        return '', 500
-
-def set_telegram_webhook():
-    webhook_url = "https://faucet-app.onrender.com/" + TELEGRAM_BOT_API_KEY
-    bot.remove_webhook()
-    bot.set_webhook(url=webhook_url)
-
-@app.route('/favicon.ico')
-def favicon():
-    return send_from_directory(os.path.join(app.root_path, 'static'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
-
-def get_user_balance(user_id):
-    if not user_id:
-        return 0
-    service = get_google_sheets_service()
-    result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
-    values = result.get('values', [])
-
-    for row in values:
-        if str(row[0]) == str(user_id):
-            return int(row[1]) if len(row) > 1 and row[1] else 0
-    return 0
-
-@app.route('/friends')
-def friends_page():
-    user_id = request.args.get('user_id')
-    user_balance = get_user_balance(user_id) if user_id else None
-    friends = get_user_friends(user_id)
-    return render_template("friends.html", balance=user_balance, friends=friends, user_id=user_id)
-
-def get_user_friends(user_id):
-    service = get_google_sheets_service()
-    result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
-    values = result.get('values', [])
-    friends_list = []
-
-    for row in values:
-        if str(row[0]) == str(user_id):
-            friends_ids = row[3] if len(row) > 3 else ""
-            for friend_id in friends_ids.split(','):
-                friend_id = friend_id.strip()
-                if friend_id:
-                    balance = get_user_balance(friend_id)
-                    friends_list.append({'id': friend_id, 'balance': balance})
-            break
-
-    return friends_list
+# Autres routes et fonctions...
 
 if __name__ == "__main__":
-    set_telegram_webhook()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))

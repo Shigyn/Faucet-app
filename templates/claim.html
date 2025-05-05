@@ -1,44 +1,106 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Réclamer des points</title>
-  <link href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&display=swap" rel="stylesheet">
-  <style>
-    /* Style actuel de la page */
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Réclamation de Points</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+
+        h1 {
+            color: #4CAF50;
+            font-size: 2rem;
+            margin-bottom: 20px;
+        }
+
+        .balance {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+            color: #4CAF50;
+        }
+
+        .claim-button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .claim-button:hover {
+            background-color: #45a049;
+        }
+
+        .error {
+            color: red;
+            font-size: 1.1rem;
+            margin-top: 20px;
+        }
+
+        .points-info {
+            margin-top: 20px;
+            font-size: 1.1rem;
+        }
+
+        .alert {
+            color: #ff9800;
+            font-weight: bold;
+        }
+
+        .footer {
+            margin-top: 30px;
+            font-size: 0.9rem;
+            color: #888;
+        }
+    </style>
 </head>
 <body>
+    <div class="container">
+        <h1>Réclame tes points</h1>
+        
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+        
+        {% if balance is not none %}
+        <div class="balance">Ton solde actuel est de : {{ balance }} points</div>
+        {% endif %}
+        
+        <form method="POST" action="/submit_claim">
+            <input type="hidden" name="user_id" value="{{ user_id }}">
 
-  <h1>Réclamation de Points</h1>
+            <button type="submit" class="claim-button">Réclamer des points</button>
+        </form>
 
-  <!-- Affichage du message d'erreur ou de succès -->
-  {% if error %}
-    <p style="color: red; font-size: 1.6em;"><strong>{{ error }}</strong></p>
-  {% elif points %}
-    <p>Tu as réclamé avec succès <strong>{{ points }}</strong> points !</p>
-  {% endif %}
+        {% if points %}
+        <div class="points-info">
+            <p>Félicitations ! Tu as réclamé <strong>{{ points }}</strong> points.</p>
+            <p>Ton nouveau solde est de : <strong>{{ balance }}</strong> points</p>
+        {% endif %}
 
-  <!-- Affichage du solde actuel -->
-  {% if balance is not none %}
-    <div class="balance-box">
-      <p>Ton solde actuel est : <strong>{{ balance }}</strong> points</p>
+        <div class="footer">
+            <p>&copy; 2025 - Application de Réclamation de Points</p>
+        </div>
     </div>
-  {% endif %}
-
-  <!-- Formulaire pour retourner à l'accueil -->
-  <form action="/" method="get">
-    <input type="hidden" name="user_id" value="{{ user_id }}">
-    <button type="submit">Retour à l'accueil</button>
-  </form>
-
-  <!-- Menu de navigation -->
-  <div class="bottom-menu">
-    <a href="/claim?user_id={{ user_id }}">Claim</a>
-    <a href="/tasks?user_id={{ user_id }}">Tasks</a>
-    <a href="/friends?user_id={{ user_id }}">Friends</a>
-  </div>
-
 </body>
 </html>

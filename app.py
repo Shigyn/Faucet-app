@@ -40,7 +40,9 @@ def get_google_sheets_service():
 
 @app.route('/')
 def index():
-    return render_template("index.html")
+    user_id = request.args.get('user_id')  # On récupère l'ID utilisateur de l'URL
+    balance = get_user_balance(user_id) if user_id else 0
+    return render_template("index.html", balance=balance)  # Passer la balance à index.html
 
 @app.route('/claim', methods=['GET'])
 def claim_page():
@@ -109,8 +111,7 @@ def submit_claim():
     balance = get_user_balance(user_id)
     return render_template("claim.html", points=points, balance=balance, user_id=user_id)
 
-# Autres routes et fonctions...
-
+# Fonction pour récupérer le solde de l'utilisateur
 def get_user_balance(user_id):
     service = get_google_sheets_service()
     result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()

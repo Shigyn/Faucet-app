@@ -1,6 +1,6 @@
 import os
 import telebot
-from flask import Flask, request, render_template, send_from_directory, jsonify
+from flask import Flask, request, render_template, jsonify, redirect, url_for
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
@@ -22,7 +22,6 @@ required_env_vars = {
     "TRANSACTION_RANGE": TRANSACTION_RANGE,
     "TASKS_RANGE": TASKS_RANGE
 }
-
 for var, val in required_env_vars.items():
     if not val:
         raise ValueError(f"La variable d'environnement '{var}' est manquante.")
@@ -40,15 +39,16 @@ def get_google_sheets_service():
 
 @app.route('/')
 def index():
-    user_id = request.args.get('user_id')  # On récupère l'ID utilisateur de l'URL
+    user_id = request.args.get('user_id')
     balance = get_user_balance(user_id) if user_id else 0
-    return render_template("index.html", balance=balance)  # Passer la balance à index.html
+    return render_template("index.html", balance=balance)
 
 @app.route('/claim', methods=['GET'])
 def claim_page():
     user_id = request.args.get('user_id')
-    user_balance = get_user_balance(user_id) if user_id else None
-    return render_template("claim.html", balance=user_balance, user_id=user_id)
+    points = request.args.get('points')
+    balance = get_user_balance(user_id) if user_id else None
+    return render_template("claim.html", balance=balance, user_id=user_id, points=points)
 
 @app.route('/submit_claim', methods=['POST'])
 def submit_claim():
@@ -56,8 +56,7 @@ def submit_claim():
     if not user_id:
         return "ID utilisateur manquant."
 
-    # Générer un nombre aléatoire entre 10 et 100 pour les points
-    points = random.randint(10, 100)  # Génère un nombre aléatoire entre 10 et 100
+    points = random.randint(10, 100)
 
     service = get_google_sheets_service()
     result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
@@ -71,7 +70,8 @@ def submit_claim():
             if last_claim:
                 last_claim_time = datetime.strptime(last_claim, "%d/%m/%Y %H:%M")
                 if datetime.now() - last_claim_time < timedelta(minutes=5):
-                    return render_template("claim.html", error="Tu as déjà réclamé des points il y a moins de 5 minutes. Essaie plus tard.", balance=int(row[1]), user_id=user_id)
+                    balance = int(row[1]) if row[1] else 0
+                    return render_template("claim.html", error="Tu as déjà réclamé des points il y a moins de 5 minutes. Essaie plus tard.", balance=balance, user_id=user_id)
 
             current_balance = int(row[1]) if row[1] else 0
             new_balance = current_balance + points
@@ -108,15 +108,13 @@ def submit_claim():
         body={'values': [transaction_row]}
     ).execute()
 
-    balance = get_user_balance(user_id)
-    return render_template("claim.html", points=points, balance=balance, user_id=user_id)
+    # ✅ Rediriger avec points et user_id dans l’URL pour claim.html
+    return redirect(url_for('claim_page', user_id=user_id, points=points))
 
-# Fonction pour récupérer le solde de l'utilisateur
 def get_user_balance(user_id):
     service = get_google_sheets_service()
     result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
     values = result.get('values', [])
-
     for row in values:
         if str(row[0]) == str(user_id):
             return int(row[1]) if row[1] else 0

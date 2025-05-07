@@ -38,10 +38,11 @@ def get_google_sheets_service():
 
 @app.route('/', methods=['GET'])
 def home():
-    # Utilisation de l'ID utilisateur Telegram
+    # On vérifie si l'ID utilisateur est bien passé en URL
     user_id = request.args.get('user_id')  # Récupère l'ID utilisateur de l'URL
     if not user_id:
-        return "L'ID utilisateur est manquant !"
+        return "L'ID utilisateur est manquant !", 400  # Retourne une erreur si l'ID est manquant
+
     balance = get_user_balance(user_id)  # Récupère le solde de l'utilisateur
     return render_template('index.html', balance=balance, user_id=user_id)
 
@@ -49,7 +50,7 @@ def home():
 def claim_page():
     user_id = request.args.get('user_id')
     if not user_id:
-        return "ID utilisateur manquant."
+        return "ID utilisateur manquant.", 400
     balance = get_user_balance(user_id)
     points = request.args.get('points')  # Points gagnés sur la page de réclamation
     return render_template("claim.html", balance=balance, user_id=user_id, points=points)
@@ -58,7 +59,7 @@ def claim_page():
 def submit_claim():
     user_id = request.form.get('user_id')
     if not user_id:
-        return "ID utilisateur manquant."
+        return "ID utilisateur manquant.", 400
 
     points = random.randint(10, 100)  # Génère un nombre de points aléatoires entre 10 et 100
 

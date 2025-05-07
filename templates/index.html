@@ -65,15 +65,16 @@
   <br><br>
 
   {% if user_id %}
-    <a id="claimBtn" class="claim-button" href="/claim?user_id={{ user_id }}">Réclamer maintenant</a>
+    <!-- Lien dynamique pour la réclamation avec l'ID utilisateur dans l'URL -->
+    <a id="claimBtn" class="claim-button" href="{{ url_for('claim_page', user_id=user_id) }}">Réclamer maintenant</a>
   {% else %}
     <p>Veuillez vous connecter avec votre identifiant utilisateur pour réclamer des points.</p>
   {% endif %}
 
   <div class="bottom-menu">
-    <a href="/claim?user_id={{ user_id }}">Claim</a>
-    <a href="/tasks?user_id={{ user_id }}">Tasks</a>
-    <a href="/friends?user_id={{ user_id }}">Friends</a>
+    <a href="{{ url_for('claim_page', user_id=user_id) }}">Claim</a>
+    <a href="{{ url_for('tasks', user_id=user_id) }}">Tasks</a>
+    <a href="{{ url_for('friends', user_id=user_id) }}">Friends</a>
   </div>
 
 </body>

@@ -1,36 +1,71 @@
 import os
 import random
-import telebot
 from flask import Flask, request, jsonify, send_from_directory
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
-from datetime import datetime
-from threading import Thread
-from urllib.parse import quote
-import time
+from datetime import datetime, timedelta
+from functools import wraps
+import json
+import logging
+from threading import Lock
 
-app = Flask(__name__, static_folder='static', template_folder='templates')
-
-# Config
-TELEGRAM_BOT_API_KEY = os.getenv('TELEGRAM_BOT_API_KEY')
-GOOGLE_SHEET_ID = os.getenv('GOOGLE_SHEET_ID')
-USER_RANGE = "Users!A2:G"
-PUBLIC_URL = os.getenv('PUBLIC_URL')
-SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-
-# Désactive le caching pour les développements
+# Configuration initiale
+app = Flask(__name__, static_folder='static')
+app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
-app.config['TEMPLATES_AUTO_RELOAD'] = True
+
+# Configuration logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Constantes
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+COOLDOWN_HOURS = 5
+MIN_CLAIM = 10
+MAX_CLAIM = 50
+
+# Verrou pour les accès concurrents
+sheet_lock = Lock()
 
 def get_google_sheets_service():
-    creds_json = os.environ.get('GOOGLE_CREDS')
-    if not creds_json:
-        raise ValueError("GOOGLE_CREDS manquant")
-    creds = Credentials.from_service_account_info(eval(creds_json), scopes=SCOPES)
-    return build('sheets', 'v4', credentials=creds).spreadsheets()
+    """Crée le service Google Sheets avec gestion d'erreur améliorée"""
+    try:
+        creds_json = os.environ.get('GOOGLE_CREDS')
+        if not creds_json:
+            raise ValueError("Configuration Google Sheets manquante")
+        
+        creds_dict = json.loads(creds_json)
+        creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
+        return build('sheets', 'v4', credentials=creds).spreadsheets()
+    except Exception as e:
+        logger.error(f"Erreur d'initialisation Google Sheets: {str(e)}")
+        raise
+
+def validate_user_data(func):
+    """Décorateur pour valider les données utilisateur"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        data = request.get_json()
+        if not data or 'user_id' not in data:
+            return jsonify({"error": "Données utilisateur manquantes"}), 400
+        return func(*args, **kwargs)
+    return wrapper
+
+def find_user_row(service, sheet_id, user_range, user_id):
+    """Trouve la ligne d'un utilisateur dans la feuille"""
+    with sheet_lock:
+        result = service.values().get(
+            spreadsheetId=sheet_id,
+            range=user_range
+        ).execute()
+        
+    for idx, row in enumerate(result.get('values', [])):
+        if row and str(row[0]) == str(user_id):
+            return idx + 2, row  # +2 car les lignes commencent à 1 et l'en-tête est ligne 1
+    return None, None
 
 @app.route('/')
-def home():
+def serve_index():
     return send_from_directory('templates', 'index.html')
 
 @app.route('/static/<path:filename>')
@@ -38,72 +73,136 @@ def serve_static(filename):
     return send_from_directory('static', filename)
 
 @app.route('/get-balance', methods=['POST'])
+@validate_user_data
 def get_balance():
     try:
-        data = request.get_json()
-        if not data or 'user_id' not in data:
-            return jsonify({"error": "Données manquantes"}), 400
-            
         service = get_google_sheets_service()
-        result = service.values().get(
-            spreadsheetId=GOOGLE_SHEET_ID,
-            range=USER_RANGE
-        ).execute()
+        user_id = str(request.json['user_id'])
         
-        for row in result.get('values', []):
-            if row and str(row[0]) == str(data['user_id']):
-                return jsonify({
-                    "balance": int(row[1]) if len(row) > 1 else 0,
-                    "last_claim": row[2] if len(row) > 2 else None,
-                    "referral_code": row[5] if len(row) > 5 else ""
-                })
+        row_num, row = find_user_row(service, os.environ['GOOGLE_SHEET_ID'], "Users!A2:G", user_id)
+        if not row:
+            return jsonify({"balance": 0, "last_claim": None, "referral_code": user_id})
         
-        return jsonify({"balance": 0, "last_claim": None})
-
+        response = {
+            "balance": int(row[1]) if len(row) > 1 else 0,
+            "last_claim": row[2] if len(row) > 2 else None,
+            "referral_code": row[5] if len(row) > 5 else user_id
+        }
+        
+        # Vérifier le cooldown
+        if response['last_claim']:
+            last_claim = datetime.strptime(response['last_claim'], "%Y-%m-%d %H:%M:%S")
+            if datetime.now() - last_claim < timedelta(hours=COOLDOWN_HOURS):
+                response['cooldown'] = True
+        
+        return jsonify(response)
+        
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"Erreur get-balance: {str(e)}")
+        return jsonify({"error": "Erreur serveur"}), 500
 
 @app.route('/claim', methods=['POST'])
+@validate_user_data
 def claim_points():
     try:
-        data = request.get_json()
-        if not data or 'user_id' not in data:
+        service = get_google_sheets_service()
+        user_id = str(request.json['user_id'])
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        points = random.randint(MIN_CLAIM, MAX_CLAIM)
+        
+        row_num, row = find_user_row(service, os.environ['GOOGLE_SHEET_ID'], "Users!A2:G", user_id)
+        if not row_num:
+            return jsonify({"error": "Utilisateur non trouvé"}), 404
+            
+        # Vérifier le cooldown
+        if len(row) > 2 and row[2]:
+            last_claim = datetime.strptime(row[2], "%Y-%m-%d %H:%M:%S")
+            if datetime.now() - last_claim < timedelta(hours=COOLDOWN_HOURS):
+                return jsonify({"error": f"Attendez {COOLDOWN_HOURS}h entre chaque claim"}), 400
+        
+        new_balance = (int(row[1]) if len(row) > 1 else 0) + points
+        
+        with sheet_lock:
+            service.values().update(
+                spreadsheetId=os.environ['GOOGLE_SHEET_ID'],
+                range=f"Users!B{row_num}:C{row_num}",
+                valueInputOption="USER_ENTERED",
+                body={"values": [[new_balance, now]]}
+            ).execute()
+        
+        return jsonify({
+            "success": True,
+            "new_balance": new_balance,
+            "points_earned": points,
+            "last_claim": now
+        })
+        
+    except Exception as e:
+        logger.error(f"Erreur claim: {str(e)}")
+        return jsonify({"error": "Erreur lors de la réclamation"}), 500
+
+@app.route('/get-tasks', methods=['GET'])
+def get_tasks():
+    try:
+        # Exemple de tâches - À remplacer par votre propre logique
+        tasks = [
+            {
+                "task_name": "Rejoindre Telegram",
+                "description": "Rejoignez notre groupe Telegram",
+                "points": 50,
+                "url": "https://t.me/CRYPTORATS_bot"
+            },
+            {
+                "task_name": "Suivre Twitter",
+                "description": "Suivez-nous sur Twitter",
+                "points": 30,
+                "url": "https://twitter.com/CRYPTORATS_bot"
+            }
+        ]
+        return jsonify({"tasks": tasks})
+    except Exception as e:
+        logger.error(f"Erreur get-tasks: {str(e)}")
+        return jsonify({"error": "Erreur serveur"}), 500
+
+@app.route('/get-friends', methods=['GET'])
+def get_friends():
+    try:
+        user_id = request.args.get('user_id')
+        if not user_id:
+            return jsonify({"error": "ID utilisateur manquant"}), 400
+            
+        # Exemple de réponse - À adapter avec votre logique
+        return jsonify({
+            "referrals": [
+                {"username": "user1", "total_points": 100},
+                {"username": "user2", "total_points": 50}
+            ]
+        })
+    except Exception as e:
+        logger.error(f"Erreur get-friends: {str(e)}")
+        return jsonify({"error": "Erreur serveur"}), 500
+
+@app.route('/complete-task', methods=['POST'])
+@validate_user_data
+def complete_task():
+    try:
+        data = request.json
+        required = ['user_id', 'task_name', 'points']
+        if not all(k in data for k in required):
             return jsonify({"error": "Données manquantes"}), 400
             
-        user_id = str(data['user_id'])
-        service = get_google_sheets_service()
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        points = random.randint(10, 50)
-
-        # Trouver l'utilisateur
-        result = service.values().get(
-            spreadsheetId=GOOGLE_SHEET_ID,
-            range=USER_RANGE
-        ).execute()
+        # Ici vous devriez enregistrer la tâche complétée
+        # Exemple simplifié:
+        return jsonify({
+            "success": True,
+            "points_added": data['points'],
+            "task": data['task_name']
+        })
         
-        for idx, row in enumerate(result.get('values', [])):
-            if row and str(row[0]) == user_id:
-                new_balance = (int(row[1]) if len(row) > 1 else 0) + points
-                
-                # Mise à jour
-                service.values().update(
-                    spreadsheetId=GOOGLE_SHEET_ID,
-                    range=f"Users!B{idx+2}:C{idx+2}",
-                    valueInputOption="USER_ENTERED",
-                    body={"values": [[new_balance, now]]}
-                ).execute()
-                
-                return jsonify({
-                    "success": True,
-                    "new_balance": new_balance,
-                    "last_claim": now
-                })
-
-        return jsonify({"error": "Utilisateur non trouvé"}), 404
-
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"Erreur complete-task: {str(e)}")
+        return jsonify({"error": "Erreur serveur"}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=False)

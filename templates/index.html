@@ -16,22 +16,59 @@
     </div>
 
     <div id="app-content">
-        <!-- Sections maintenues identiques -->
-        <!-- ... (votre contenu HTML existant) ... -->
+        <div class="section active" id="home-section">
+            <h1>CRYPTORATS Faucet</h1>
+            
+            <div id="balance-display">
+                Chargement du solde...
+            </div>
+            
+            <button id="claim-btn">🎁 Réclamer des points</button>
+            
+            <div class="referral-card">
+                <h2>Parrainage</h2>
+                <p>Gagnez 10% des points de vos filleuls</p>
+                <div class="referral-container">
+                    <div id="referral-link" class="referral-link">Chargement...</div>
+                    <button id="copy-btn" class="copy-btn">Copier</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="section" id="tasks-section">
+            <h2>Tâches disponibles</h2>
+            <div id="tasks-list">
+                <p>Chargement des tâches...</p>
+            </div>
+        </div>
+
+        <div class="section" id="friends-section">
+            <h2>Vos filleuls</h2>
+            <div id="friends-list">
+                <p>Chargement des filleuls...</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="navbar">
+        <button onclick="showSection('home')">🏠 Accueil</button>
+        <button onclick="showSection('tasks')">✅ Tâches</button>
+        <button onclick="showSection('friends')">👥 Filleuls</button>
     </div>
 
     <script>
-        // ==================== CONFIG ====================
+        // Configuration
         const PUBLIC_URL = "https://faucet-app.onrender.com";
         const API_BASE_URL = window.location.origin;
-        const COOLDOWN_TIME = 300000; // 5 minutes en ms
+        const COOLDOWN_TIME = 5 * 60 * 1000; // 5 minutes
         
+        // État de l'application
         let currentUserId = null;
         let currentBalance = 0;
         let isClaiming = false;
         let refreshInterval;
 
-        // ==================== INITIALISATION ====================
+        // Initialisation
         function initApp() {
             if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
                 initTelegramWebApp();
@@ -51,14 +88,7 @@
             loadData();
         }
 
-        function showTelegramAlert() {
-            document.getElementById('telegram-alert').style.display = 'block';
-            setTimeout(() => {
-                window.location.href = "https://t.me/CRYPTORATS_bot";
-            }, 2000);
-        }
-
-        // ==================== DATA LOADING ====================
+        // Gestion des données
         async function loadData() {
             if (!currentUserId) return;
 
@@ -71,33 +101,35 @@
                 
                 updateUI({ balance, tasks, friends });
             } catch (error) {
-                handleDataError(error);
+                console.error("Erreur de chargement:", error);
+                showToast("Erreur de chargement des données", 3000, 'error');
             }
         }
 
+        // Fonctions API
         async function fetchBalance() {
             const response = await fetch(`${API_BASE_URL}/get-balance`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user_id: currentUserId })
             });
-            if (!response.ok) throw new Error("Failed to fetch balance");
+            if (!response.ok) throw new Error("Erreur API");
             return response.json();
         }
 
         async function fetchTasks() {
             const response = await fetch(`${API_BASE_URL}/get-tasks`);
-            if (!response.ok) throw new Error("Failed to fetch tasks");
+            if (!response.ok) throw new Error("Erreur API");
             return response.json();
         }
 
         async function fetchFriends() {
             const response = await fetch(`${API_BASE_URL}/get-friends?user_id=${currentUserId}`);
-            if (!response.ok) throw new Error("Failed to fetch friends");
+            if (!response.ok) throw new Error("Erreur API");
             return response.json();
         }
 
-        // ==================== UI UPDATES ====================
+        // Mise à jour de l'interface
         function updateUI({ balance, tasks, friends }) {
             updateBalanceDisplay(balance);
             updateReferralLink(balance);
@@ -163,75 +195,38 @@
             `;
         }
 
-        // ==================== ACTIONS ====================
+        // Actions utilisateur
         async function claimPoints() {
             if (isClaiming) return;
             
             const claimBtn = document.getElementById('claim-btn');
             try {
                 isClaiming = true;
-                updateClaimButton(claimBtn, true);
+                claimBtn.disabled = true;
+                claimBtn.textContent = "Traitement...";
                 
-                const oldBalance = currentBalance;
-                const result = await performClaim();
-                const pointsGagnes = (result.new_balance || result.balance) - oldBalance;
-                
-                showToast(`+${pointsGagnes} points ! Prochain claim dans 5 minutes.`, 3000);
-                await loadData();
-                startCooldownTimer();
-            } catch (error) {
-                console.error("Claim error:", error);
-                showToast(error.message || "Erreur lors de la réclamation", 3000);
-            } finally {
-                isClaiming = false;
-                updateClaimButton(claimBtn, false);
-            }
-        }
-
-        async function performClaim() {
-            const response = await fetch(`${API_BASE_URL}/claim`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: currentUserId })
-            });
-            
-            if (!response.ok) {
-                const error = await response.json().catch(() => ({ error: "Erreur serveur" }));
-                throw new Error(error.error);
-            }
-            
-            return response.json();
-        }
-
-        async function completeTask(taskName, points) {
-            if (!confirm(`Valider la tâche "${taskName}" ?\nVous gagnerez ${points} points.`)) {
-                return false;
-            }
-            
-            try {
-                const response = await fetch(`${API_BASE_URL}/complete-task`, {
+                const response = await fetch(`${API_BASE_URL}/claim`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: currentUserId,
-                        task_name: taskName,
-                        points: points
-                    })
+                    body: JSON.stringify({ user_id: currentUserId })
                 });
                 
                 const result = await response.json();
                 if (result.error) throw new Error(result.error);
                 
-                localStorage.setItem(`task_${taskName}_completed`, 'true');
-                showToast(`+${points} points !`, 2000);
+                showToast(`+${result.points_earned || '?'} points !`, 3000, 'success');
                 loadData();
+                startCooldownTimer();
             } catch (error) {
-                showToast(error.message || "Erreur réseau", 3000);
+                showToast(error.message || "Erreur", 3000, 'error');
+            } finally {
+                isClaiming = false;
+                claimBtn.disabled = false;
+                claimBtn.textContent = "🎁 Réclamer des points";
             }
-            return false;
         }
 
-        // ==================== UTILITIES ====================
+        // Utilitaires
         function startAutoRefresh() {
             clearInterval(refreshInterval);
             refreshInterval = setInterval(() => {
@@ -259,20 +254,60 @@
                 setTimeout(updateTimer, 1000);
             }
             
+            claimBtn.disabled = true;
             updateTimer();
         }
 
-        function updateClaimButton(button, isLoading) {
-            button.disabled = isLoading;
-            button.textContent = isLoading ? "Traitement en cours..." : "🎁 Réclamer des points";
+        function showToast(message, duration = 3000, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast-message toast-${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('fade-out');
+                setTimeout(() => toast.remove(), 500);
+            }, duration);
         }
 
-        function handleTaskClick(event, taskName, points) {
+        // Événements
+        function setupEventListeners() {
+            document.getElementById('claim-btn').addEventListener('click', claimPoints);
+            
+            document.getElementById('copy-btn').addEventListener('click', () => {
+                const link = document.getElementById('referral-link').textContent;
+                navigator.clipboard.writeText(link).then(() => {
+                    showToast("Lien copié !", 2000, 'success');
+                });
+            });
+        }
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', initApp);
+
+        // Fonctions globales
+        window.showSection = function(sectionId) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('#navbar button').forEach(b => b.classList.remove('active'));
+            
+            document.getElementById(`${sectionId}-section`).classList.add('active');
+            document.querySelector(`#navbar button[onclick="showSection('${sectionId}')"]`).classList.add('active');
+        };
+
+        window.handleTaskClick = function(event, taskName, points) {
+            event.preventDefault();
             if (!isTaskCompleted(taskName)) {
                 completeTask(taskName, points);
             }
-            event.preventDefault();
             return false;
+        };
+
+        function completeTask(taskName, points) {
+            if (!confirm(`Valider "${taskName}" ?\n+${points} points`)) return;
+            
+            localStorage.setItem(`task_${taskName}_completed`, 'true');
+            showToast(`Tâche validée (+${points} pts)`, 2000, 'success');
+            loadData();
         }
 
         function isTaskCompleted(taskName) {
@@ -290,56 +325,6 @@
         function escapeString(str) {
             return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
         }
-
-        function showSection(sectionId) {
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            document.querySelectorAll('#navbar button').forEach(b => b.classList.remove('active'));
-            
-            const section = document.getElementById(`${sectionId}-section`);
-            const button = document.querySelector(`#navbar button[onclick="showSection('${sectionId}')"]`);
-            
-            if (section) section.classList.add('active');
-            if (button) button.classList.add('active');
-        }
-
-        function showToast(message, duration = 3000) {
-            const toast = document.createElement('div');
-            toast.className = 'toast-message';
-            toast.textContent = message;
-            document.body.appendChild(toast);
-            
-            setTimeout(() => {
-                toast.classList.add('fade-out');
-                setTimeout(() => toast.remove(), 500);
-            }, duration);
-        }
-
-        function handleDataError(error) {
-            console.error("Data loading error:", error);
-            showToast("Erreur de chargement des données", 3000);
-        }
-
-        function setupEventListeners() {
-            document.getElementById('claim-btn')?.addEventListener('click', claimPoints);
-            
-            document.getElementById('copy-btn')?.addEventListener('click', () => {
-                const link = document.getElementById('referral-link')?.textContent;
-                if (link && !link.includes("Chargement")) {
-                    navigator.clipboard.writeText(link).then(() => {
-                        showToast("Lien copié !", 2000);
-                    });
-                }
-            });
-            
-            document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'visible') {
-                    loadData();
-                }
-            });
-        }
-
-        // ==================== START APP ====================
-        document.addEventListener('DOMContentLoaded', initApp);
     </script>
 </body>
 </html>

@@ -88,14 +88,16 @@
 
   <script>
     // Si user_id est manquant, afficher un message d'erreur et masquer les liens
-    if (!{{ user_id|tojson }}) {
-      document.getElementById("claimBtn").style.display = "none"; // Masquer le bouton "Réclamer"
-      const bottomMenuLinks = document.querySelectorAll(".bottom-menu a");
-      bottomMenuLinks.forEach(link => {
-        link.style.display = "none"; // Masquer les liens du menu bas
+    {% if not user_id %}
+      document.addEventListener('DOMContentLoaded', function () {
+        alert("Identifiant utilisateur manquant. Veuillez vous connecter.");
+        // Masquer les liens du bas
+        const bottomMenuLinks = document.querySelectorAll(".bottom-menu a");
+        bottomMenuLinks.forEach(link => {
+          link.style.display = "none"; // Masquer les liens du menu bas
+        });
       });
-      alert("Identifiant utilisateur manquant. Veuillez vous connecter.");
-    }
+    {% endif %}
   </script>
 
 </body>

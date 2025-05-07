@@ -16,7 +16,7 @@ USER_RANGE = os.getenv('USER_RANGE')
 TRANSACTION_RANGE = os.getenv('TRANSACTION_RANGE')
 PUBLIC_URL = os.getenv('PUBLIC_URL')  # ex: https://faucet-app.onrender.com
 
-# Vérification
+# Vérification des variables d'environnement
 if not TELEGRAM_BOT_API_KEY:
     raise ValueError("TELEGRAM_BOT_API_KEY manquant.")
 if not GOOGLE_SHEET_ID:

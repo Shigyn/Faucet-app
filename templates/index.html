@@ -12,12 +12,28 @@
     <!-- Intégration Telegram -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
+    <!-- Polices Modernes RPG 2025 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    
     <!-- Style + Favicon -->
     <link rel="stylesheet" href="/static/style.css">
     <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
     
-    <!-- Couleur UI Telegram -->
-    <meta name="theme-color" content="#6a040f"> <!-- Rouge RPG -->
+    <!-- Couleurs UI -->
+    <meta name="theme-color" content="#0d0221"> <!-- Fond sombre -->
+    
+    <!-- Préchargement CSS -->
+    <link rel="preload" href="/static/style.css" as="style">
+    
+    <!-- Animations Holographiques -->
+    <style>
+        @keyframes hologram-pulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(0, 255, 255, 0.3); }
+            50% { box-shadow: 0 0 40px rgba(157, 0, 255, 0.5); }
+        }
+    </style>
 </head>
 <body>
     <div id="telegram-alert" class="telegram-alert">

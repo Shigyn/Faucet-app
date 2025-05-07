@@ -3,6 +3,7 @@
 <head>
     <title>CRYPTORATS_bot</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body {
             font-family: 'Segoe UI', sans-serif;
@@ -198,38 +199,62 @@
     <div id="toast" class="toast">Lien copié !</div>
 
     <script>
-        // ==================== VÉRIFICATION TELEGRAM ====================
-        function getTelegramUser() {
-            if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
+        // ==================== INITIALISATION TELEGRAM ====================
+        function initTelegramWebApp() {
+            if (window.Telegram && Telegram.WebApp) {
                 const tgWebApp = Telegram.WebApp;
+                
+                // Configure l'app Telegram
                 tgWebApp.expand();
                 tgWebApp.enableClosingConfirmation();
+                tgWebApp.BackButton.hide();
+                
+                // Vérifie si l'app est lancée depuis le bon bot
+                const botUsername = tgWebApp.initDataUnsafe?.start_param || 
+                                   tgWebApp.initDataUnsafe?.user?.username;
+                
+                if (!tgWebApp.initDataUnsafe?.user || 
+                    (botUsername && !botUsername.includes('CRYPTORATS_bot'))) {
+                    showTelegramAlert();
+                    return null;
+                }
+                
                 return {
                     id: tgWebApp.initDataUnsafe.user.id.toString(),
-                    username: tgWebApp.initDataUnsafe.user.username || 'user_' + tgWebApp.initDataUnsafe.user.id
+                    username: tgWebApp.initDataUnsafe.user.username || 'user_' + tgWebApp.initDataUnsafe.user.id,
+                    webApp: tgWebApp
                 };
             }
+            showTelegramAlert();
             return null;
         }
 
+        function showTelegramAlert() {
+            document.getElementById('telegram-alert').style.display = 'block';
+            setTimeout(() => {
+                window.location.href = "https://t.me/CRYPTORATS_bot";
+            }, 3000);
+        }
+
         // ==================== VARIABLES GLOBALES ====================
-        const telegramUser = getTelegramUser();
-        const currentUserId = telegramUser?.id;
+        const telegramData = initTelegramWebApp();
+        const currentUserId = telegramData?.id;
         let referralData = null;
 
         // ==================== INITIALISATION ====================
         document.addEventListener('DOMContentLoaded', () => {
-            if (!currentUserId) {
-                document.getElementById('telegram-alert').style.display = 'block';
-                setTimeout(() => {
-                    window.location.href = "https://t.me/CRYPTORATS_bot";
-                }, 3000);
-                return;
-            }
+            if (!currentUserId) return;
 
             // Charger les données si authentifié
             loadUserData();
             loadFriends();
+            
+            // Configurer le thème Telegram
+            if (telegramData.webApp) {
+                document.documentElement.style.setProperty('--tg-theme-bg-color', telegramData.webApp.themeParams.bg_color || '#f5f5f5');
+                document.documentElement.style.setProperty('--tg-theme-text-color', telegramData.webApp.themeParams.text_color || '#000000');
+                document.documentElement.style.setProperty('--tg-theme-button-color', telegramData.webApp.themeParams.button_color || '#3498db');
+            }
         });
 
         // ==================== FONCTIONS PRINCIPALES ====================

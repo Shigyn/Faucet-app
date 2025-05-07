@@ -205,16 +205,16 @@
                 const tgWebApp = Telegram.WebApp;
                 
                 // Configure l'app Telegram
+                tgWebApp.ready();
                 tgWebApp.expand();
                 tgWebApp.enableClosingConfirmation();
                 tgWebApp.BackButton.hide();
                 
                 // Vérifie si l'app est lancée depuis le bon bot
                 const botUsername = tgWebApp.initDataUnsafe?.start_param || 
-                                   tgWebApp.initDataUnsafe?.user?.username;
+                                   tgWebApp.initDataUnsafe?.bot?.username;
                 
-                if (!tgWebApp.initDataUnsafe?.user || 
-                    (botUsername && !botUsername.includes('CRYPTORATS_bot'))) {
+                if (!tgWebApp.initDataUnsafe?.user) {
                     showTelegramAlert();
                     return null;
                 }
@@ -249,12 +249,8 @@
             loadUserData();
             loadFriends();
             
-            // Configurer le thème Telegram
-            if (telegramData.webApp) {
-                document.documentElement.style.setProperty('--tg-theme-bg-color', telegramData.webApp.themeParams.bg_color || '#f5f5f5');
-                document.documentElement.style.setProperty('--tg-theme-text-color', telegramData.webApp.themeParams.text_color || '#000000');
-                document.documentElement.style.setProperty('--tg-theme-button-color', telegramData.webApp.themeParams.button_color || '#3498db');
-            }
+            // Précharger les tasks
+            loadTasks();
         });
 
         // ==================== FONCTIONS PRINCIPALES ====================
@@ -288,28 +284,40 @@
 
         async function loadTasks() {
             try {
-                const response = await fetch('/get-tasks');
+                const response = await fetch('/get-tasks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: currentUserId })
+                });
+                
                 if (!response.ok) throw new Error('Erreur réseau');
+                
                 const tasks = await response.json();
                 
                 let html = '';
-                tasks.forEach(task => {
-                    const isCompleted = localStorage.getItem(`task_${task.task_name}_completed_${currentUserId}`);
-                    html += `
-                    <div class="task-card">
-                        <h3>${task.task_name}</h3>
-                        <p>${task.description}</p>
-                        <span class="points-badge">${task.points} pts</span>
-                        <a href="${task.url}" target="_blank" 
-                           class="task-btn ${isCompleted ? 'task-completed' : ''}"
-                           onclick="return completeTask('${task.task_name}', ${task.points})">
-                            ${isCompleted ? '✅ Terminé' : 'Commencer'}
-                        </a>
-                    </div>`;
-                });
-                document.getElementById('tasks-list').innerHTML = html || "<p>Aucune task disponible</p>";
+                if (tasks && tasks.length > 0) {
+                    tasks.forEach(task => {
+                        const isCompleted = localStorage.getItem(`task_${task.task_name}_completed_${currentUserId}`);
+                        html += `
+                        <div class="task-card">
+                            <h3>${task.task_name}</h3>
+                            <p>${task.description}</p>
+                            <span class="points-badge">${task.points} pts</span>
+                            <a href="${task.url}" target="_blank" 
+                               class="task-btn ${isCompleted ? 'task-completed' : ''}"
+                               onclick="return completeTask('${task.task_name}', ${task.points})">
+                                ${isCompleted ? '✅ Terminé' : 'Commencer'}
+                            </a>
+                        </div>`;
+                    });
+                } else {
+                    html = "<p>Aucune task disponible pour le moment</p>";
+                }
+                document.getElementById('tasks-list').innerHTML = html;
             } catch (error) {
-                document.getElementById('tasks-list').innerHTML = "<p>Erreur de chargement des tasks</p>";
+                console.error("Erreur tasks:", error);
+                document.getElementById('tasks-list').innerHTML = 
+                    "<p>Erreur de chargement des tasks. Veuillez réessayer.</p>";
             }
         }
 
@@ -319,19 +327,25 @@
                 if (!response.ok) throw new Error('Erreur réseau');
                 const data = await response.json();
                 
-                document.getElementById('referral-count').textContent = `(${data.referrals.length} filleuls)`;
+                document.getElementById('referral-count').textContent = `(${data.referrals?.length || 0} filleuls)`;
                 
                 let html = '';
-                data.referrals.forEach(friend => {
-                    html += `
-                    <div class="friend-card">
-                        <h3>${friend.username || 'Anonyme'}</h3>
-                        <p>Points générés: ${friend.total_points} (Vous avez reçu ${friend.commission} pts)</p>
-                    </div>`;
-                });
-                document.getElementById('friends-list').innerHTML = html || "<p>Aucun filleul</p>";
+                if (data.referrals && data.referrals.length > 0) {
+                    data.referrals.forEach(friend => {
+                        html += `
+                        <div class="friend-card">
+                            <h3>${friend.username || 'Anonyme'}</h3>
+                            <p>Points générés: ${friend.total_points || 0} (Vous avez reçu ${friend.commission || 0} pts)</p>
+                        </div>`;
+                    });
+                } else {
+                    html = "<p>Aucun filleul pour le moment</p>";
+                }
+                document.getElementById('friends-list').innerHTML = html;
             } catch (error) {
-                document.getElementById('friends-list').innerHTML = "<p>Erreur de chargement</p>";
+                console.error("Erreur friends:", error);
+                document.getElementById('friends-list').innerHTML = 
+                    "<p>Erreur de chargement des filleuls</p>";
             }
         }
 

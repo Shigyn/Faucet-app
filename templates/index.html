@@ -45,10 +45,13 @@
     </div>
 
     <script>
-        // ==================== INITIALISATION ====================
+        // ==================== CONFIG ====================
+        const PUBLIC_URL = "https://faucet-app.onrender.com"; // À modifier si nécessaire
         const tgWebApp = window.Telegram?.WebApp;
         let currentUserId = null;
+        let currentBalance = 0;
 
+        // ==================== INITIALISATION ====================
         if (tgWebApp?.initDataUnsafe?.user) {
             tgWebApp.expand();
             tgWebApp.ready();
@@ -75,15 +78,20 @@
 
                 // Gestion du solde
                 const balanceData = await balanceRes.json();
+                currentBalance = balanceData.balance || 0;
                 document.getElementById('balance-display').innerHTML = `
-                    <strong>Solde:</strong> ${balanceData.balance || 0} points
+                    <strong>Solde:</strong> ${currentBalance} points
                     ${balanceData.last_claim ? `<br><small>Dernière réclamation: ${balanceData.last_claim}</small>` : ''}
                 `;
+
+                // Lien de parrainage
+                document.getElementById('referral-link').textContent = 
+                    `${PUBLIC_URL}?ref=${balanceData.referral_code || currentUserId}`;
 
                 // Gestion des tasks
                 const tasksData = await tasksRes.json();
                 let tasksHtml = '';
-                if (tasksData.tasks && tasksData.tasks.length > 0) {
+                if (tasksData.tasks?.length > 0) {
                     tasksData.tasks.forEach(task => {
                         const isCompleted = localStorage.getItem(`task_${task.task_name}_completed`);
                         tasksHtml += `
@@ -105,9 +113,6 @@
 
                 // Gestion des friends
                 const friendsData = await friendsRes.json();
-                document.getElementById('referral-link').textContent = 
-                    balanceData.referral_url || "Génération...";
-                
                 let friendsHtml = '';
                 if (friendsData.referrals?.length > 0) {
                     friendsHtml = `<p>${friendsData.referrals.length} filleul(s)</p>`;
@@ -124,13 +129,12 @@
                 document.getElementById('friends-list').innerHTML = friendsHtml;
 
             } catch (e) {
-                console.error("Erreur:", e);
-                showToast("Erreur de chargement");
+                console.error("Erreur de chargement:", e);
             }
         }
 
         async function completeTask(taskName, points) {
-            if (!confirm(`Valider la tâche "${taskName}" ?`)) return false;
+            if (!confirm(`Valider la tâche "${taskName}" ?\nVous gagnerez ${points} points.`)) return false;
             
             try {
                 const response = await fetch('/complete-task', {
@@ -145,19 +149,20 @@
                 
                 const result = await response.json();
                 if (result.error) {
-                    showToast(result.error);
+                    showToast(result.error, 3000);
                 } else {
                     localStorage.setItem(`task_${taskName}_completed`, 'true');
-                    showToast(`+${points} points !`);
+                    showToast(`+${points} points !`, 2000);
                     loadData();
                 }
             } catch (e) {
-                showToast("Erreur réseau");
+                showToast("Erreur réseau", 3000);
             }
             return false;
         }
 
         async function claimPoints() {
+            const oldBalance = currentBalance;
             try {
                 const response = await fetch('/claim', {
                     method: 'POST',
@@ -166,15 +171,17 @@
                 });
                 
                 const result = await response.json();
-                if (!response.ok) throw new Error(result.error || "Erreur inconnue");
+                if (!response.ok) throw new Error(result.error || "Erreur lors de la réclamation");
                 
-                showToast(`+${result.points || 'X'} points ajoutés !`);
+                const pointsGagnes = (result.new_balance || result.balance) - oldBalance;
+                showToast(`+${pointsGagnes} points !`, 2000);
                 loadData();
             } catch (e) {
-                showToast(e.message, 5000);
+                console.error("Erreur Claim:", e.message);
             }
         }
 
+        // ==================== UTILITAIRES ====================
         function showSection(sectionId) {
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
             document.querySelectorAll('#navbar button').forEach(b => b.classList.remove('active'));
@@ -198,15 +205,16 @@
             return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
         }
 
+        // ==================== LANCEMENT ====================
         document.addEventListener('DOMContentLoaded', () => {
             if (currentUserId) {
                 loadData();
                 document.getElementById('claim-btn').addEventListener('click', claimPoints);
                 document.getElementById('copy-btn').addEventListener('click', () => {
                     const link = document.getElementById('referral-link').textContent;
-                    if (link && !link.includes("Chargement") && !link.includes("Génération")) {
+                    if (link && !link.includes("Chargement")) {
                         navigator.clipboard.writeText(link);
-                        showToast("Lien copié !");
+                        showToast("Lien copié !", 2000);
                     }
                 });
             }

@@ -1,76 +1,232 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <!-- [Tes balises meta et styles existants] -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Faucet Telegram</title>
+  <link href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&display=swap" rel="stylesheet">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      text-align: center;
+      background-color: #f9f3e9;
+      color: #333;
+      padding-bottom: 60px;
+    }
+    h1 {
+      font-family: 'UnifrakturCook', cursive;
+      font-size: 2.5em;
+      margin-top: 30px;
+      color: #d4af37;
+    }
+    .balance-box {
+      background-color: #fff;
+      border: 2px solid #d4af37;
+      border-radius: 10px;
+      padding: 20px;
+      margin: 20px auto;
+      max-width: 300px;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+    }
+    .claim-button {
+      background-color: #d4af37;
+      color: white;
+      border: none;
+      padding: 12px 25px;
+      font-size: 1.1em;
+      border-radius: 8px;
+      cursor: pointer;
+      margin: 15px 0;
+      transition: background-color 0.3s;
+    }
+    .claim-button:hover {
+      background-color: #c19b2e;
+    }
+    .claim-button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    #error {
+      color: #ff4444;
+      margin: 15px 0;
+      min-height: 20px;
+    }
+    .bottom-menu {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background-color: white;
+      border-top: 1px solid #eee;
+      display: flex;
+      justify-content: space-around;
+      padding: 10px 0;
+    }
+    .bottom-menu a {
+      color: #333;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    #loader {
+      display: none;
+      margin: 10px auto;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #d4af37;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
 </head>
 <body>
-  <!-- [Ton contenu existant] -->
+  <h1>Faucet Telegram</h1>
+  
+  <div class="balance-box">
+    <p>Votre solde :</p>
+    <p style="font-size: 2em;"><strong id="balance">0</strong> points</p>
+  </div>
+
+  <div id="error"></div>
+  <div id="loader"></div>
+
+  <button id="claimBtn" class="claim-button" disabled>Réclamer des points</button>
+
+  <div class="bottom-menu">
+    <a href="#" onclick="alert('Fonctionnalité à venir')">Historique</a>
+    <a href="#" onclick="alert('Fonctionnalité à venir')">Récompenses</a>
+  </div>
 
   <script>
-    const tg = window.Telegram.WebApp;
-    tg.expand(); // Force le mode plein écran
-    
-    // Solution de repli si initData n'est pas immédiatement disponible
-    function checkAuth() {
-      if (tg.initDataUnsafe?.user) {
-        const user = tg.initDataUnsafe.user;
-        document.getElementById('balance').textContent = 'Chargement...';
-        fetchBalance(user.id);
-        document.getElementById('claimBtn').disabled = false;
-      } else {
-        // Méthode alternative pour récupérer l'user_id
-        setTimeout(() => {
-          if (tg.initDataUnsafe?.user) {
-            checkAuth();
-          } else {
-            tg.sendData(JSON.stringify({action: "request_auth"}));
-          }
-        }, 1000);
+    // Initialisation Telegram WebApp
+    const tg = window.Telegram?.WebApp;
+    const claimBtn = document.getElementById('claimBtn');
+    const errorDiv = document.getElementById('error');
+    const balanceSpan = document.getElementById('balance');
+    const loader = document.getElementById('loader');
+
+    // Fonction principale
+    async function initApp() {
+      if (!tg) {
+        showError("Veuillez ouvrir via l'application Telegram");
+        return;
       }
+
+      tg.expand(); // Plein écran
+      tg.ready();  // Prêt à interagir
+
+      // Solution robuste pour récupérer l'utilisateur
+      const user = await getTelegramUser();
+      if (!user) return;
+
+      // Activation du bouton
+      claimBtn.disabled = false;
+      claimBtn.textContent = "Réclamer des points";
+
+      // Chargement du solde
+      loadBalance(user.id);
+      
+      // Gestion du clic
+      claimBtn.addEventListener('click', () => handleClaim(user.id));
     }
 
-    async function fetchBalance(userId) {
+    // Récupération de l'utilisateur avec fallback
+    async function getTelegramUser() {
+      if (tg.initDataUnsafe?.user) {
+        return tg.initDataUnsafe.user;
+      }
+
+      showError("Authentification...");
+      loader.style.display = 'block';
+
+      // Attente alternative
+      return new Promise((resolve) => {
+        const checkUser = () => {
+          if (tg.initDataUnsafe?.user) {
+            loader.style.display = 'none';
+            resolve(tg.initDataUnsafe.user);
+          } else {
+            setTimeout(checkUser, 500);
+          }
+        };
+        setTimeout(() => {
+          if (!tg.initDataUnsafe?.user) {
+            loader.style.display = 'none';
+            showError("Connectez-vous via Telegram");
+            resolve(null);
+          }
+        }, 3000);
+        checkUser();
+      });
+    }
+
+    // Chargement du solde
+    async function loadBalance(userId) {
       try {
+        loader.style.display = 'block';
         const response = await fetch('/get-balance', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({user_id: userId})
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId })
         });
-        const data = await response.json();
-        document.getElementById('balance').textContent = data.balance || 0;
-      } catch (error) {
-        console.error("Erreur balance:", error);
+        
+        if (response.ok) {
+          const data = await response.json();
+          balanceSpan.textContent = data.balance || 0;
+          errorDiv.textContent = '';
+        } else {
+          throw new Error(await response.text());
+        }
+      } catch (err) {
+        showError("Erreur de connexion");
+        console.error(err);
+      } finally {
+        loader.style.display = 'none';
       }
     }
 
-    // Au chargement
-    tg.ready();
-    checkAuth();
-
-    // Gestion du bouton Claim
-    document.getElementById('claimBtn').addEventListener('click', async () => {
-      const user = tg.initDataUnsafe?.user;
-      if (!user) return;
-      
-      document.getElementById('claimBtn').disabled = true;
+    // Gestion de la réclamation
+    async function handleClaim(userId) {
       try {
+        claimBtn.disabled = true;
+        loader.style.display = 'block';
+        errorDiv.textContent = '';
+        
         const response = await fetch('/claim', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({user_id: user.id})
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId })
         });
-        const result = await response.json();
+        
+        const data = await response.json();
+        
         if (response.ok) {
-          fetchBalance(user.id);
-          alert(`+${result.points} points!`);
+          showError(data.success || "Succès !", "success");
+          loadBalance(userId);
         } else {
-          alert(result.error || "Erreur");
+          throw new Error(data.error || "Erreur inconnue");
         }
+      } catch (err) {
+        showError(err.message);
       } finally {
-        document.getElementById('claimBtn').disabled = false;
+        claimBtn.disabled = false;
+        loader.style.display = 'none';
       }
-    });
+    }
+
+    // Affichage des erreurs
+    function showError(message, type = "error") {
+      errorDiv.textContent = message;
+      errorDiv.style.color = type === "success" ? "#4CAF50" : "#ff4444";
+    }
+
+    // Lancement
+    document.addEventListener('DOMContentLoaded', initApp);
   </script>
 </body>
 </html>

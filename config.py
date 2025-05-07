@@ -14,7 +14,7 @@ USER_RANGE = os.getenv("USER_RANGE", "Users!A2:C")  # Plage des utilisateurs, co
 TRANSACTION_RANGE = os.getenv("TRANSACTION_RANGE", "Transactions!A2:D")  # Plage des transactions, colonne A pour l'ID utilisateur, B pour la date de transaction, C pour le montant, D pour l'horodatage
 
 # Génération de token.json si nécessaire
-TOKEN_PATH = "google/token.json"  # Chemin vers le fichier token.json, utilisé après l'authentification avec Google
+TOKEN_PATH = "google/token.json"  # Chemin vers le fichier token.json, utilisé après l'authentification avec Google 
 
 # Fonction pour vérifier si le token existe déjà
 def get_token_path():

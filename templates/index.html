@@ -70,10 +70,11 @@
                     fetch('/get-balance', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({user_id: currentUserId})
+                        body: JSON.stringify({user_id: currentUserId}),
+                        cache: 'no-store'
                     }),
-                    fetch('/get-tasks'),
-                    fetch(`/get-friends?user_id=${currentUserId}`)
+                    fetch('/get-tasks', {cache: 'no-store'}),
+                    fetch(`/get-friends?user_id=${currentUserId}`, {cache: 'no-store'})
                 ]);
 
                 // Gestion du solde
@@ -81,7 +82,7 @@
                 currentBalance = balanceData.balance || 0;
                 document.getElementById('balance-display').innerHTML = `
                     <strong>Solde:</strong> ${currentBalance} points
-                    ${balanceData.last_claim ? `<br><small>Dernière réclamation: ${balanceData.last_claim}</small>` : ''}
+                    ${balanceData.last_claim ? `<br><small>Dernière réclamation: ${new Date(balanceData.last_claim).toLocaleString()}</small>` : ''}
                 `;
 
                 // Lien de parrainage
@@ -130,6 +131,7 @@
 
             } catch (e) {
                 console.error("Erreur de chargement:", e);
+                showToast("Erreur de chargement des données", 3000);
             }
         }
 
@@ -162,8 +164,17 @@
         }
 
         async function claimPoints() {
-            const oldBalance = currentBalance;
+            const now = new Date();
+            const lastClaimTime = localStorage.getItem('lastClaimTime');
+            
+            // Vérifier si 5 minutes se sont écoulées
+            if (lastClaimTime && (now - new Date(lastClaimTime)) < 300000) {
+                showToast("Attendez 5 minutes entre chaque réclamation", 3000);
+                return;
+            }
+
             try {
+                const oldBalance = currentBalance;
                 const response = await fetch('/claim', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -171,13 +182,17 @@
                 });
                 
                 const result = await response.json();
-                if (!response.ok) throw new Error(result.error || "Erreur lors de la réclamation");
+                if (!response.ok) throw new Error(result.error || "Erreur serveur");
+                
+                // Sauvegarder le timestamp
+                localStorage.setItem('lastClaimTime', now.toISOString());
                 
                 const pointsGagnes = (result.new_balance || result.balance) - oldBalance;
-                showToast(`+${pointsGagnes} points !`, 2000);
+                showToast(`+${pointsGagnes} points ! Prochain claim dans 5 minutes.`, 3000);
                 loadData();
             } catch (e) {
-                console.error("Erreur Claim:", e.message);
+                console.error("Claim error:", e);
+                showToast("Erreur lors de la réclamation", 3000);
             }
         }
 
@@ -209,6 +224,22 @@
         document.addEventListener('DOMContentLoaded', () => {
             if (currentUserId) {
                 loadData();
+                
+                // Actualisation automatique toutes les 30 secondes
+                setInterval(() => {
+                    if (document.visibilityState === 'visible') {
+                        loadData();
+                    }
+                }, 30000);
+                
+                // Et au focus de la fenêtre
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'visible') {
+                        loadData();
+                    }
+                });
+
+                // Événements
                 document.getElementById('claim-btn').addEventListener('click', claimPoints);
                 document.getElementById('copy-btn').addEventListener('click', () => {
                     const link = document.getElementById('referral-link').textContent;

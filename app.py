@@ -127,8 +127,8 @@ def get_user_balance(user_id):
 # Bot Telegram
 @bot.message_handler(commands=['start'])
 def start(message):
-    user_id = message.from_user.id
-    url = f"{PUBLIC_URL}/?user_id={user_id}"
+    user_id = message.from_user.id  # Récupère l'ID Telegram de l'utilisateur
+    url = f"{PUBLIC_URL}/?user_id={user_id}"  # Ajoute l'ID dans l'URL
     print(f"[BOT] Envoi de l'URL au user : {url}")
     bot.send_message(user_id, "Bienvenue ! Vous pouvez maintenant réclamer des points.")
     bot.send_message(user_id, f"👉 Pour réclamer des points, clique ici : {url}")

@@ -6,8 +6,52 @@
   <title>Réclamer des points</title>
   <link href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&display=swap" rel="stylesheet">
   <style>
-    /* ... [styles identiques à ceux déjà fournis] ... */
-    /* Collé ici sans répétition pour la lisibilité */
+    body {
+      font-family: 'Arial', sans-serif;
+      text-align: center;
+      background-color: #f9f3e9;
+      color: #333;
+    }
+    h1 {
+      font-family: 'UnifrakturCook', cursive;
+      font-size: 2.5em;
+      margin-top: 50px;
+    }
+    .balance-box {
+      background-color: #fff;
+      border: 2px solid #d4af37;
+      padding: 20px;
+      border-radius: 10px;
+      display: inline-block;
+      margin: 20px auto;
+      font-size: 1.2em;
+    }
+    .claim-button {
+      display: inline-block;
+      background-color: #d4af37;
+      color: white;
+      padding: 15px 30px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.1em;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .bottom-menu {
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+      background-color: #fff;
+      border-top: 1px solid #ccc;
+      display: flex;
+      justify-content: space-around;
+      padding: 10px 0;
+    }
+    .bottom-menu a {
+      color: #333;
+      text-decoration: none;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -20,40 +64,15 @@
 
   <br><br>
 
-  <a id="claimBtn" class="claim-button" href="#">Réclamer maintenant</a>
+  {% if user_id %}
+    <a id="claimBtn" class="claim-button" href="/claim?user_id={{ user_id }}">Réclamer maintenant</a>
+  {% endif %}
 
-  <div class="loading" id="loading">
-    <div class="spinner"></div>
-    <p>Chargement en cours...</p>
-  </div>
-
-  <div class="bottom-menu">
-    <a href="/">Accueil</a>
-    <a id="claimLink" href="#">Réclamer</a>
-  </div>
-
-  <script>
-    // Récupère le user_id de l'URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const userId = urlParams.get('user_id');
-
-    if (userId) {
-      const claimBtn = document.getElementById('claimBtn');
-      const claimLink = document.getElementById('claimLink');
-      claimBtn.href = `/claim?user_id=${userId}`;
-      claimLink.href = `/claim?user_id=${userId}`;
-    } else {
-      document.getElementById('claimBtn').style.display = 'none';
-      document.getElementById('claimLink').style.display = 'none';
-    }
-  </script>
-  
-   <!-- MENU EN BAS -->
   <div class="bottom-menu">
     <a href="/claim?user_id={{ user_id }}">Claim</a>
     <a href="/tasks?user_id={{ user_id }}">Tasks</a>
     <a href="/friends?user_id={{ user_id }}">Friends</a>
   </div>
-  
+
 </body>
 </html>

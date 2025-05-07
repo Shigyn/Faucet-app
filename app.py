@@ -40,20 +40,20 @@ def get_google_sheets_service():
 
 @app.route('/', methods=['GET'])
 def home():
-    user_id = request.args.get('user_id')
+    user_id = request.args.get('user_id')  # Récupération de l'ID utilisateur depuis l'URL
     print(f"[INFO] Accès à / avec user_id={user_id}")
     if not user_id:
         return "L'ID utilisateur est manquant !", 400
-    balance = get_user_balance(user_id)
+    balance = get_user_balance(user_id)  # Appel pour récupérer le solde de l'utilisateur
     return render_template('index.html', balance=balance, user_id=user_id)
 
 @app.route('/claim', methods=['GET'])
 def claim_page():
-    user_id = request.args.get('user_id')
+    user_id = request.args.get('user_id')  # Récupérer l'ID utilisateur depuis l'URL
     if not user_id:
         return "ID utilisateur manquant.", 400
-    balance = get_user_balance(user_id)
-    points = request.args.get('points')
+    balance = get_user_balance(user_id)  # Appel pour récupérer le solde de l'utilisateur
+    points = request.args.get('points')  # Récupérer les points depuis l'URL
     return render_template("claim.html", balance=balance, user_id=user_id, points=points)
 
 @app.route('/submit_claim', methods=['POST'])
@@ -62,14 +62,14 @@ def submit_claim():
     if not user_id:
         return "ID utilisateur manquant.", 400
 
-    points = random.randint(10, 100)
+    points = random.randint(10, 100)  # Générer des points aléatoires
     service = get_google_sheets_service()
     result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
     values = result.get('values', [])
 
     user_found = False
     for idx, row in enumerate(values):
-        if str(row[0]) == str(user_id):
+        if str(row[0]) == str(user_id):  # Si l'utilisateur existe déjà
             user_found = True
             last_claim = row[2] if len(row) > 2 else None
             if last_claim:
@@ -127,8 +127,8 @@ def get_user_balance(user_id):
 # Bot Telegram
 @bot.message_handler(commands=['start'])
 def start(message):
-    user_id = message.from_user.id  # Récupère l'ID Telegram de l'utilisateur
-    url = f"{PUBLIC_URL}/?user_id={user_id}"  # Ajoute l'ID dans l'URL
+    user_id = message.from_user.id  # Récupérer l'ID Telegram de l'utilisateur
+    url = f"{PUBLIC_URL}/?user_id={user_id}"  # Créer l'URL avec l'ID de l'utilisateur
     print(f"[BOT] Envoi de l'URL au user : {url}")
     bot.send_message(user_id, "Bienvenue ! Vous pouvez maintenant réclamer des points.")
     bot.send_message(user_id, f"👉 Pour réclamer des points, clique ici : {url}")

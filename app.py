@@ -5,23 +5,28 @@ from flask import Flask, request, render_template, redirect, url_for
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
+from threading import Thread
 
 app = Flask(__name__)
 
-# Vérification des variables d'environnement
+# Config
 TELEGRAM_BOT_API_KEY = os.getenv('TELEGRAM_BOT_API_KEY')
 GOOGLE_SHEET_ID = os.getenv('GOOGLE_SHEET_ID')
 USER_RANGE = os.getenv('USER_RANGE')
 TRANSACTION_RANGE = os.getenv('TRANSACTION_RANGE')
+PUBLIC_URL = os.getenv('PUBLIC_URL')  # ex: https://faucet-app.onrender.com
 
+# Vérification
 if not TELEGRAM_BOT_API_KEY:
-    raise ValueError("La variable d'environnement 'TELEGRAM_BOT_API_KEY' est manquante.")
+    raise ValueError("TELEGRAM_BOT_API_KEY manquant.")
 if not GOOGLE_SHEET_ID:
-    raise ValueError("La variable d'environnement 'GOOGLE_SHEET_ID' est manquante.")
+    raise ValueError("GOOGLE_SHEET_ID manquant.")
 if not USER_RANGE:
-    raise ValueError("La variable d'environnement 'USER_RANGE' est manquante.")
+    raise ValueError("USER_RANGE manquant.")
 if not TRANSACTION_RANGE:
-    raise ValueError("La variable d'environnement 'TRANSACTION_RANGE' est manquante.")
+    raise ValueError("TRANSACTION_RANGE manquant.")
+if not PUBLIC_URL:
+    raise ValueError("PUBLIC_URL manquant.")
 
 bot = telebot.TeleBot(TELEGRAM_BOT_API_KEY)
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
@@ -29,19 +34,16 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 def get_google_sheets_service():
     creds_json = os.environ.get('GOOGLE_CREDS')
     if not creds_json:
-        raise Exception("La variable d'environnement 'GOOGLE_CREDS' est manquante.")
-    
+        raise Exception("GOOGLE_CREDS manquant.")
     creds = Credentials.from_service_account_info(eval(creds_json), scopes=SCOPES)
-    service = build('sheets', 'v4', credentials=creds)
-    return service.spreadsheets()
+    return build('sheets', 'v4', credentials=creds).spreadsheets()
 
 @app.route('/', methods=['GET'])
 def home():
     user_id = request.args.get('user_id')
-    print(f"[INFO] Accès à / avec user_id={user_id}")  # Debug
+    print(f"[INFO] Accès à / avec user_id={user_id}")
     if not user_id:
         return "L'ID utilisateur est manquant !", 400
-
     balance = get_user_balance(user_id)
     return render_template('index.html', balance=balance, user_id=user_id)
 
@@ -61,7 +63,6 @@ def submit_claim():
         return "ID utilisateur manquant.", 400
 
     points = random.randint(10, 100)
-
     service = get_google_sheets_service()
     result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
     values = result.get('values', [])
@@ -123,17 +124,16 @@ def get_user_balance(user_id):
             return int(row[1]) if row[1] else 0
     return 0
 
-# Telegram bot: message /start
+# Bot Telegram
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.from_user.id
-    url = f"http://127.0.0.1:5000/?user_id={user_id}"
-    print(f"[BOT] Envoi de l'URL au user : {url}")  # Debug
+    url = f"{PUBLIC_URL}/?user_id={user_id}"
+    print(f"[BOT] Envoi de l'URL au user : {url}")
     bot.send_message(user_id, "Bienvenue ! Vous pouvez maintenant réclamer des points.")
-    bot.send_message(user_id, f"👉 Pour réclamer des points, cliquez ici : {url}")
+    bot.send_message(user_id, f"👉 Pour réclamer des points, clique ici : {url}")
 
-# Démarrage Flask
+# Lancer Flask et Telegram bot
 if __name__ == "__main__":
-    from threading import Thread
     Thread(target=bot.polling, kwargs={'none_stop': True}).start()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))

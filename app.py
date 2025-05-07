@@ -64,7 +64,7 @@ def claim():
     points = random.randint(10, 100)
     now = datetime.now().strftime("%d/%m/%Y %H:%M")
 
-    # Vérification du dernier claim
+    # Vérification du délai entre les claims
     for row in values:
         if str(row[0]) == str(user_id):
             if len(row) > 2 and row[2]:
@@ -72,54 +72,44 @@ def claim():
                 if (datetime.now() - last_claim) < timedelta(minutes=5):
                     return jsonify({"error": "Attends 5 minutes entre chaque réclamation"}), 400
 
-    # Mise à jour Sheets
-    user_found = False
-    for idx, row in enumerate(values):
-        if str(row[0]) == str(user_id):
-            user_found = True
-            current_balance = int(row[1]) if len(row) > 1 and row[1] else 0
-            new_balance = current_balance + points
-            
-            service.values().batchUpdate(
-                spreadsheetId=GOOGLE_SHEET_ID,
-                body={
-                    "requests": [
-                        {
-                            "updateCells": {
-                                "range": {"sheetId": 0, "startRowIndex": idx+1, "endRowIndex": idx+2, "startColumnIndex": 1, "endColumnIndex": 2},
-                                "rows": [{"values": [{"userEnteredValue": {"numberValue": new_balance}}]}],
-                                "fields": "userEnteredValue"
-                            }
-                        },
-                        {
-                            "updateCells": {
-                                "range": {"sheetId": 0, "startRowIndex": idx+1, "endRowIndex": idx+2, "startColumnIndex": 2, "endColumnIndex": 3},
-                                "rows": [{"values": [{"userEnteredValue": {"stringValue": now}}]}],
-                                "fields": "userEnteredValue"
-                            }
-                        }
-                    ]
-                }
-            ).execute()
-            break
+    try:
+        # Gestion des doublons et mise à jour
+        updated = False
+        for idx, row in enumerate(values):
+            if str(row[0]) == str(user_id):
+                current_balance = int(row[1]) if len(row) > 1 and row[1] else 0
+                new_balance = current_balance + points
+                
+                service.values().update(
+                    spreadsheetId=GOOGLE_SHEET_ID,
+                    range=f"{USER_RANGE.split('!')[0]}!B{idx+1}:C{idx+1}",
+                    valueInputOption="RAW",
+                    body={"values": [[new_balance, now]]}
+                ).execute()
+                updated = True
+                break
 
-    if not user_found:
+        if not updated:
+            service.values().append(
+                spreadsheetId=GOOGLE_SHEET_ID,
+                range=USER_RANGE,
+                valueInputOption="RAW",
+                body={"values": [[user_id, points, now]]}
+            ).execute()
+
+        # Enregistrement de la transaction
         service.values().append(
             spreadsheetId=GOOGLE_SHEET_ID,
-            range=USER_RANGE,
+            range=TRANSACTION_RANGE,
             valueInputOption="RAW",
-            body={"values": [[user_id, points, now]]}
+            body={"values": [[user_id, "claim", points, now]]}
         ).execute()
 
-    # Ajout transaction
-    service.values().append(
-        spreadsheetId=GOOGLE_SHEET_ID,
-        range=TRANSACTION_RANGE,
-        valueInputOption="RAW",
-        body={"values": [[user_id, "claim", points, now]]}
-    ).execute()
+        return jsonify({"success": f"{points} points ajoutés !"})
 
-    return jsonify({"success": f"{points} points ajoutés !"})
+    except Exception as e:
+        print(f"Erreur Sheets: {str(e)}")
+        return jsonify({"error": "Erreur serveur"}), 500
 
 @bot.message_handler(commands=['start'])
 def start(message):

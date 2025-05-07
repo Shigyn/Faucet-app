@@ -58,6 +58,9 @@
 
   <h1>Réclamez vos points, aventurier !</h1>
 
+  <!-- Affichage du user_id pour débogage -->
+  <p><strong>Debug user_id :</strong> {{ user_id }}</p>
+
   <div class="balance-box" id="balanceBox">
     <p>Ton solde actuel est : <strong>{{ balance }}</strong> points</p>
   </div>
@@ -72,10 +75,28 @@
   {% endif %}
 
   <div class="bottom-menu">
-    <a href="{{ url_for('claim_page', user_id=user_id) }}">Claim</a>
-    <a href="{{ url_for('tasks', user_id=user_id) }}">Tasks</a>
-    <a href="{{ url_for('friends', user_id=user_id) }}">Friends</a>
+    {% if user_id %}
+      <a href="{{ url_for('claim_page', user_id=user_id) }}">Claim</a>
+      <a href="{{ url_for('tasks', user_id=user_id) }}">Tasks</a>
+      <a href="{{ url_for('friends', user_id=user_id) }}">Friends</a>
+    {% else %}
+      <a href="#">Claim</a>
+      <a href="#">Tasks</a>
+      <a href="#">Friends</a>
+    {% endif %}
   </div>
+
+  <script>
+    // Si user_id est manquant, afficher un message d'erreur et masquer les liens
+    if (!{{ user_id|tojson }}) {
+      document.getElementById("claimBtn").style.display = "none"; // Masquer le bouton "Réclamer"
+      const bottomMenuLinks = document.querySelectorAll(".bottom-menu a");
+      bottomMenuLinks.forEach(link => {
+        link.style.display = "none"; // Masquer les liens du menu bas
+      });
+      alert("Identifiant utilisateur manquant. Veuillez vous connecter.");
+    }
+  </script>
 
 </body>
 </html>

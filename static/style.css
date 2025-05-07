@@ -1,214 +1,214 @@
+/* Police RPG moderne */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Ubuntu+Mono:wght@700&display=swap');
+
 :root {
-  --stone-dark: #2b2d42;
-  --stone-light: #4a4e69;
-  --brick-red: #6a040f;
-  --brick-accent: #9d0208;
-  --gold-light: #f9c74f;
-  --gold-dark: #f8961e;
-  --text-white: #fff;
-  --text-beige: #f8edeb;
-  --success: #2e7d32;
-  --error: #c62828;
+  --neon-blue: #0ff0fc;
+  --neon-purple: #9600ff;
+  --neon-pink: #ff00f6;
+  --dark-matter: #0d0221;
+  --cyber-stone: #261447;
+  --hacker-green: #00ff41;
+  --glow: 0 0 10px rgba(0, 255, 65, 0.8);
 }
 
 body {
-  font-family: 'Courier New', Courier, monospace;
+  font-family: 'Ubuntu Mono', monospace;
   background: 
-    linear-gradient(rgba(43, 45, 66, 0.9)), 
+    radial-gradient(circle at center, var(--dark-matter) 0%, #000 100%),
     url('https://i.imgur.com/JQ9qyZP.jpg') no-repeat center center fixed;
   background-size: cover;
-  color: var(--text-beige);
+  color: var(--neon-blue);
   min-height: 100vh;
-  padding-bottom: 80px;
-  font-weight: bold;
+  line-height: 1.6;
+  text-shadow: var(--glow);
+  overflow-x: hidden;
 }
 
-.telegram-alert {
-  display: none;
+/* Effet scanlines (optionnel) */
+body::after {
+  content: "";
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  background: var(--brick-red);
-  color: white;
-  padding: 15px;
-  text-align: center;
-  z-index: 1000;
-  animation: pulse 2s infinite;
+  bottom: 0;
+  background: 
+    linear-gradient(rgba(18, 16, 16, 0.1) 50%, 
+    transparent 50%),
+    linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  background-size: 100% 4px, 3px 100%;
+  pointer-events: none;
+  z-index: 100;
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 0.8; }
-  50% { opacity: 1; }
+.telegram-alert {
+  background: var(--cyber-stone);
+  border: 2px solid var(--neon-pink);
+  box-shadow: 0 0 15px var(--neon-pink);
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.8rem;
 }
 
 #app-content {
-  padding: 15px;
   max-width: 600px;
   margin: 0 auto;
+  padding: 20px;
+  perspective: 1000px;
 }
 
 .section {
   display: none;
-  padding: 15px;
-  background: rgba(43, 45, 66, 0.9);
-  border: 3px solid var(--brick-red);
-  border-radius: 10px;
-  margin-bottom: 15px;
+  background: rgba(13, 2, 33, 0.85);
+  border: 2px solid var(--neon-blue);
+  border-radius: 8px;
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+  padding: 20px;
+  margin-bottom: 20px;
+  transform-style: preserve-3d;
+  backdrop-filter: blur(5px);
 }
 
 .section.active {
   display: block;
-  animation: fadeIn 0.3s;
+  animation: hologramAppear 0.8s ease-out;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes hologramAppear {
+  0% { opacity: 0; transform: rotateX(60deg) translateY(30px); }
+  100% { opacity: 1; transform: rotateX(0) translateY(0); }
 }
 
-#navbar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  background: var(--stone-dark);
-  border-top: 3px solid var(--brick-red);
-  height: 70px;
-}
-
-#navbar button {
-  flex: 1;
-  background: none;
-  border: none;
-  color: var(--gold-light);
-  font-weight: bold;
-  cursor: pointer;
-}
-
-#navbar button.active {
-  background: var(--stone-light);
+h1, h2, h3 {
+  font-family: 'Press Start 2P', cursive;
+  color: var(--neon-pink);
+  text-shadow: 0 0 10px var(--neon-pink);
+  margin-bottom: 15px;
+  letter-spacing: 1px;
 }
 
 #balance-display {
-  background: rgba(43, 45, 66, 0.9);
-  padding: 15px;
+  background: rgba(38, 20, 71, 0.6);
+  border: 1px solid var(--neon-purple);
   border-radius: 8px;
-  border: 2px solid var(--gold-dark);
-  margin: 15px 0;
+  padding: 15px;
+  margin: 20px 0;
   text-align: center;
+  font-size: 1.2rem;
 }
 
 #claim-btn {
-  width: 100%;
-  padding: 15px;
-  background: linear-gradient(to right, var(--brick-red), var(--brick-accent));
+  background: linear-gradient(135deg, var(--neon-purple) 0%, var(--neon-pink) 100%);
   color: white;
   border: none;
   border-radius: 8px;
-  font-weight: bold;
-  margin: 10px 0;
+  padding: 15px;
+  font-family: 'Press Start 2P', cursive;
+  font-size: 1rem;
   cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 0 15px var(--neon-purple);
+  margin: 10px 0;
+  width: 100%;
+}
+
+#claim-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 25px var(--neon-pink);
 }
 
 #claim-btn:disabled {
-  opacity: 0.7;
-  background: var(--stone-light);
+  background: #333;
+  color: #666;
+  box-shadow: none;
+  transform: none;
 }
 
 .task-card, .friend-card {
-  background: rgba(43, 45, 66, 0.9);
-  border: 2px solid var(--brick-accent);
+  background: rgba(38, 20, 71, 0.7);
+  border: 1px solid var(--neon-blue);
   border-radius: 8px;
   padding: 15px;
   margin-bottom: 15px;
+  transition: transform 0.3s;
+}
+
+.task-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0, 255, 255, 0.4);
 }
 
 .task-btn {
-  display: block;
-  padding: 8px;
-  background: var(--brick-red);
+  display: inline-block;
+  background: var(--neon-purple);
   color: white;
-  text-align: center;
+  padding: 8px 15px;
   border-radius: 5px;
   text-decoration: none;
-  margin-top: 10px;
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.7rem;
+  transition: all 0.3s;
 }
 
 .task-btn.completed {
-  background: var(--success);
+  background: var(--hacker-green);
+  color: black;
 }
 
-.referral-container {
-  display: flex;
-  margin-top: 10px;
+#navbar {
+  background: rgba(13, 2, 33, 0.9);
+  border-top: 2px solid var(--neon-blue);
+  box-shadow: 0 -5px 20px rgba(0, 255, 255, 0.2);
 }
 
-.referral-link {
-  flex: 1;
+#navbar button {
+  color: var(--neon-blue);
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.6rem;
   padding: 10px;
-  background: rgba(74, 78, 105, 0.7);
-  border: 1px solid var(--gold-light);
-  border-radius: 5px 0 0 5px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  transition: all 0.3s;
 }
 
-.copy-btn {
-  padding: 10px 15px;
-  background: var(--brick-red);
-  color: white;
-  border: none;
-  border-radius: 0 5px 5px 0;
-  cursor: pointer;
+#navbar button.active {
+  color: var(--neon-pink);
+  text-shadow: 0 0 10px var(--neon-pink);
+  background: rgba(150, 0, 255, 0.2);
 }
 
 .toast-message {
-  position: fixed;
-  bottom: 90px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 12px 20px;
-  border-radius: 5px;
-  font-weight: bold;
-  animation: slideIn 0.3s;
-  z-index: 1000;
+  background: var(--cyber-stone);
+  border: 1px solid var(--hacker-green);
+  box-shadow: 0 0 15px var(--hacker-green);
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.7rem;
 }
 
-.toast-success {
-  background: var(--success);
+/* Animation clignotement texte */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
-.toast-error {
-  background: var(--error);
+.blink {
+  animation: blink 1.5s infinite;
 }
 
-.toast-message.fade-out {
-  animation: fadeOut 0.5s;
+/* Effets spéciaux pour éléments importants */
+.highlight {
+  color: var(--hacker-green);
+  text-shadow: 0 0 10px var(--hacker-green);
 }
 
-@keyframes slideIn {
-  from { bottom: 50px; opacity: 0; }
-  to { bottom: 90px; opacity: 1; }
-}
-
-@keyframes fadeOut {
-  from { opacity: 1; }
-  to { opacity: 0; }
-}
-
-@media (max-width: 480px) {
+/* Responsive design */
+@media (max-width: 768px) {
   body {
-    padding-bottom: 60px;
+    font-size: 14px;
   }
   
-  #navbar {
-    height: 60px;
+  h1 {
+    font-size: 1.5rem;
   }
   
-  .section {
-    padding: 12px;
+  #navbar button {
+    font-size: 0.5rem;
   }
 }

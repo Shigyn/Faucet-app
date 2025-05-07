@@ -71,45 +71,130 @@
         }
 
         // ==================== FONCTIONS PRINCIPALES ====================
-        async function loadData() {
-            if (!currentUserId) return;
-            
-            try {
-                const [balanceRes, tasksRes, friendsRes] = await Promise.all([
-                    fetch('/get-balance', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({user_id: currentUserId})
-                    }),
-                    fetch('/get-tasks'),
-                    fetch(`/get-friends?user_id=${currentUserId}`)
-                ]);
+  async function loadData() {
+    // Vérification de l'utilisateur
+    if (!currentUserId) {
+        console.warn("Aucun user ID détecté");
+        return;
+    }
 
-                if (!balanceRes.ok || !tasksRes.ok || !friendsRes.ok) {
-                    throw new Error("Erreur de chargement des données");
-                }
+    try {
+        // Chargement parallèle des données
+        const [balance, tasks, friends] = await loadAllData();
+        
+        // Mise à jour de l'UI
+        updateUI({ balance, tasks, friends });
+        
+    } catch (error) {
+        handleDataError(error);
+    }
+}
 
-                // Gestion du solde
-                const balanceData = await balanceRes.json();
-                currentBalance = balanceData.balance || 0;
-                updateBalanceDisplay(balanceData);
+// Fonctions décomposées :
 
-                // Lien de parrainage
-                updateReferralLink(balanceData);
-
-                // Gestion des tasks
-                const tasksData = await tasksRes.json();
-                updateTasksList(tasksData);
-
-                // Gestion des friends
-                const friendsData = await friendsRes.json();
-                updateFriendsList(friendsData);
-
-            } catch (e) {
-                console.error("Erreur de chargement:", e);
-                showToast("Erreur de chargement des données", 3000);
+async function loadAllData() {
+    const endpoints = [
+        { 
+            url: '/get-balance', 
+            options: { 
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({user_id: currentUserId})
             }
-        }
+        },
+        { url: '/get-tasks' },
+        { url: `/get-friends?user_id=${currentUserId}` }
+    ];
+
+    const responses = await Promise.all(
+        endpoints.map(({url, options}) => fetch(url, options))
+    );
+
+    // Vérification des réponses
+    responses.forEach(res => {
+        if (!res.ok) throw new Error(`Erreur HTTP: ${res.status}`);
+    });
+
+    return Promise.all(responses.map(res => res.json()));
+}
+
+function updateUI({ balance, tasks, friends }) {
+    // Mise à jour du solde
+    currentBalance = balance?.balance || 0;
+    document.getElementById('balance-display').innerHTML = `
+        <strong>Solde:</strong> ${currentBalance} points
+        ${balance?.last_claim ? `<br><small>Dernière réclamation: ${new Date(balance.last_claim).toLocaleString()}</small>` : ''}
+    `;
+
+    // Lien de parrainage
+    if (balance?.referral_code) {
+        document.getElementById('referral-link').textContent = 
+            `${PUBLIC_URL}?ref=${balance.referral_code}`;
+    }
+
+    // Liste des tâches
+    document.getElementById('tasks-list').innerHTML = 
+        tasks?.tasks?.length 
+            ? renderTasks(tasks.tasks) 
+            : "<p>Aucune tâche disponible</p>";
+
+    // Liste d'amis
+    document.getElementById('friends-list').innerHTML = 
+        friends?.referrals?.length
+            ? renderFriends(friends.referrals)
+            : "<p>Invitez des amis pour gagner des bonus !</p>";
+}
+
+function renderTasks(tasks) {
+    return tasks.map(task => `
+        <div class="task-card">
+            <h3>${escapeHtml(task.task_name)}</h3>
+            <p>${escapeHtml(task.description)}</p>
+            <span class="points-badge">${task.points} pts</span>
+            <a href="${escapeHtml(task.url)}" target="_blank" 
+               class="task-btn ${isTaskCompleted(task.task_name) ? 'completed' : ''}"
+               onclick="return handleTaskClick('${escapeString(task.task_name)}', ${task.points})">
+                ${isTaskCompleted(task.task_name) ? '✅ Terminé' : 'Commencer'}
+            </a>
+        </div>`
+    ).join('');
+}
+
+function renderFriends(friends) {
+    return `
+        <p>${friends.length} filleul(s)</p>
+        ${friends.map(friend => `
+            <div class="friend-card">
+                <h3>${escapeHtml(friend.username || 'Anonyme')}</h3>
+                <p>Points générés: ${friend.total_points || 0}</p>
+            </div>`
+        ).join('')}
+    `;
+}
+
+function handleDataError(error) {
+    console.error("Erreur de chargement:", error);
+    showToast(error.message || "Erreur de chargement des données", 3000);
+    
+    // Fallback UI
+    document.getElementById('balance-display').textContent = "Erreur de chargement";
+    document.getElementById('tasks-list').innerHTML = "<p>Impossible de charger les tâches</p>";
+    document.getElementById('friends-list').innerHTML = "<p>Impossible de charger les contacts</p>";
+}
+
+// Helpers
+function isTaskCompleted(taskName) {
+    return localStorage.getItem(`task_${taskName}_completed`);
+}
+
+function escapeHtml(unsafe) {
+    return unsafe?.toString()
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;") || '';
+}
 
         function updateBalanceDisplay(balanceData) {
             document.getElementById('balance-display').innerHTML = `

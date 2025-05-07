@@ -140,7 +140,6 @@
             cursor: default;
         }
         .telegram-alert {
-            display: none;
             position: fixed;
             top: 0;
             left: 0;
@@ -150,6 +149,7 @@
             padding: 15px;
             text-align: center;
             z-index: 1000;
+            display: none;
         }
     </style>
 </head>
@@ -198,51 +198,50 @@
     <div id="toast" class="toast">Lien copié !</div>
 
     <script>
-        // ==================== INITIALISATION ====================
-        function initializeTelegramWebApp() {
+        // ==================== VÉRIFICATION TELEGRAM ====================
+        function getTelegramUser() {
             if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
                 const tgWebApp = Telegram.WebApp;
                 tgWebApp.expand();
                 tgWebApp.enableClosingConfirmation();
-                
                 return {
                     id: tgWebApp.initDataUnsafe.user.id.toString(),
-                    username: tgWebApp.initDataUnsafe.user.username || `user_${tgWebApp.initDataUnsafe.user.id}`
+                    username: tgWebApp.initDataUnsafe.user.username || 'user_' + tgWebApp.initDataUnsafe.user.id
                 };
             }
             return null;
         }
 
-        // ==================== GLOBALS ====================
-        const telegramUser = initializeTelegramWebApp();
-        let currentUserId = telegramUser?.id;
+        // ==================== VARIABLES GLOBALES ====================
+        const telegramUser = getTelegramUser();
+        const currentUserId = telegramUser?.id;
         let referralData = null;
 
-        // ==================== AUTH CHECK ====================
-        if (!currentUserId) {
-            document.getElementById('telegram-alert').style.display = 'block';
-            
-            // Mode debug optionnel
-            if (window.location.search.includes('debug')) {
-                currentUserId = "DEBUG_USER_ID";
-                console.warn("Mode debug activé");
-            } else {
+        // ==================== INITIALISATION ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!currentUserId) {
+                document.getElementById('telegram-alert').style.display = 'block';
                 setTimeout(() => {
                     window.location.href = "https://t.me/CRYPTORATS_bot";
                 }, 3000);
+                return;
             }
-        }
 
-        // ==================== CORE FUNCTIONS ====================
+            // Charger les données si authentifié
+            loadUserData();
+            loadFriends();
+        });
+
+        // ==================== FONCTIONS PRINCIPALES ====================
         async function loadUserData() {
-            if (!currentUserId) return;
-            
             try {
                 const response = await fetch('/get-balance', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: currentUserId })
                 });
+                
+                if (!response.ok) throw new Error('Erreur réseau');
                 
                 const data = await response.json();
                 
@@ -265,6 +264,7 @@
         async function loadTasks() {
             try {
                 const response = await fetch('/get-tasks');
+                if (!response.ok) throw new Error('Erreur réseau');
                 const tasks = await response.json();
                 
                 let html = '';
@@ -277,23 +277,41 @@
                         <span class="points-badge">${task.points} pts</span>
                         <a href="${task.url}" target="_blank" 
                            class="task-btn ${isCompleted ? 'task-completed' : ''}"
-                           onclick="return completeTask('${task.task_name}', ${task.points}, '${task.url}')">
+                           onclick="return completeTask('${task.task_name}', ${task.points})">
                             ${isCompleted ? '✅ Terminé' : 'Commencer'}
                         </a>
                     </div>`;
                 });
                 document.getElementById('tasks-list').innerHTML = html || "<p>Aucune task disponible</p>";
             } catch (error) {
-                document.getElementById('tasks-list').innerHTML = `<p>Erreur: ${error.message}</p>`;
+                document.getElementById('tasks-list').innerHTML = "<p>Erreur de chargement des tasks</p>";
             }
         }
 
-        async function completeTask(taskName, points, url) {
-            if (localStorage.getItem(`task_${taskName}_completed_${currentUserId}`)) {
-                return false;
+        async function loadFriends() {
+            try {
+                const response = await fetch(`/get-friends?user_id=${currentUserId}`);
+                if (!response.ok) throw new Error('Erreur réseau');
+                const data = await response.json();
+                
+                document.getElementById('referral-count').textContent = `(${data.referrals.length} filleuls)`;
+                
+                let html = '';
+                data.referrals.forEach(friend => {
+                    html += `
+                    <div class="friend-card">
+                        <h3>${friend.username || 'Anonyme'}</h3>
+                        <p>Points générés: ${friend.total_points} (Vous avez reçu ${friend.commission} pts)</p>
+                    </div>`;
+                });
+                document.getElementById('friends-list').innerHTML = html || "<p>Aucun filleul</p>";
+            } catch (error) {
+                document.getElementById('friends-list').innerHTML = "<p>Erreur de chargement</p>";
             }
+        }
 
-            if (confirm(`Confirmez la complétion de : ${taskName} ?`)) {
+        async function completeTask(taskName, points) {
+            if (confirm(`Valider la tâche "${taskName}" ?`)) {
                 try {
                     const response = await fetch('/complete-task', {
                         method: 'POST',
@@ -322,7 +340,7 @@
             return false;
         }
 
-        // ==================== EVENT LISTENERS ====================
+        // ==================== ÉVÉNEMENTS ====================
         document.getElementById('copy-btn').addEventListener('click', () => {
             if (!referralData?.referral_url) return;
             
@@ -366,12 +384,6 @@
             document.querySelector(`#navbar button[onclick="showSection('${sectionId}')"]`).classList.add('active');
             
             if (sectionId === 'tasks') loadTasks();
-            if (sectionId === 'friends') loadFriends();
-        }
-
-        // ==================== INIT ====================
-        if (currentUserId) {
-            loadUserData();
         }
     </script>
 </body>

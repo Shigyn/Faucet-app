@@ -12,20 +12,17 @@
     </div>
 
     <div id="app-content">
-        <!-- Section Principale -->
         <div id="main-section" class="section active">
             <h1>Vos Points</h1>
             <div id="balance-display">Chargement en cours...</div>
             <button id="claim-btn">🎁 Réclamer des points</button>
         </div>
 
-        <!-- Section Tasks -->
         <div id="tasks-section" class="section">
             <h1>📋 Tasks</h1>
             <div id="tasks-list">Chargement des tasks...</div>
         </div>
 
-        <!-- Section Friends -->
         <div id="friends-section" class="section">
             <h1>👥 Friends</h1>
             <div class="referral-card">
@@ -40,7 +37,6 @@
             <div id="friends-list">Chargement...</div>
         </div>
 
-        <!-- Barre de navigation -->
         <div id="navbar">
             <button onclick="showSection('main')" class="active">🏠 Accueil</button>
             <button onclick="showSection('tasks')">✅ Tasks</button>
@@ -67,7 +63,6 @@
             if (!currentUserId) return;
             
             try {
-                // Chargement parallèle des données
                 const [balanceRes, tasksRes, friendsRes] = await Promise.all([
                     fetch('/get-balance', {
                         method: 'POST',
@@ -78,26 +73,28 @@
                     fetch(`/get-friends?user_id=${currentUserId}`)
                 ]);
 
-                // Traitement du solde
+                // Gestion du solde
                 const balanceData = await balanceRes.json();
                 document.getElementById('balance-display').innerHTML = `
-                    <strong>Solde actuel:</strong> ${balanceData.balance || 0} points
+                    <strong>Solde:</strong> ${balanceData.balance || 0} points
                     ${balanceData.last_claim ? `<br><small>Dernière réclamation: ${balanceData.last_claim}</small>` : ''}
                 `;
 
-                // Traitement des tasks
+                // Gestion des tasks
                 const tasksData = await tasksRes.json();
                 let tasksHtml = '';
-                if (tasksData.tasks?.length > 0) {
+                if (tasksData.tasks && tasksData.tasks.length > 0) {
                     tasksData.tasks.forEach(task => {
+                        const isCompleted = localStorage.getItem(`task_${task.task_name}_completed`);
                         tasksHtml += `
                         <div class="task-card">
                             <h3>${task.task_name}</h3>
                             <p>${task.description}</p>
                             <span class="points-badge">${task.points} pts</span>
-                            <a href="#" onclick="completeTask('${escapeString(task.task_name)}', ${task.points})" 
-                               class="task-btn">
-                                Commencer
+                            <a href="${task.url}" target="_blank" 
+                               class="task-btn ${isCompleted ? 'completed' : ''}"
+                               onclick="${!isCompleted ? `completeTask('${escapeString(task.task_name)}', ${task.points}); return false;` : 'return true;'}">
+                                ${isCompleted ? '✅ Terminé' : 'Commencer'}
                             </a>
                         </div>`;
                     });
@@ -106,7 +103,7 @@
                 }
                 document.getElementById('tasks-list').innerHTML = tasksHtml;
 
-                // Traitement des friends
+                // Gestion des friends
                 const friendsData = await friendsRes.json();
                 document.getElementById('referral-link').textContent = 
                     balanceData.referral_url || "Génération...";
@@ -132,9 +129,8 @@
             }
         }
 
-        // ==================== FONCTIONS INTERACTIVES ====================
         async function completeTask(taskName, points) {
-            if (!currentUserId || !confirm(`Valider "${taskName}" ?\nVous gagnerez ${points} points.`)) return false;
+            if (!confirm(`Valider la tâche "${taskName}" ?`)) return false;
             
             try {
                 const response = await fetch('/complete-task', {
@@ -151,6 +147,7 @@
                 if (result.error) {
                     showToast(result.error);
                 } else {
+                    localStorage.setItem(`task_${taskName}_completed`, 'true');
                     showToast(`+${points} points !`);
                     loadData();
                 }
@@ -161,8 +158,6 @@
         }
 
         async function claimPoints() {
-            if (!currentUserId) return;
-            
             try {
                 const response = await fetch('/claim', {
                     method: 'POST',
@@ -171,30 +166,18 @@
                 });
                 
                 const result = await response.json();
-                if (result.error) {
-                    showToast(result.error);
-                } else {
-                    showToast(result.success || "Points réclamés !");
-                    loadData();
-                }
+                if (!response.ok) throw new Error(result.error || "Erreur inconnue");
+                
+                showToast(`+${result.points || 'X'} points ajoutés !`);
+                loadData();
             } catch (e) {
-                showToast("Erreur réseau");
+                showToast(e.message, 5000);
             }
         }
 
-        // ==================== UTILITAIRES ====================
         function showSection(sectionId) {
-            // Masquer toutes les sections
-            document.querySelectorAll('.section').forEach(s => {
-                s.classList.remove('active');
-            });
-            
-            // Désactiver tous les boutons
-            document.querySelectorAll('#navbar button').forEach(b => {
-                b.classList.remove('active');
-            });
-            
-            // Activer la section demandée
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('#navbar button').forEach(b => b.classList.remove('active'));
             document.getElementById(`${sectionId}-section`).classList.add('active');
             document.querySelector(`#navbar button[onclick="showSection('${sectionId}')"]`).classList.add('active');
         }
@@ -215,15 +198,10 @@
             return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
         }
 
-        // ==================== ECOUTEURS D'EVENEMENTS ====================
         document.addEventListener('DOMContentLoaded', () => {
             if (currentUserId) {
                 loadData();
-                
-                // Bouton Claim
                 document.getElementById('claim-btn').addEventListener('click', claimPoints);
-                
-                // Bouton Copie
                 document.getElementById('copy-btn').addEventListener('click', () => {
                     const link = document.getElementById('referral-link').textContent;
                     if (link && !link.includes("Chargement") && !link.includes("Génération")) {
@@ -236,7 +214,6 @@
     </script>
 
     <style>
-        /* Styles pour les toasts */
         .toast-message {
             position: fixed;
             top: 20px;

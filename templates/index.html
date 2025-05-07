@@ -4,103 +4,126 @@
     <title>CRYPTORATS_bot</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <style>
-        /* [Tous tes styles CSS d'origine - inchangés] */
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            margin: 0;
-            padding-bottom: 60px;
-            background-color: #f5f5f5;
-        }
-        /* ... (le reste de ton CSS original) ... */
-    </style>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div id="telegram-alert" class="telegram-alert">
         ⚠️ Ouvrez cette application via @CRYPTORATS_bot !
     </div>
 
-    <div id="app-content" style="display:none;">
-        <!-- [Tout ton contenu HTML existant] -->
+    <div id="app-content">
         <div id="main-section" class="section active">
             <h1>Vos Points</h1>
             <div id="balance-display">Chargement en cours...</div>
             <button id="claim-btn">🎁 Réclamer des points</button>
         </div>
-        <!-- ... (le reste de ton HTML) ... -->
+
+        <div id="tasks-section" class="section">
+            <h1>📋 Tasks</h1>
+            <div id="tasks-list">Chargement des tasks...</div>
+        </div>
+
+        <div id="navbar">
+            <button onclick="showSection('main')" class="active">🏠 Accueil</button>
+            <button onclick="showSection('tasks')">✅ Tasks</button>
+        </div>
     </div>
 
     <script>
-        // ==================== SOLUTION URGENCE ====================
-        function initApp() {
-            const tgWebApp = window.Telegram?.WebApp;
+        // ==================== INITIALISATION ====================
+        const tgWebApp = window.Telegram?.WebApp;
+        let currentUserId = null;
+
+        if (tgWebApp?.initDataUnsafe?.user) {
+            tgWebApp.expand();
+            tgWebApp.ready();
+            document.getElementById('telegram-alert').style.display = 'none';
+            currentUserId = tgWebApp.initDataUnsafe.user.id.toString();
+        } else {
+            setTimeout(() => window.location.href = "https://t.me/CRYPTORATS_bot", 2000);
+        }
+
+        // ==================== FONCTIONS PRINCIPALES ====================
+        async function loadData() {
+            if (!currentUserId) return;
             
-            if (tgWebApp?.initDataUnsafe?.user) {
-                tgWebApp.expand();
-                tgWebApp.ready();
-                document.getElementById('telegram-alert').style.display = 'none';
-                document.getElementById('app-content').style.display = 'block';
-                return tgWebApp.initDataUnsafe.user.id.toString();
-            } else {
-                setTimeout(() => {
-                    window.location.href = "https://t.me/CRYPTORATS_bot";
-                }, 2000);
-                return null;
-            }
-        }
-
-        // ==================== FONCTIONS API (version simplifiée) ====================
-        async function loadUserData() {
             try {
-                // Solution de repli si l'API échoue
+                // Charger le solde
+                const balanceRes = await fetch('/get-balance', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({user_id: currentUserId})
+                });
+                const balanceData = await balanceRes.json();
                 document.getElementById('balance-display').innerHTML = `
-                    <strong>Solde actuel:</strong> <span id="live-balance">0</span> points
+                    <strong>Solde actuel:</strong> ${balanceData.balance || 0} points
                 `;
-            } catch (e) {
-                console.error("Erreur balance:", e);
-            }
-        }
 
-        async function loadTasks() {
-            try {
-                // Tasks par défaut si l'API ne répond pas
-                const defaultTasks = [
-                    {
-                        task_name: "Rejoindre le channel",
-                        description: "Abonnez-vous à notre channel Telegram",
-                        points: 50,
-                        url: "https://t.me/CRYPTORATS_annonces"
-                    },
-                    {
-                        task_name: "Follow Twitter",
-                        description: "Suivez-nous sur Twitter",
-                        points: 30,
-                        url: "https://twitter.com/CRYPTORATS_off"
-                    }
-                ];
-
-                let html = '';
-                defaultTasks.forEach(task => {
-                    html += `
+                // Charger les tasks
+                const tasksRes = await fetch('/get-tasks');
+                const tasksData = await tasksRes.json();
+                
+                let tasksHtml = '';
+                tasksData.tasks.forEach(task => {
+                    tasksHtml += `
                     <div class="task-card">
                         <h3>${task.task_name}</h3>
                         <p>${task.description}</p>
                         <span class="points-badge">${task.points} pts</span>
-                        <a href="${task.url}" target="_blank" class="task-btn">Commencer</a>
+                        <a href="#" onclick="completeTask('${task.task_name.replace(/'/g, "\\'")}', ${task.points})" 
+                           class="task-btn">
+                            Commencer
+                        </a>
                     </div>`;
                 });
-                document.getElementById('tasks-list').innerHTML = html;
+                document.getElementById('tasks-list').innerHTML = tasksHtml;
             } catch (e) {
-                console.error("Erreur tasks:", e);
+                console.error("Erreur:", e);
             }
         }
 
-        // ==================== INITIALISATION ====================
+        async function completeTask(taskName, points) {
+            if (!currentUserId || !confirm(`Valider la tâche "${taskName}" ?`)) return false;
+            
+            try {
+                const response = await fetch('/complete-task', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        user_id: currentUserId,
+                        task_name: taskName,
+                        points: points
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.error) {
+                    alert("Erreur: " + result.error);
+                } else {
+                    alert(`✅ Tâche validée ! +${points} points`);
+                    loadData(); // Recharge les données
+                }
+            } catch (e) {
+                alert("Erreur réseau");
+            }
+            return false; // Empêche le rechargement
+        }
+
+        function showSection(sectionId) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('#navbar button').forEach(b => b.classList.remove('active'));
+            
+            document.getElementById(`${sectionId}-section`).classList.add('active');
+            document.querySelector(`#navbar button[onclick="showSection('${sectionId}')"]`).classList.add('active');
+        }
+
+        // ==================== LANCEMENT ====================
         document.addEventListener('DOMContentLoaded', () => {
-            const userId = initApp();
-            if (userId) {
-                loadUserData();
-                loadTasks();
+            if (currentUserId) {
+                loadData();
+                document.getElementById('claim-btn').addEventListener('click', () => {
+                    alert("Fonctionnalité à implémenter");
+                });
             }
         });
     </script>

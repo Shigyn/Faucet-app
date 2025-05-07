@@ -32,6 +32,40 @@ def clean_user_id(user_id):
     return str(user_id).strip().strip("'")
 
 # Routes
+# [...] (le reste du code précédent reste inchangé jusqu'aux routes)
+
+@app.route('/complete-task', methods=['POST'])
+def complete_task():
+    try:
+        data = request.get_json()
+        user_id = clean_user_id(data.get('user_id'))
+        task_name = data.get('task_name')
+        points = int(data.get('points', 0))
+
+        if not all([user_id, task_name, points > 0]):
+            return jsonify({"error": "Données invalides"}), 400
+
+        # 1. Mettre à jour le solde
+        service = get_google_sheets_service()
+        now = datetime.now().strftime("%d/%m/%Y %H:%M")
+        
+        # Trouver l'utilisateur
+        result = service.values().get(
+            spreadsheetId=GOOGLE_SHEET_ID,
+            range=USER_RANGE
+        ).execute()
+        
+        updated = False
+        for idx, row in enumerate(result.get('values', [])):
+            if row and clean_user_id(row[0]) == user_id:
+                new_balance = (int(float(row[1])) if len(row) > 1 and row[1] else 0) + points
+                # Mise à jour du solde
+                service.values().update(
+                    spreadsheetId=GOOGLE_SHEET_ID,
+                    range=f"Users!B{idx+2}",
+                    valueInputOption="USER_ENTERED",
+                    body={"values": [[new_balance]]
+                    
 @app.route('/')
 def home():
     return render_template('index.html')

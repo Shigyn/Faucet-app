@@ -11,18 +11,12 @@ from threading import Lock
 from flask_cors import CORS
 
 # Configuration initiale
-app = Flask(__name__, static_folder='static')
+app = Flask(__name__, static_folder='static', static_url_path='')
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
-# Configuration CORS
-CORS(app, resources={
-    r"/get-balance": {"origins": "*"},
-    r"/claim": {"origins": "*"},
-    r"/get-tasks": {"origins": "*"},
-    r"/get-friends": {"origins": "*"},
-    r"/complete-task": {"origins": "*"}
-})
+# Configuration CORS plus permissive
+CORS(app)
 
 # Configuration logging
 logging.basicConfig(level=logging.INFO)
@@ -56,25 +50,11 @@ def validate_user_data(func):
     """Décorateur pour valider les données utilisateur"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        if request.method == 'OPTIONS':
-            return _build_cors_preflight_response()
-            
         data = request.get_json()
         if not data or 'user_id' not in data:
             return jsonify({"error": "Données utilisateur manquantes"}), 400
         return func(*args, **kwargs)
     return wrapper
-
-def _build_cors_preflight_response():
-    response = jsonify({"success": True})
-    response.headers.add("Access-Control-Allow-Origin", "*")
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type")
-    response.headers.add("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-    return response
-
-def _corsify_actual_response(response):
-    response.headers.add("Access-Control-Allow-Origin", "*")
-    return response
 
 def find_user_row(service, sheet_id, user_id):
     """Trouve la ligne d'un utilisateur dans la feuille"""
@@ -86,18 +66,26 @@ def find_user_row(service, sheet_id, user_id):
         
     for idx, row in enumerate(result.get('values', [])):
         if row and str(row[0]) == str(user_id):
-            return idx + 2, row  # +2 car les lignes commencent à 1 et l'en-tête est ligne 1
+            return idx + 2, row
     return None, None
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory('static', 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 @app.route('/')
 def serve_index():
+    return send_from_directory('templates', 'index.html')
+
+@app.route('/<path:path>')
+def catch_all(path):
     return send_from_directory('templates', 'index.html')
 
 @app.route('/static/<path:filename>')
 def serve_static(filename):
     return send_from_directory('static', filename)
 
-@app.route('/get-balance', methods=['POST', 'OPTIONS'])
+@app.route('/get-balance', methods=['POST'])
 @validate_user_data
 def get_balance():
     try:
@@ -106,11 +94,11 @@ def get_balance():
         
         row_num, row = find_user_row(service, os.environ['GOOGLE_SHEET_ID'], user_id)
         if not row:
-            return _corsify_actual_response(jsonify({
+            return jsonify({
                 "balance": 0, 
                 "last_claim": None, 
                 "referral_code": user_id
-            }))
+            })
         
         response = {
             "balance": int(row[1]) if len(row) > 1 else 0,
@@ -118,19 +106,18 @@ def get_balance():
             "referral_code": row[5] if len(row) > 5 else user_id
         }
         
-        # Vérifier le cooldown
         if response['last_claim']:
             last_claim = datetime.strptime(response['last_claim'], "%Y-%m-%d %H:%M:%S")
             if datetime.now() - last_claim < timedelta(hours=COOLDOWN_HOURS):
                 response['cooldown'] = True
         
-        return _corsify_actual_response(jsonify(response))
+        return jsonify(response)
         
     except Exception as e:
         logger.error(f"Erreur get-balance: {str(e)}")
-        return _corsify_actual_response(jsonify({"error": "Erreur serveur"})), 500
+        return jsonify({"error": "Erreur serveur"}), 500
 
-@app.route('/claim', methods=['POST', 'OPTIONS'])
+@app.route('/claim', methods=['POST'])
 @validate_user_data
 def claim_points():
     try:
@@ -141,15 +128,14 @@ def claim_points():
         
         row_num, row = find_user_row(service, os.environ['GOOGLE_SHEET_ID'], user_id)
         if not row_num:
-            return _corsify_actual_response(jsonify({"error": "Utilisateur non trouvé"})), 404
+            return jsonify({"error": "Utilisateur non trouvé"}), 404
             
-        # Vérifier le cooldown
         if len(row) > 2 and row[2]:
             last_claim = datetime.strptime(row[2], "%Y-%m-%d %H:%M:%S")
             if datetime.now() - last_claim < timedelta(hours=COOLDOWN_HOURS):
-                return _corsify_actual_response(jsonify({
+                return jsonify({
                     "error": f"Attendez {COOLDOWN_HOURS}h entre chaque claim"
-                })), 400
+                }), 400
         
         new_balance = (int(row[1]) if len(row) > 1 else 0) + points
         
@@ -161,22 +147,19 @@ def claim_points():
                 body={"values": [[new_balance, now]]}
             ).execute()
         
-        return _corsify_actual_response(jsonify({
+        return jsonify({
             "success": True,
             "new_balance": new_balance,
             "points_earned": points,
             "last_claim": now
-        }))
+        })
         
     except Exception as e:
         logger.error(f"Erreur claim: {str(e)}")
-        return _corsify_actual_response(jsonify({"error": "Erreur lors de la réclamation"})), 500
+        return jsonify({"error": "Erreur lors de la réclamation"}), 500
 
-@app.route('/get-tasks', methods=['GET', 'OPTIONS'])
+@app.route('/get-tasks', methods=['GET'])
 def get_tasks():
-    if request.method == 'OPTIONS':
-        return _build_cors_preflight_response()
-    
     try:
         tasks = [
             {
@@ -192,49 +175,46 @@ def get_tasks():
                 "url": "https://twitter.com/CRYPTORATS_bot"
             }
         ]
-        return _corsify_actual_response(jsonify({"tasks": tasks}))
+        return jsonify({"tasks": tasks})
     except Exception as e:
         logger.error(f"Erreur get-tasks: {str(e)}")
-        return _corsify_actual_response(jsonify({"error": "Erreur serveur"})), 500
+        return jsonify({"error": "Erreur serveur"}), 500
 
-@app.route('/get-friends', methods=['GET', 'OPTIONS'])
+@app.route('/get-friends', methods=['GET'])
 def get_friends():
-    if request.method == 'OPTIONS':
-        return _build_cors_preflight_response()
-    
     try:
         user_id = request.args.get('user_id')
         if not user_id:
-            return _corsify_actual_response(jsonify({"error": "ID utilisateur manquant"})), 400
+            return jsonify({"error": "ID utilisateur manquant"}), 400
             
-        return _corsify_actual_response(jsonify({
+        return jsonify({
             "referrals": [
                 {"username": "user1", "total_points": 100},
                 {"username": "user2", "total_points": 50}
             ]
-        }))
+        })
     except Exception as e:
         logger.error(f"Erreur get-friends: {str(e)}")
-        return _corsify_actual_response(jsonify({"error": "Erreur serveur"})), 500
+        return jsonify({"error": "Erreur serveur"}), 500
 
-@app.route('/complete-task', methods=['POST', 'OPTIONS'])
+@app.route('/complete-task', methods=['POST'])
 @validate_user_data
 def complete_task():
     try:
         data = request.json
         required = ['user_id', 'task_name', 'points']
         if not all(k in data for k in required):
-            return _corsify_actual_response(jsonify({"error": "Données manquantes"})), 400
+            return jsonify({"error": "Données manquantes"}), 400
             
-        return _corsify_actual_response(jsonify({
+        return jsonify({
             "success": True,
             "points_added": data['points'],
             "task": data['task_name']
-        }))
+        })
         
     except Exception as e:
         logger.error(f"Erreur complete-task: {str(e)}")
-        return _corsify_actual_response(jsonify({"error": "Erreur serveur"})), 500
+        return jsonify({"error": "Erreur serveur"}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))

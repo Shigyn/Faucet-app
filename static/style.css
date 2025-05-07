@@ -1,89 +1,123 @@
-/* === POLICES FUTURISTES === */
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap');
-
+/* === INSPIRÉ DE L'IMAGE BEHANCE === */
 :root {
-  --hologram-blue: rgba(0, 255, 255, 0.7);
-  --cyber-gold: #ffd700;
-  --neon-purple: #9d00ff;
-  --dark-carbon: #0d0d0d;
-  --ui-glass: rgba(30, 30, 40, 0.85);
+  --rpg-dark: #1a1a1a;
+  --rpg-accent: #cb7ce3; /* Violet de l'image */
+  --rpg-gold: #e8c547;
+  --rpg-text: #f0f0f0;
+  --rpg-bg: #2d2d3a;
 }
 
-/* === EFFETS 3D MODERNES === */
 body {
   background: 
-    radial-gradient(circle at center, #1a1a2e 0%, #0d0d1a 100%),
-    url('https://assets.codepen.io/13471/dark-carbon-fiber.jpg') fixed;
-  color: white;
+    linear-gradient(to bottom, #0f0c1a, #2d2d3a),
+    url('https://i.imgur.com/JQ9qyZP.jpg') no-repeat center/cover;
+  color: var(--rpg-text);
   font-family: 'Rajdhani', sans-serif;
-  font-weight: 500;
-  backdrop-filter: blur(2px);
 }
 
-/* === INTERFACE HOLOGRAMME === */
-#app-content {
-  background: var(--ui-glass);
-  border: 1px solid var(--hologram-blue);
-  border-radius: 16px;
-  box-shadow: 
-    0 0 30px rgba(0, 255, 255, 0.3),
-    inset 0 0 20px rgba(0, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
-  margin: 20px auto;
-  overflow: hidden;
+#rpg-interface {
+  max-width: 450px;
+  margin: 0 auto;
+  padding: 15px;
 }
 
-/* === CARTES 3D === */
-.section {
-  background: linear-gradient(145deg, rgba(50,50,80,0.7), rgba(30,30,50,0.9));
-  border-left: 3px solid var(--neon-purple);
-  box-shadow: 5px 5px 15px rgba(0,0,0,0.5);
-  transform-style: preserve-3d;
-  transition: all 0.3s ease;
+/* Panel Personnage */
+#character-panel {
+  background: rgba(25, 25, 35, 0.9);
+  border: 2px solid var(--rpg-accent);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 15px;
+  box-shadow: 0 5px 25px rgba(203, 124, 227, 0.2);
 }
 
-.section:hover {
-  transform: translateY(-5px);
-  box-shadow: 8px 8px 25px rgba(0,0,0,0.7);
+.character-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--rpg-accent);
+  padding-bottom: 10px;
+  margin-bottom: 15px;
 }
 
-/* === BOUTON CYBER === */
-#claim-btn {
-  background: linear-gradient(135deg, var(--neon-purple), #ff00f6);
-  border: none;
-  color: white;
+.character-header h1 {
   font-family: 'Orbitron', sans-serif;
-  font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  padding: 15px 25px;
-  border-radius: 8px;
-  box-shadow: 
-    0 5px 15px rgba(157, 0, 255, 0.4),
-    inset 0 1px 1px rgba(255,255,255,0.2);
-  transition: all 0.3s;
+  color: var(--rpg-gold);
+  margin: 0;
+  font-size: 1.8rem;
 }
 
-#claim-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 
-    0 8px 20px rgba(157, 0, 255, 0.6),
-    inset 0 1px 1px rgba(255,255,255,0.3);
+.character-level {
+  background: var(--rpg-accent);
+  color: white;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-weight: bold;
 }
 
-/* === BARRE NAVIGATION FUTURISTE === */
-#navbar {
-  background: linear-gradient(to right, 
-    rgba(20,20,40,0.9), 
-    rgba(50,20,80,0.9));
-  border-top: 1px solid var(--hologram-blue);
-  box-shadow: 0 -5px 20px rgba(0,255,255,0.2);
+/* Panel Inventaire */
+#inventory-panel {
+  background: rgba(40, 40, 50, 0.85);
+  border: 1px solid rgba(203, 124, 227, 0.5);
+  border-radius: 10px;
+  padding: 20px;
   backdrop-filter: blur(5px);
 }
 
-#navbar button {
-  color: var(--cyber-gold);
+.rpg-button {
+  background: linear-gradient(to right, #8a2be2, var(--rpg-accent));
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 8px;
   font-family: 'Rajdhani', sans-serif;
-  font-weight: 700;
-  text-shadow: 0 0 5px rgba(255,215,0,0.5);
+  font-weight: bold;
+  font-size: 1rem;
+  width: 100%;
+  margin: 10px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.rpg-button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 5px 15px rgba(203, 124, 227, 0.4);
+}
+
+/* Navigation */
+#rpg-navbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  background: rgba(30, 30, 40, 0.95);
+  border-top: 1px solid var(--rpg-accent);
+  padding: 10px 0;
+  backdrop-filter: blur(5px);
+}
+
+.nav-button {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--rpg-text);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.nav-button.active {
+  color: var(--rpg-accent);
+}
+
+.nav-icon {
+  font-size: 1.4rem;
+  margin-bottom: 3px;
 }

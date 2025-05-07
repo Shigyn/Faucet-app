@@ -4,30 +4,21 @@
     <meta charset="UTF-8">
     <title>CRYPTORATS_bot - RPG Faucet</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <!-- Cache Control -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <!-- Intégration Telegram -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
-    <!-- Polices Modernes RPG 2025 -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
     
-    <!-- Style + Favicon -->
     <link rel="stylesheet" href="/static/style.css">
     <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
     
-    <!-- Couleurs UI -->
-    <meta name="theme-color" content="#0d0221"> <!-- Fond sombre -->
+    <meta name="theme-color" content="#0d0221">
     
-    <!-- Préchargement CSS -->
-    <link rel="preload" href="/static/style.css" as="style">
-    
-    <!-- Animations Holographiques -->
     <style>
         @keyframes hologram-pulse {
             0%, 100% { box-shadow: 0 0 20px rgba(0, 255, 255, 0.3); }
@@ -40,61 +31,74 @@
         ⚠️ Ouvrez cette application via @CRYPTORATS_bot !
     </div>
 
-    <div id="app-content">
-        <div class="section active" id="home-section">
-            <h1>CRYPTORATS Faucet</h1>
-            
-            <div id="balance-display">
-                Chargement du solde...
+    <div id="rpg-interface">
+        <!-- Dashboard Personnage -->
+        <div id="character-panel" class="rpg-panel">
+            <div class="character-header">
+                <h1>CRYPTORATS</h1>
+                <div class="character-level">Niveau 1</div>
             </div>
-            
-            <button id="claim-btn">🎁 Réclamer des points</button>
-            
-            <div class="referral-card">
-                <h2>Parrainage</h2>
-                <p>Gagnez 10% des points de vos filleuls</p>
-                <div class="referral-container">
-                    <div id="referral-link" class="referral-link">Chargement...</div>
-                    <button id="copy-btn" class="copy-btn">Copier</button>
+            <div id="balance-display" class="character-stats">
+                <div class="stat">
+                    <span class="stat-label">Points :</span>
+                    <span class="stat-value">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Dernier claim :</span>
+                    <span class="stat-value">-</span>
                 </div>
             </div>
         </div>
 
-        <div class="section" id="tasks-section">
-            <h2>Tâches disponibles</h2>
-            <div id="tasks-list">
-                <p>Chargement des tâches...</p>
+        <!-- Inventaire -->
+        <div id="inventory-panel" class="rpg-panel">
+            <button id="claim-btn" class="rpg-button">
+                <span class="button-icon">🎁</span>
+                <span class="button-text">Réclamer des Points</span>
+            </button>
+
+            <div class="inventory-section">
+                <h2 class="section-title">Parrainage</h2>
+                <p class="section-description">Gagnez 10% des points de vos filleuls</p>
+                <div class="referral-container">
+                    <input type="text" id="referral-link" class="rpg-input" readonly value="Chargement...">
+                    <button id="copy-btn" class="rpg-button small">
+                        <span class="button-icon">📋</span>
+                        <span class="button-text">Copier</span>
+                    </button>
+                </div>
             </div>
         </div>
 
-        <div class="section" id="friends-section">
-            <h2>Vos filleuls</h2>
-            <div id="friends-list">
-                <p>Chargement des filleuls...</p>
-            </div>
+        <!-- Navigation -->
+        <div id="rpg-navbar">
+            <button class="nav-button active" data-section="home">
+                <span class="nav-icon">👤</span>
+                <span class="nav-label">Profil</span>
+            </button>
+            <button class="nav-button" data-section="tasks">
+                <span class="nav-icon">✅</span>
+                <span class="nav-label">Quêtes</span>
+            </button>
+            <button class="nav-button" data-section="friends">
+                <span class="nav-icon">👥</span>
+                <span class="nav-label">Réseau</span>
+            </button>
         </div>
-    </div>
-
-    <div id="navbar">
-        <button onclick="showSection('home')">🏠 Accueil</button>
-        <button onclick="showSection('tasks')">✅ Tâches</button>
-        <button onclick="showSection('friends')">👥 Filleuls</button>
     </div>
 
     <script>
-        // Configuration
+        // Configuration originale conservée
         const PUBLIC_URL = "https://faucet-app.onrender.com";
         const API_BASE_URL = "https://faucet-app.onrender.com";
         const COOLDOWN_HOURS = 5;
         
-        // État de l'application
         let currentUserId = null;
         let currentBalance = 0;
         let isClaiming = false;
         let refreshInterval;
         let lastClaimTime = null;
 
-        // Initialisation
         function initApp() {
             if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
                 initTelegramWebApp();
@@ -114,7 +118,6 @@
             loadData();
         }
 
-        // Gestion des données
         async function loadData() {
             if (!currentUserId) return;
 
@@ -124,7 +127,6 @@
                     fetchTasks(),
                     fetchFriends()
                 ]);
-                
                 updateUI({ balance, tasks, friends });
             } catch (error) {
                 console.error("Erreur de chargement:", error);
@@ -132,7 +134,6 @@
             }
         }
 
-        // Fonctions API
         async function fetchBalance() {
             try {
                 const response = await fetch(`${API_BASE_URL}/get-balance`, {
@@ -154,7 +155,6 @@
                     lastClaimTime = new Date(data.last_claim);
                 }
                 return data;
-                
             } catch (error) {
                 console.error("Erreur fetchBalance:", error);
                 throw error;
@@ -173,86 +173,52 @@
             return response.json();
         }
 
-        // Mise à jour de l'interface
-        function updateUI({ balance, tasks, friends }) {
+        function updateUI({ balance }) {
             updateBalanceDisplay(balance);
             updateReferralLink(balance);
-            updateTasksList(tasks);
-            updateFriendsList(friends);
             updateClaimButton(balance);
         }
 
         function updateBalanceDisplay(data) {
             currentBalance = data?.balance || 0;
-            const lastClaim = data?.last_claim ? new Date(data.last_claim).toLocaleString() : null;
+            const balanceValue = document.querySelector('.character-stats .stat:nth-child(1) .stat-value');
+            const lastClaimValue = document.querySelector('.character-stats .stat:nth-child(2) .stat-value');
             
-            document.getElementById('balance-display').innerHTML = `
-                <strong>Solde:</strong> ${currentBalance} points
-                ${lastClaim ? `<br><small>Dernière réclamation: ${lastClaim}</small>` : ''}
-            `;
+            if (balanceValue) balanceValue.textContent = currentBalance;
+            if (lastClaimValue) {
+                lastClaimValue.textContent = data?.last_claim 
+                    ? new Date(data.last_claim).toLocaleTimeString() 
+                    : 'Jamais';
+            }
+            
+            const levelElement = document.querySelector('.character-level');
+            if (levelElement) {
+                levelElement.textContent = `Niveau ${Math.floor(currentBalance / 100) + 1}`;
+            }
         }
 
         function updateReferralLink(data) {
             const referralLink = document.getElementById('referral-link');
-            if (data?.referral_code) {
-                referralLink.textContent = `${PUBLIC_URL}?ref=${data.referral_code}`;
-            } else if (currentUserId) {
-                referralLink.textContent = `${PUBLIC_URL}?ref=${currentUserId}`;
+            if (referralLink) {
+                referralLink.value = data?.referral_code 
+                    ? `${PUBLIC_URL}?ref=${data.referral_code}`
+                    : `${PUBLIC_URL}?ref=${currentUserId}`;
             }
-        }
-
-        function updateTasksList(data) {
-            const container = document.getElementById('tasks-list');
-            if (!data?.tasks?.length) {
-                container.innerHTML = "<p>Aucune tâche disponible</p>";
-                return;
-            }
-
-            container.innerHTML = data.tasks.map(task => `
-                <div class="task-card">
-                    <h3>${escapeHTML(task.task_name)}</h3>
-                    <p>${escapeHTML(task.description)}</p>
-                    <span class="points-badge">${task.points} pts</span>
-                    <a href="${escapeHTML(task.url)}" target="_blank" 
-                       class="task-btn ${isTaskCompleted(task.task_name) ? 'completed' : ''}"
-                       onclick="return handleTaskClick(event, '${escapeString(task.task_name)}', ${task.points})">
-                        ${isTaskCompleted(task.task_name) ? '✅ Terminé' : 'Commencer'}
-                    </a>
-                </div>`
-            ).join('');
-        }
-
-        function updateFriendsList(data) {
-            const container = document.getElementById('friends-list');
-            if (!data?.referrals?.length) {
-                container.innerHTML = "<p>Invitez des amis pour gagner des bonus !</p>";
-                return;
-            }
-
-            container.innerHTML = `
-                <p>${data.referrals.length} filleul(s)</p>
-                ${data.referrals.map(friend => `
-                    <div class="friend-card">
-                        <h3>${escapeHTML(friend.username || 'Anonyme')}</h3>
-                        <p>Points générés: ${friend.total_points || 0}</p>
-                    </div>`
-                ).join('')}
-            `;
         }
 
         function updateClaimButton(balanceData) {
             const claimBtn = document.getElementById('claim-btn');
+            if (!claimBtn) return;
             
             if (balanceData?.cooldown && lastClaimTime) {
                 const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_HOURS * 60 * 60 * 1000);
                 startCooldownTimer(cooldownEnd);
             } else {
                 claimBtn.disabled = false;
-                claimBtn.textContent = "🎁 Réclamer des points";
+                claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Réclamer des Points</span>';
             }
         }
 
-        // Actions utilisateur
         async function claimPoints() {
             if (isClaiming) return;
             
@@ -260,7 +226,7 @@
             try {
                 isClaiming = true;
                 claimBtn.disabled = true;
-                claimBtn.textContent = "Traitement...";
+                claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Traitement...</span>';
                 
                 const response = await fetch(`${API_BASE_URL}/claim`, {
                     method: 'POST',
@@ -285,25 +251,24 @@
             }
         }
 
-        // Utilitaires
         function startAutoRefresh() {
             clearInterval(refreshInterval);
             refreshInterval = setInterval(() => {
-                if (document.visibilityState === 'visible') {
-                    loadData();
-                }
+                if (document.visibilityState === 'visible') loadData();
             }, 30000);
         }
 
         function startCooldownTimer(cooldownEnd) {
             const claimBtn = document.getElementById('claim-btn');
+            if (!claimBtn) return;
+            
             claimBtn.disabled = true;
             
             function updateTimer() {
                 const remaining = Math.max(0, cooldownEnd - Date.now());
                 if (remaining <= 0) {
                     claimBtn.disabled = false;
-                    claimBtn.textContent = "🎁 Réclamer des points";
+                    claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Réclamer des Points</span>';
                     return;
                 }
                 
@@ -311,7 +276,10 @@
                 const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
                 const seconds = Math.floor((remaining % (60 * 1000)) / 1000);
                 
-                claimBtn.textContent = `⏳ ${hours}h ${minutes}m ${seconds}s`;
+                claimBtn.innerHTML = `
+                    <span class="button-icon">⏳</span>
+                    <span class="button-text">${hours}h ${minutes}m ${seconds}s</span>
+                `;
                 setTimeout(updateTimer, 1000);
             }
             
@@ -330,61 +298,31 @@
             }, duration);
         }
 
-        // Événements
         function setupEventListeners() {
-            document.getElementById('claim-btn').addEventListener('click', claimPoints);
+            document.getElementById('claim-btn')?.addEventListener('click', claimPoints);
             
-            document.getElementById('copy-btn').addEventListener('click', () => {
-                const link = document.getElementById('referral-link').textContent;
+            document.getElementById('copy-btn')?.addEventListener('click', () => {
+                const link = document.getElementById('referral-link').value;
                 navigator.clipboard.writeText(link).then(() => {
                     showToast("Lien copié !", 2000, 'success');
                 });
             });
+            
+            document.querySelectorAll('#rpg-navbar .nav-button').forEach(button => {
+                button.addEventListener('click', function() {
+                    const section = this.getAttribute('data-section');
+                    showSection(section);
+                    this.classList.add('active');
+                });
+            });
         }
 
-        // Initialisation
+        function showSection(sectionId) {
+            // Implémentez ici la logique de navigation si nécessaire
+            console.log(`Section ${sectionId} sélectionnée`);
+        }
+
         document.addEventListener('DOMContentLoaded', initApp);
-
-        // Fonctions globales
-        window.showSection = function(sectionId) {
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            document.querySelectorAll('#navbar button').forEach(b => b.classList.remove('active'));
-            
-            document.getElementById(`${sectionId}-section`).classList.add('active');
-            document.querySelector(`#navbar button[onclick="showSection('${sectionId}')"]`).classList.add('active');
-        };
-
-        window.handleTaskClick = function(event, taskName, points) {
-            event.preventDefault();
-            if (!isTaskCompleted(taskName)) {
-                completeTask(taskName, points);
-            }
-            return false;
-        };
-
-        function completeTask(taskName, points) {
-            if (!confirm(`Valider "${taskName}" ?\n+${points} points`)) return;
-            
-            localStorage.setItem(`task_${taskName}_completed`, 'true');
-            showToast(`Tâche validée (+${points} pts)`, 2000, 'success');
-            loadData();
-        }
-
-        function isTaskCompleted(taskName) {
-            return localStorage.getItem(`task_${taskName}_completed`);
-        }
-
-        function escapeHTML(str) {
-            return str.replace(/&/g, "&amp;")
-                     .replace(/</g, "&lt;")
-                     .replace(/>/g, "&gt;")
-                     .replace(/"/g, "&quot;")
-                     .replace(/'/g, "&#039;");
-        }
-
-        function escapeString(str) {
-            return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
-        }
     </script>
 </body>
 </html>

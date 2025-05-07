@@ -3,6 +3,9 @@
 <head>
     <title>CRYPTORATS_bot</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -47,19 +50,24 @@
     <script>
         // ==================== CONFIG ====================
         const PUBLIC_URL = "https://faucet-app.onrender.com";
-        const tgWebApp = window.Telegram?.WebApp;
         let currentUserId = null;
         let currentBalance = 0;
-        let isClaiming = false; // Nouvelle variable pour bloquer les clics multiples
+        let isClaiming = false;
 
         // ==================== INITIALISATION ====================
-        if (tgWebApp?.initDataUnsafe?.user) {
-            tgWebApp.expand();
-            tgWebApp.ready();
-            document.getElementById('telegram-alert').style.display = 'none';
-            currentUserId = tgWebApp.initDataUnsafe.user.id.toString();
-        } else {
-            setTimeout(() => window.location.href = "https://t.me/CRYPTORATS_bot", 2000);
+        function initApp() {
+            if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
+                const tgWebApp = window.Telegram.WebApp;
+                tgWebApp.expand();
+                tgWebApp.ready();
+                document.getElementById('telegram-alert').style.display = 'none';
+                currentUserId = tgWebApp.initDataUnsafe.user.id.toString();
+                setupEventListeners();
+                loadData();
+            } else {
+                document.getElementById('telegram-alert').style.display = 'block';
+                setTimeout(() => window.location.href = "https://t.me/CRYPTORATS_bot", 2000);
+            }
         }
 
         // ==================== FONCTIONS PRINCIPALES ====================
@@ -71,69 +79,88 @@
                     fetch('/get-balance', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({user_id: currentUserId}),
-                        cache: 'no-store'
+                        body: JSON.stringify({user_id: currentUserId})
                     }),
-                    fetch('/get-tasks', {cache: 'no-store'}),
-                    fetch(`/get-friends?user_id=${currentUserId}`, {cache: 'no-store'})
+                    fetch('/get-tasks'),
+                    fetch(`/get-friends?user_id=${currentUserId}`)
                 ]);
+
+                if (!balanceRes.ok || !tasksRes.ok || !friendsRes.ok) {
+                    throw new Error("Erreur de chargement des données");
+                }
 
                 // Gestion du solde
                 const balanceData = await balanceRes.json();
                 currentBalance = balanceData.balance || 0;
-                document.getElementById('balance-display').innerHTML = `
-                    <strong>Solde:</strong> ${currentBalance} points
-                    ${balanceData.last_claim ? `<br><small>Dernière réclamation: ${new Date(balanceData.last_claim).toLocaleString()}</small>` : ''}
-                `;
+                updateBalanceDisplay(balanceData);
 
                 // Lien de parrainage
-                document.getElementById('referral-link').textContent = 
-                    `${PUBLIC_URL}?ref=${balanceData.referral_code || currentUserId}`;
+                updateReferralLink(balanceData);
 
                 // Gestion des tasks
                 const tasksData = await tasksRes.json();
-                let tasksHtml = '';
-                if (tasksData.tasks?.length > 0) {
-                    tasksData.tasks.forEach(task => {
-                        const isCompleted = localStorage.getItem(`task_${task.task_name}_completed`);
-                        tasksHtml += `
-                        <div class="task-card">
-                            <h3>${task.task_name}</h3>
-                            <p>${task.description}</p>
-                            <span class="points-badge">${task.points} pts</span>
-                            <a href="${task.url}" target="_blank" 
-                               class="task-btn ${isCompleted ? 'completed' : ''}"
-                               onclick="${!isCompleted ? `completeTask('${escapeString(task.task_name)}', ${task.points}); return false;` : 'return true;'}">
-                                ${isCompleted ? '✅ Terminé' : 'Commencer'}
-                            </a>
-                        </div>`;
-                    });
-                } else {
-                    tasksHtml = "<p>Aucune tâche disponible</p>";
-                }
-                document.getElementById('tasks-list').innerHTML = tasksHtml;
+                updateTasksList(tasksData);
 
                 // Gestion des friends
                 const friendsData = await friendsRes.json();
-                let friendsHtml = '';
-                if (friendsData.referrals?.length > 0) {
-                    friendsHtml = `<p>${friendsData.referrals.length} filleul(s)</p>`;
-                    friendsData.referrals.forEach(friend => {
-                        friendsHtml += `
-                        <div class="friend-card">
-                            <h3>${friend.username || 'Anonyme'}</h3>
-                            <p>Points générés: ${friend.total_points || 0}</p>
-                        </div>`;
-                    });
-                } else {
-                    friendsHtml = "<p>Invitez des amis pour gagner des bonus !</p>";
-                }
-                document.getElementById('friends-list').innerHTML = friendsHtml;
+                updateFriendsList(friendsData);
 
             } catch (e) {
                 console.error("Erreur de chargement:", e);
                 showToast("Erreur de chargement des données", 3000);
             }
+        }
+
+        function updateBalanceDisplay(balanceData) {
+            document.getElementById('balance-display').innerHTML = `
+                <strong>Solde:</strong> ${currentBalance} points
+                ${balanceData.last_claim ? `<br><small>Dernière réclamation: ${new Date(balanceData.last_claim).toLocaleString()}</small>` : ''}
+            `;
+        }
+
+        function updateReferralLink(balanceData) {
+            document.getElementById('referral-link').textContent = 
+                `${PUBLIC_URL}?ref=${balanceData.referral_code || currentUserId}`;
+        }
+
+        function updateTasksList(tasksData) {
+            let tasksHtml = '';
+            if (tasksData.tasks?.length > 0) {
+                tasksData.tasks.forEach(task => {
+                    const isCompleted = localStorage.getItem(`task_${task.task_name}_completed`);
+                    tasksHtml += `
+                    <div class="task-card">
+                        <h3>${task.task_name}</h3>
+                        <p>${task.description}</p>
+                        <span class="points-badge">${task.points} pts</span>
+                        <a href="${task.url}" target="_blank" 
+                           class="task-btn ${isCompleted ? 'completed' : ''}"
+                           onclick="${!isCompleted ? `completeTask('${escapeString(task.task_name)}', ${task.points}); return false;` : 'return true;'}">
+                            ${isCompleted ? '✅ Terminé' : 'Commencer'}
+                        </a>
+                    </div>`;
+                });
+            } else {
+                tasksHtml = "<p>Aucune tâche disponible</p>";
+            }
+            document.getElementById('tasks-list').innerHTML = tasksHtml;
+        }
+
+        function updateFriendsList(friendsData) {
+            let friendsHtml = '';
+            if (friendsData.referrals?.length > 0) {
+                friendsHtml = `<p>${friendsData.referrals.length} filleul(s)</p>`;
+                friendsData.referrals.forEach(friend => {
+                    friendsHtml += `
+                    <div class="friend-card">
+                        <h3>${friend.username || 'Anonyme'}</h3>
+                        <p>Points générés: ${friend.total_points || 0}</p>
+                    </div>`;
+                });
+            } else {
+                friendsHtml = "<p>Invitez des amis pour gagner des bonus !</p>";
+            }
+            document.getElementById('friends-list').innerHTML = friendsHtml;
         }
 
         async function completeTask(taskName, points) {
@@ -165,19 +192,9 @@
         }
 
         async function claimPoints() {
-            // Blocage du bouton pendant le traitement
             if (isClaiming) return;
             
             const claimBtn = document.getElementById('claim-btn');
-            const now = new Date();
-            const lastClaimTime = localStorage.getItem('lastClaimTime');
-            
-            // Vérifier si 5 minutes se sont écoulées
-            if (lastClaimTime && (now - new Date(lastClaimTime)) < 300000) {
-                showToast("Attendez 5 minutes entre chaque réclamation", 3000);
-                return;
-            }
-
             try {
                 isClaiming = true;
                 claimBtn.disabled = true;
@@ -190,41 +207,32 @@
                     body: JSON.stringify({user_id: currentUserId})
                 });
                 
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({error: "Erreur serveur"}));
+                    throw new Error(error.error);
+                }
+                
                 const result = await response.json();
-                if (!response.ok) throw new Error(result.error || "Erreur serveur");
-                
-                // Sauvegarder le timestamp
-                localStorage.setItem('lastClaimTime', now.toISOString());
-                
                 const pointsGagnes = (result.new_balance || result.balance) - oldBalance;
+                
                 showToast(`+${pointsGagnes} points ! Prochain claim dans 5 minutes.`, 3000);
-                
-                // Rechargement des données
                 await loadData();
-                
-                // Compte à rebours visuel
                 startCooldownTimer();
                 
             } catch (e) {
                 console.error("Claim error:", e);
-                showToast("Erreur lors de la réclamation", 3000);
+                showToast(e.message || "Erreur lors de la réclamation", 3000);
             } finally {
-                // Réactivation du bouton (sauf si cooldown actif)
                 isClaiming = false;
-                if (!localStorage.getItem('lastClaimTime') || (new Date() - new Date(localStorage.getItem('lastClaimTime')) >= 300000) {
-                    claimBtn.disabled = false;
-                    claimBtn.textContent = "🎁 Réclamer des points";
-                }
             }
         }
 
         function startCooldownTimer() {
             const claimBtn = document.getElementById('claim-btn');
-            const lastClaimTime = new Date(localStorage.getItem('lastClaimTime'));
-            const endTime = new Date(lastClaimTime.getTime() + 300000); // +5 minutes
+            const endTime = Date.now() + 300000; // 5 minutes
             
             function updateTimer() {
-                const now = new Date();
+                const now = Date.now();
                 const timeLeft = Math.max(0, endTime - now);
                 
                 if (timeLeft <= 0) {
@@ -238,7 +246,6 @@
                 
                 claimBtn.textContent = `⏳ ${minutes}m ${seconds}s`;
                 claimBtn.disabled = true;
-                
                 setTimeout(updateTimer, 1000);
             }
             
@@ -269,42 +276,32 @@
             return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
         }
 
-        // ==================== LANCEMENT ====================
-        document.addEventListener('DOMContentLoaded', () => {
-            if (currentUserId) {
-                loadData();
-                
-                // Actualisation automatique toutes les 30 secondes
-                setInterval(() => {
-                    if (document.visibilityState === 'visible') {
-                        loadData();
-                    }
-                }, 30000);
-                
-                // Et au focus de la fenêtre
-                document.addEventListener('visibilitychange', () => {
-                    if (document.visibilityState === 'visible') {
-                        loadData();
-                    }
-                });
-
-                // Événements
-                document.getElementById('claim-btn').addEventListener('click', claimPoints);
-                document.getElementById('copy-btn').addEventListener('click', () => {
-                    const link = document.getElementById('referral-link').textContent;
-                    if (link && !link.includes("Chargement")) {
-                        navigator.clipboard.writeText(link);
-                        showToast("Lien copié !", 2000);
-                    }
-                });
-                
-                // Vérifier le cooldown au chargement
-                if (localStorage.getItem('lastClaimTime') && 
-                    (new Date() - new Date(localStorage.getItem('lastClaimTime'))) < 300000) {
-                    startCooldownTimer();
+        function setupEventListeners() {
+            document.getElementById('claim-btn').addEventListener('click', claimPoints);
+            document.getElementById('copy-btn').addEventListener('click', () => {
+                const link = document.getElementById('referral-link').textContent;
+                if (link && !link.includes("Chargement")) {
+                    navigator.clipboard.writeText(link);
+                    showToast("Lien copié !", 2000);
                 }
-            }
-        });
+            });
+            
+            // Actualisation périodique
+            setInterval(() => {
+                if (document.visibilityState === 'visible') {
+                    loadData();
+                }
+            }, 30000);
+            
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') {
+                    loadData();
+                }
+            });
+        }
+
+        // ==================== LANCEMENT ====================
+        document.addEventListener('DOMContentLoaded', initApp);
     </script>
 
     <style>

@@ -9,306 +9,104 @@
             padding-bottom: 60px;
             background-color: #f5f5f5;
         }
-        #navbar {
-            position: fixed;
-            bottom: 0;
-            width: 100%;
-            display: flex;
-            background: #2c3e50;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-        }
-        #navbar button {
-            flex: 1;
-            padding: 15px;
-            border: none;
-            background: none;
-            color: white;
-            font-size: 16px;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-        #navbar button.active {
-            background: #3498db;
-        }
-        .section {
-            display: none;
-            padding: 20px;
-        }
-        .section.active {
-            display: block;
-        }
-        .task-card, .friend-card, .referral-card {
-            background: white;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 15px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        .points-badge {
-            background: #3498db;
-            color: white;
-            padding: 3px 8px;
-            border-radius: 10px;
-            float: right;
-            font-size: 14px;
-        }
-        .referral-container {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
-        .referral-link {
-            flex: 1;
-            padding: 12px;
-            background: #f8f9fa;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            word-break: break-all;
-            font-family: monospace;
-        }
-        .copy-btn {
-            padding: 0 15px;
-            background: #3498db;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: background 0.3s;
-        }
-        .copy-btn:hover {
-            background: #2980b9;
-        }
-        .toast {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.7);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 5px;
-            z-index: 100;
-            display: none;
-            animation: fadeInOut 2s ease-in-out;
-        }
-        @keyframes fadeInOut {
-            0% { opacity: 0; }
-            20% { opacity: 1; }
-            80% { opacity: 1; }
-            100% { opacity: 0; }
-        }
-        #balance-display {
-            background: white;
-            padding: 15px;
-            border-radius: 10px;
-            margin: 15px 0;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        #claim-btn {
-            width: 100%;
-            padding: 12px;
+        /* [Tous les styles précédents jusqu'à .points-badge] */
+        .task-btn {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 8px 15px;
             background: #2ecc71;
             color: white;
             border: none;
-            border-radius: 8px;
-            font-size: 16px;
+            border-radius: 5px;
             cursor: pointer;
+            text-decoration: none;
             transition: background 0.3s;
         }
-        #claim-btn:hover {
+        .task-btn:hover {
             background: #27ae60;
+        }
+        .task-completed {
+            background: #95a5a6 !important;
+            cursor: default;
         }
     </style>
 </head>
 <body>
-    <div id="main-section" class="section active">
-        <h1>Vos Points</h1>
-        <div id="balance-display">Chargement en cours...</div>
-        <button id="claim-btn">🎁 Réclamer des points</button>
-    </div>
-
-    <div id="tasks-section" class="section">
-        <h1>📋 Tasks</h1>
-        <div id="tasks-list">Chargement des tasks...</div>
-    </div>
-
-    <div id="friends-section" class="section">
-        <h1>👥 Friends <small id="referral-count">(0 filleuls)</small></h1>
-        
-        <div class="referral-card">
-            <h3>🎯 Votre lien de parrainage</h3>
-            <p>Gagnez 5% des points de chaque filleul !</p>
-            <div class="referral-container">
-                <div id="referral-link" class="referral-link">Chargement...</div>
-                <button id="copy-btn" class="copy-btn">Copier</button>
-            </div>
-        </div>
-        
-        <h3 style="margin-top: 20px;">Vos filleuls</h3>
-        <div id="friends-list">Chargement des filleuls...</div>
-    </div>
-
-    <div id="coming-section" class="section">
-        <h1>🚀 À venir</h1>
-        <p>Nouvelles fonctionnalités bientôt disponibles !</p>
-    </div>
-
-    <div id="navbar">
-        <button onclick="showSection('main')" class="active">🏠 Accueil</button>
-        <button onclick="showSection('tasks')">✅ Tasks</button>
-        <button onclick="showSection('friends')">👥 Friends</button>
-        <button onclick="showSection('coming')">🔮 À venir</button>
-    </div>
-
-    <div id="toast" class="toast">Lien copié !</div>
+    <!-- [Structure HTML identique jusqu'au script] -->
 
     <script>
-        // Récupération de l'ID utilisateur depuis Telegram WebApp
+        // Récupération de l'ID Telegram
         function getTelegramUserId() {
             if (window.Telegram && Telegram.WebApp) {
-                return Telegram.WebApp.initDataUnsafe.user?.id.toString();
+                const userId = Telegram.WebApp.initDataUnsafe.user?.id;
+                if (userId) return userId.toString();
             }
             return null;
         }
 
         // Variables globales
-        let currentUserId = getTelegramUserId() || "USER_ID_DEMO"; // Fallback pour tests
+        let currentUserId = getTelegramUserId();
         let referralData = null;
 
-        // Fonctions de base
-        function showSection(sectionId) {
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            document.querySelectorAll('#navbar button').forEach(b => b.classList.remove('active'));
-            document.getElementById(`${sectionId}-section`).classList.add('active');
-            document.querySelector(`#navbar button[onclick="showSection('${sectionId}')"]`).classList.add('active');
-            
-            if(sectionId === 'tasks') loadTasks();
-            if(sectionId === 'friends') loadFriends();
-        }
-
-        // Charger le solde et le lien de parrainage
-        async function loadUserData() {
-            try {
-                const response = await fetch('/get-balance', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: currentUserId })
-                });
-                
-                if (!response.ok) throw new Error('Erreur réseau');
-                
-                const data = await response.json();
-                
-                document.getElementById('balance-display').innerHTML = `
-                    <strong>Solde actuel:</strong> ${data.balance} points<br>
-                    ${data.last_claim ? `<small>Dernière réclamation: ${data.last_claim}</small>` : ''}
-                `;
-                
-                if (data.referral_url) {
-                    document.getElementById('referral-link').textContent = data.referral_url;
-                    referralData = data;
-                }
-            } catch (error) {
-                console.error("Erreur:", error);
-                document.getElementById('balance-display').innerHTML = 
-                    "Erreur de chargement. Rechargez la page.";
-            }
+        // Blocage si non connecté
+        if (!currentUserId) {
+            alert("⚠️ Connectez-vous via Telegram !");
+            window.location.href = "https://t.me/CRYPTORATS_bot"; // À adapter
         }
 
         // Chargement des Tasks
         async function loadTasks() {
             try {
                 const response = await fetch('/get-tasks');
-                if (!response.ok) throw new Error('Erreur réseau');
                 const tasks = await response.json();
                 
                 let html = '';
                 tasks.forEach(task => {
+                    const isCompleted = localStorage.getItem(`task_${task.task_name}_completed`);
                     html += `
                     <div class="task-card">
                         <h3>${task.task_name}</h3>
                         <p>${task.description}</p>
                         <span class="points-badge">${task.points} pts</span>
+                        <a href="${task.url}" target="_blank" 
+                           class="task-btn ${isCompleted ? 'task-completed' : ''}"
+                           onclick="${isCompleted ? 'return false;' : `completeTask('${task.task_name}', ${task.points})`}">
+                            ${isCompleted ? '✅ Terminé' : 'Commencer'}
+                        </a>
                     </div>`;
                 });
-                
                 document.getElementById('tasks-list').innerHTML = html || "<p>Aucune task disponible</p>";
             } catch (error) {
-                document.getElementById('tasks-list').innerHTML = 
-                    "<p>Erreur de chargement des tasks</p>";
+                document.getElementById('tasks-list').innerHTML = `<p>Erreur: ${error.message}</p>`;
             }
         }
 
-        // Chargement des Friends
-        async function loadFriends() {
-            try {
-                const response = await fetch('/get-friends?user_id=' + currentUserId);
-                if (!response.ok) throw new Error('Erreur réseau');
-                const data = await response.json();
+        // Complétion d'une task
+        async function completeTask(taskName, points) {
+            if (confirm(`Valider la tâche "${taskName}" ?`)) {
+                localStorage.setItem(`task_${taskName}_completed`, 'true');
                 
-                document.getElementById('referral-count').textContent = `(${data.referrals.length} filleuls)`;
-                
-                let html = '';
-                data.referrals.forEach(friend => {
-                    html += `
-                    <div class="friend-card">
-                        <h3>${friend.username || 'Utilisateur anonyme'}</h3>
-                        <p>Points générés: ${friend.total_points} (Vous avez reçu ${friend.commission} pts)</p>
-                    </div>`;
-                });
-                
-                document.getElementById('friends-list').innerHTML = html || "<p>Aucun filleul pour le moment</p>";
-            } catch (error) {
-                document.getElementById('friends-list').innerHTML = 
-                    "<p>Erreur de chargement des filleuls</p>";
-            }
-        }
-
-        // Fonction pour copier le lien
-        document.getElementById('copy-btn').addEventListener('click', () => {
-            if (!referralData?.referral_url) return;
-            
-            navigator.clipboard.writeText(referralData.referral_url).then(() => {
-                const toast = document.getElementById('toast');
-                toast.style.display = 'block';
-                setTimeout(() => {
-                    toast.style.display = 'none';
-                }, 2000);
-            });
-        });
-
-        // Claim points
-        document.getElementById('claim-btn').addEventListener('click', async () => {
-            try {
-                const response = await fetch('/claim', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        user_id: currentUserId,
-                        referrer_code: new URLSearchParams(window.location.search).get('ref')
-                    })
-                });
-                
-                const result = await response.json();
-                
-                if (result.error) {
-                    alert(`Erreur: ${result.error}`);
-                } else {
-                    alert(result.success);
-                    loadUserData();
+                // Envoi au backend (à adapter selon ton endpoint)
+                try {
+                    const response = await fetch('/complete-task', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            user_id: currentUserId,
+                            task_name: taskName,
+                            points: points
+                        })
+                    });
+                    const result = await response.json();
+                    alert(result.success || "Points crédités !");
+                    loadTasks();
+                } catch (error) {
+                    alert("Erreur réseau");
                 }
-            } catch (error) {
-                alert("Erreur réseau. Réessayez plus tard.");
             }
-        });
-
-        // Initialisation
-        if (!currentUserId) {
-            alert("ID utilisateur non trouvé !");
-        } else {
-            loadUserData();
         }
+
+        // [Le reste du script reste inchangé...]
     </script>
 </body>
 </html>

@@ -1,182 +1,76 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Faucet Telegram</title>
-  <link href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&display=swap" rel="stylesheet">
-  <style>
-    body {
-      font-family: 'Arial', sans-serif;
-      text-align: center;
-      background-color: #f9f3e9;
-      color: #333;
-      padding-bottom: 60px;
-    }
-    h1 {
-      font-family: 'UnifrakturCook', cursive;
-      font-size: 2.5em;
-      margin-top: 30px;
-      color: #d4af37;
-    }
-    .balance-box {
-      background-color: #fff;
-      border: 2px solid #d4af37;
-      border-radius: 10px;
-      padding: 20px;
-      margin: 20px auto;
-      max-width: 300px;
-      box-shadow: 0 3px 6px rgba(0,0,0,0.1);
-    }
-    .claim-button {
-      background-color: #d4af37;
-      color: white;
-      border: none;
-      padding: 12px 25px;
-      font-size: 1.1em;
-      border-radius: 8px;
-      cursor: pointer;
-      margin: 15px 0;
-      transition: background-color 0.3s;
-    }
-    .claim-button:hover {
-      background-color: #c19b2e;
-    }
-    .claim-button:disabled {
-      background-color: #cccccc;
-      cursor: not-allowed;
-    }
-    #error {
-      color: #ff4444;
-      margin: 15px 0;
-      min-height: 20px;
-    }
-    .bottom-menu {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background-color: white;
-      border-top: 1px solid #eee;
-      display: flex;
-      justify-content: space-around;
-      padding: 10px 0;
-    }
-    .bottom-menu a {
-      color: #333;
-      text-decoration: none;
-      font-weight: bold;
-    }
-    #loader {
-      display: none;
-      margin: 10px auto;
-      border: 4px solid #f3f3f3;
-      border-top: 4px solid #d4af37;
-      border-radius: 50%;
-      width: 30px;
-      height: 30px;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-  </style>
+  <!-- [Tes balises meta et styles existants] -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-  <h1>Faucet Telegram</h1>
-  
-  <div class="balance-box">
-    <p>Votre solde :</p>
-    <p style="font-size: 2em;"><strong id="balance">0</strong> points</p>
-  </div>
-
-  <div id="error"></div>
-  <div id="loader"></div>
-
-  <button id="claimBtn" class="claim-button">Réclamer des points</button>
-
-  <div class="bottom-menu">
-    <a href="#" onclick="alert('Fonctionnalité à venir')">Historique</a>
-    <a href="#" onclick="alert('Fonctionnalité à venir')">Récompenses</a>
-  </div>
+  <!-- [Ton contenu existant] -->
 
   <script>
-    const tg = window.Telegram?.WebApp;
-    const claimBtn = document.getElementById('claimBtn');
-    const errorDiv = document.getElementById('error');
-    const balanceSpan = document.getElementById('balance');
-    const loader = document.getElementById('loader');
-
-    if (tg) {
-      tg.expand();
-      const user = tg.initDataUnsafe?.user;
-      
-      if (user) {
-        loadBalance();
-        
-        claimBtn.addEventListener('click', async () => {
-          claimBtn.disabled = true;
-          loader.style.display = 'block';
-          errorDiv.textContent = '';
-          
-          try {
-            const response = await fetch('/claim', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ user_id: user.id })
-            });
-            
-            const data = await response.json();
-            
-            if (response.ok) {
-              errorDiv.textContent = data.success;
-              errorDiv.style.color = '#4CAF50';
-              loadBalance();
-            } else {
-              errorDiv.textContent = data.error || 'Erreur inconnue';
-              errorDiv.style.color = '#ff4444';
-            }
-          } catch (err) {
-            errorDiv.textContent = 'Erreur réseau';
-            console.error(err);
-          } finally {
-            claimBtn.disabled = false;
-            loader.style.display = 'none';
-          }
-        });
+    const tg = window.Telegram.WebApp;
+    tg.expand(); // Force le mode plein écran
+    
+    // Solution de repli si initData n'est pas immédiatement disponible
+    function checkAuth() {
+      if (tg.initDataUnsafe?.user) {
+        const user = tg.initDataUnsafe.user;
+        document.getElementById('balance').textContent = 'Chargement...';
+        fetchBalance(user.id);
+        document.getElementById('claimBtn').disabled = false;
       } else {
-        showError('Utilisateur non identifié');
-        claimBtn.disabled = true;
+        // Méthode alternative pour récupérer l'user_id
+        setTimeout(() => {
+          if (tg.initDataUnsafe?.user) {
+            checkAuth();
+          } else {
+            tg.sendData(JSON.stringify({action: "request_auth"}));
+          }
+        }, 1000);
       }
-    } else {
-      showError('Ouvrez via Telegram');
-      claimBtn.disabled = true;
     }
 
-    async function loadBalance() {
-      if (!tg?.initDataUnsafe?.user) return;
-      
+    async function fetchBalance(userId) {
       try {
         const response = await fetch('/get-balance', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: tg.initDataUnsafe.user.id })
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({user_id: userId})
         });
-        
-        if (response.ok) {
-          const data = await response.json();
-          balanceSpan.textContent = data.balance;
-        }
-      } catch (err) {
-        console.error('Erreur balance:', err);
+        const data = await response.json();
+        document.getElementById('balance').textContent = data.balance || 0;
+      } catch (error) {
+        console.error("Erreur balance:", error);
       }
     }
 
-    function showError(msg) {
-      errorDiv.textContent = msg;
-      errorDiv.style.color = '#ff4444';
-    }
+    // Au chargement
+    tg.ready();
+    checkAuth();
+
+    // Gestion du bouton Claim
+    document.getElementById('claimBtn').addEventListener('click', async () => {
+      const user = tg.initDataUnsafe?.user;
+      if (!user) return;
+      
+      document.getElementById('claimBtn').disabled = true;
+      try {
+        const response = await fetch('/claim', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({user_id: user.id})
+        });
+        const result = await response.json();
+        if (response.ok) {
+          fetchBalance(user.id);
+          alert(`+${result.points} points!`);
+        } else {
+          alert(result.error || "Erreur");
+        }
+      } finally {
+        document.getElementById('claimBtn').disabled = false;
+      }
+    });
   </script>
 </body>
 </html>

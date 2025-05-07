@@ -59,14 +59,15 @@
     <script>
         // Configuration
         const PUBLIC_URL = "https://faucet-app.onrender.com";
-        const API_BASE_URL = https://faucet-app.onrender.com;
-        const COOLDOWN_TIME = 5 * 60 * 1000; // 5 minutes
+        const API_BASE_URL = "https://faucet-app.onrender.com";
+        const COOLDOWN_HOURS = 5;
         
         // État de l'application
         let currentUserId = null;
         let currentBalance = 0;
         let isClaiming = false;
         let refreshInterval;
+        let lastClaimTime = null;
 
         // Initialisation
         function initApp() {
@@ -108,33 +109,32 @@
 
         // Fonctions API
         async function fetchBalance() {
-    try {
-        console.log("Envoi requête balance à:", `${API_BASE_URL}/get-balance`);
-        const response = await fetch(`${API_BASE_URL}/get-balance`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({ user_id: currentUserId })
-        });
-        
-        console.log("Réponse reçue:", response);
-        
-        if (!response.ok) {
-            const error = await response.text();
-            throw new Error(error || "Erreur API");
+            try {
+                const response = await fetch(`${API_BASE_URL}/get-balance`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ user_id: currentUserId })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || "Erreur API");
+                }
+                
+                const data = await response.json();
+                if (data.last_claim) {
+                    lastClaimTime = new Date(data.last_claim);
+                }
+                return data;
+                
+            } catch (error) {
+                console.error("Erreur fetchBalance:", error);
+                throw error;
+            }
         }
-        
-        const data = await response.json();
-        console.log("Données balance:", data);
-        return data;
-        
-    } catch (error) {
-        console.error("Erreur fetchBalance:", error);
-        throw error;
-    }
-}
 
         async function fetchTasks() {
             const response = await fetch(`${API_BASE_URL}/get-tasks`);
@@ -154,6 +154,7 @@
             updateReferralLink(balance);
             updateTasksList(tasks);
             updateFriendsList(friends);
+            updateClaimButton(balance);
         }
 
         function updateBalanceDisplay(data) {
@@ -214,6 +215,18 @@
             `;
         }
 
+        function updateClaimButton(balanceData) {
+            const claimBtn = document.getElementById('claim-btn');
+            
+            if (balanceData?.cooldown && lastClaimTime) {
+                const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_HOURS * 60 * 60 * 1000);
+                startCooldownTimer(cooldownEnd);
+            } else {
+                claimBtn.disabled = false;
+                claimBtn.textContent = "🎁 Réclamer des points";
+            }
+        }
+
         // Actions utilisateur
         async function claimPoints() {
             if (isClaiming) return;
@@ -235,13 +248,15 @@
                 
                 showToast(`+${result.points_earned || '?'} points !`, 3000, 'success');
                 loadData();
-                startCooldownTimer();
+                
+                if (result.last_claim) {
+                    const cooldownEnd = new Date(new Date(result.last_claim).getTime() + COOLDOWN_HOURS * 60 * 60 * 1000);
+                    startCooldownTimer(cooldownEnd);
+                }
             } catch (error) {
                 showToast(error.message || "Erreur", 3000, 'error');
             } finally {
                 isClaiming = false;
-                claimBtn.disabled = false;
-                claimBtn.textContent = "🎁 Réclamer des points";
             }
         }
 
@@ -255,25 +270,26 @@
             }, 30000);
         }
 
-        function startCooldownTimer() {
+        function startCooldownTimer(cooldownEnd) {
             const claimBtn = document.getElementById('claim-btn');
-            const endTime = Date.now() + COOLDOWN_TIME;
+            claimBtn.disabled = true;
             
             function updateTimer() {
-                const remaining = Math.max(0, endTime - Date.now());
+                const remaining = Math.max(0, cooldownEnd - Date.now());
                 if (remaining <= 0) {
                     claimBtn.disabled = false;
                     claimBtn.textContent = "🎁 Réclamer des points";
                     return;
                 }
                 
-                const minutes = Math.floor(remaining / 60000);
-                const seconds = Math.floor((remaining % 60000) / 1000);
-                claimBtn.textContent = `⏳ ${minutes}m ${seconds}s`;
+                const hours = Math.floor(remaining / (60 * 60 * 1000));
+                const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+                const seconds = Math.floor((remaining % (60 * 1000)) / 1000);
+                
+                claimBtn.textContent = `⏳ ${hours}h ${minutes}m ${seconds}s`;
                 setTimeout(updateTimer, 1000);
             }
             
-            claimBtn.disabled = true;
             updateTimer();
         }
 

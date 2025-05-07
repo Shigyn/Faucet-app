@@ -24,9 +24,9 @@ logger = logging.getLogger(__name__)
 
 # Constantes
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-COOLDOWN_HOURS = 5
+COOLDOWN_HOURS = 0.08
 MIN_CLAIM = 10
-MAX_CLAIM = 50
+MAX_CLAIM = 100
 USER_RANGE = "Users!A2:G"
 
 # Verrou pour les accès concurrents

@@ -92,6 +92,41 @@ def complete_task():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
                     
+@app.route('/claim', methods=['POST'])
+def claim_points():
+    try:
+        data = request.get_json()
+        user_id = clean_user_id(data.get('user_id'))
+        
+        if not user_id:
+            return jsonify({"error": "ID utilisateur manquant"}), 400
+
+        service = get_google_sheets_service()
+        now = datetime.now().strftime("%d/%m/%Y %H:%M")
+        points = random.randint(10, 50)  # Gains aléatoires entre 10 et 50 points
+
+        # Mise à jour du solde
+        result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
+        for idx, row in enumerate(result.get('values', [])):
+            if row and clean_user_id(row[0]) == user_id:
+                new_balance = (int(float(row[1])) if len(row) > 1 and row[1] else 0) + points
+                service.values().update(
+                    spreadsheetId=GOOGLE_SHEET_ID,
+                    range=f"Users!B{idx+2}",
+                    valueInputOption="USER_ENTERED",
+                    body={"values": [[new_balance]]}
+                ).execute()
+                
+                return jsonify({
+                    "success": f"🎉 +{points} points !",
+                    "new_balance": new_balance
+                })
+
+        return jsonify({"error": "Utilisateur non trouvé"}), 404
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/')
 def home():
     return render_template('index.html')

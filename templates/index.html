@@ -12,20 +12,39 @@
     </div>
 
     <div id="app-content">
+        <!-- Section Principale -->
         <div id="main-section" class="section active">
             <h1>Vos Points</h1>
             <div id="balance-display">Chargement en cours...</div>
             <button id="claim-btn">🎁 Réclamer des points</button>
         </div>
 
+        <!-- Section Tasks -->
         <div id="tasks-section" class="section">
             <h1>📋 Tasks</h1>
             <div id="tasks-list">Chargement des tasks...</div>
         </div>
 
+        <!-- Section Friends -->
+        <div id="friends-section" class="section">
+            <h1>👥 Friends</h1>
+            <div class="referral-card">
+                <h3>🎯 Votre lien de parrainage</h3>
+                <p>Gagnez 5% des points de vos filleuls !</p>
+                <div class="referral-container">
+                    <div id="referral-link" class="referral-link">Chargement...</div>
+                    <button id="copy-btn" class="copy-btn">Copier</button>
+                </div>
+            </div>
+            <h3 style="margin-top:20px;">Vos filleuls</h3>
+            <div id="friends-list">Chargement...</div>
+        </div>
+
+        <!-- Barre de navigation -->
         <div id="navbar">
             <button onclick="showSection('main')" class="active">🏠 Accueil</button>
             <button onclick="showSection('tasks')">✅ Tasks</button>
+            <button onclick="showSection('friends')">👥 Friends</button>
         </div>
     </div>
 
@@ -48,42 +67,74 @@
             if (!currentUserId) return;
             
             try {
-                // Charger le solde
-                const balanceRes = await fetch('/get-balance', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({user_id: currentUserId})
-                });
+                // Chargement parallèle des données
+                const [balanceRes, tasksRes, friendsRes] = await Promise.all([
+                    fetch('/get-balance', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({user_id: currentUserId})
+                    }),
+                    fetch('/get-tasks'),
+                    fetch(`/get-friends?user_id=${currentUserId}`)
+                ]);
+
+                // Traitement du solde
                 const balanceData = await balanceRes.json();
                 document.getElementById('balance-display').innerHTML = `
                     <strong>Solde actuel:</strong> ${balanceData.balance || 0} points
+                    ${balanceData.last_claim ? `<br><small>Dernière réclamation: ${balanceData.last_claim}</small>` : ''}
                 `;
 
-                // Charger les tasks
-                const tasksRes = await fetch('/get-tasks');
+                // Traitement des tasks
                 const tasksData = await tasksRes.json();
-                
                 let tasksHtml = '';
-                tasksData.tasks.forEach(task => {
-                    tasksHtml += `
-                    <div class="task-card">
-                        <h3>${task.task_name}</h3>
-                        <p>${task.description}</p>
-                        <span class="points-badge">${task.points} pts</span>
-                        <a href="#" onclick="completeTask('${task.task_name.replace(/'/g, "\\'")}', ${task.points})" 
-                           class="task-btn">
-                            Commencer
-                        </a>
-                    </div>`;
-                });
+                if (tasksData.tasks?.length > 0) {
+                    tasksData.tasks.forEach(task => {
+                        tasksHtml += `
+                        <div class="task-card">
+                            <h3>${task.task_name}</h3>
+                            <p>${task.description}</p>
+                            <span class="points-badge">${task.points} pts</span>
+                            <a href="#" onclick="completeTask('${escapeString(task.task_name)}', ${task.points})" 
+                               class="task-btn">
+                                Commencer
+                            </a>
+                        </div>`;
+                    });
+                } else {
+                    tasksHtml = "<p>Aucune tâche disponible</p>";
+                }
                 document.getElementById('tasks-list').innerHTML = tasksHtml;
+
+                // Traitement des friends
+                const friendsData = await friendsRes.json();
+                document.getElementById('referral-link').textContent = 
+                    balanceData.referral_url || "Génération...";
+                
+                let friendsHtml = '';
+                if (friendsData.referrals?.length > 0) {
+                    friendsHtml = `<p>${friendsData.referrals.length} filleul(s)</p>`;
+                    friendsData.referrals.forEach(friend => {
+                        friendsHtml += `
+                        <div class="friend-card">
+                            <h3>${friend.username || 'Anonyme'}</h3>
+                            <p>Points générés: ${friend.total_points || 0}</p>
+                        </div>`;
+                    });
+                } else {
+                    friendsHtml = "<p>Invitez des amis pour gagner des bonus !</p>";
+                }
+                document.getElementById('friends-list').innerHTML = friendsHtml;
+
             } catch (e) {
                 console.error("Erreur:", e);
+                showToast("Erreur de chargement");
             }
         }
 
+        // ==================== FONCTIONS INTERACTIVES ====================
         async function completeTask(taskName, points) {
-            if (!currentUserId || !confirm(`Valider la tâche "${taskName}" ?`)) return false;
+            if (!currentUserId || !confirm(`Valider "${taskName}" ?\nVous gagnerez ${points} points.`)) return false;
             
             try {
                 const response = await fetch('/complete-task', {
@@ -98,34 +149,120 @@
                 
                 const result = await response.json();
                 if (result.error) {
-                    alert("Erreur: " + result.error);
+                    showToast(result.error);
                 } else {
-                    alert(`✅ Tâche validée ! +${points} points`);
-                    loadData(); // Recharge les données
+                    showToast(`+${points} points !`);
+                    loadData();
                 }
             } catch (e) {
-                alert("Erreur réseau");
+                showToast("Erreur réseau");
             }
-            return false; // Empêche le rechargement
+            return false;
         }
 
-        function showSection(sectionId) {
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            document.querySelectorAll('#navbar button').forEach(b => b.classList.remove('active'));
+        async function claimPoints() {
+            if (!currentUserId) return;
             
+            try {
+                const response = await fetch('/claim', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({user_id: currentUserId})
+                });
+                
+                const result = await response.json();
+                if (result.error) {
+                    showToast(result.error);
+                } else {
+                    showToast(result.success || "Points réclamés !");
+                    loadData();
+                }
+            } catch (e) {
+                showToast("Erreur réseau");
+            }
+        }
+
+        // ==================== UTILITAIRES ====================
+        function showSection(sectionId) {
+            // Masquer toutes les sections
+            document.querySelectorAll('.section').forEach(s => {
+                s.classList.remove('active');
+            });
+            
+            // Désactiver tous les boutons
+            document.querySelectorAll('#navbar button').forEach(b => {
+                b.classList.remove('active');
+            });
+            
+            // Activer la section demandée
             document.getElementById(`${sectionId}-section`).classList.add('active');
             document.querySelector(`#navbar button[onclick="showSection('${sectionId}')"]`).classList.add('active');
         }
 
-        // ==================== LANCEMENT ====================
+        function showToast(message, duration=3000) {
+            const toast = document.createElement('div');
+            toast.className = 'toast-message';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('fade-out');
+                setTimeout(() => toast.remove(), 500);
+            }, duration);
+        }
+
+        function escapeString(str) {
+            return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
+        }
+
+        // ==================== ECOUTEURS D'EVENEMENTS ====================
         document.addEventListener('DOMContentLoaded', () => {
             if (currentUserId) {
                 loadData();
-                document.getElementById('claim-btn').addEventListener('click', () => {
-                    alert("Fonctionnalité à implémenter");
+                
+                // Bouton Claim
+                document.getElementById('claim-btn').addEventListener('click', claimPoints);
+                
+                // Bouton Copie
+                document.getElementById('copy-btn').addEventListener('click', () => {
+                    const link = document.getElementById('referral-link').textContent;
+                    if (link && !link.includes("Chargement") && !link.includes("Génération")) {
+                        navigator.clipboard.writeText(link);
+                        showToast("Lien copié !");
+                    }
                 });
             }
         });
     </script>
+
+    <style>
+        /* Styles pour les toasts */
+        .toast-message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 25px;
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        .fade-out {
+            animation: fadeOut 0.5s ease-out forwards;
+        }
+        
+        @keyframes slideIn {
+            from { top: -50px; opacity: 0; }
+            to { top: 20px; opacity: 1; }
+        }
+        
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+    </style>
 </body>
 </html>

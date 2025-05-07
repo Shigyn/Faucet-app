@@ -64,7 +64,7 @@ def complete_task():
                     spreadsheetId=GOOGLE_SHEET_ID,
                     range=f"Users!B{idx+2}",
                     valueInputOption="USER_ENTERED",
-                    body={"values": [[new_balance]]
+                    body={"values": [[new_balance]]}
                     
 @app.route('/')
 def home():

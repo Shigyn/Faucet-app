@@ -35,6 +35,7 @@ def clean_user_id(user_id):
 # [...] (le reste du code précédent reste inchangé jusqu'aux routes)
 
 @app.route('/complete-task', methods=['POST'])
+@app.route('/complete-task', methods=['POST'])
 def complete_task():
     try:
         data = request.get_json()
@@ -59,12 +60,37 @@ def complete_task():
         for idx, row in enumerate(result.get('values', [])):
             if row and clean_user_id(row[0]) == user_id:
                 new_balance = (int(float(row[1])) if len(row) > 1 and row[1] else 0) + points
+                
                 # Mise à jour du solde
                 service.values().update(
                     spreadsheetId=GOOGLE_SHEET_ID,
                     range=f"Users!B{idx+2}",
                     valueInputOption="USER_ENTERED",
                     body={"values": [[new_balance]]}
+                ).execute()
+
+                # 2. Enregistrer la transaction
+                service.values().append(
+                    spreadsheetId=GOOGLE_SHEET_ID,
+                    range=TRANSACTION_RANGE,
+                    valueInputOption="USER_ENTERED",
+                    body={"values": [[user_id, f"task:{task_name}", points, now]]}
+                ).execute()
+
+                updated = True
+                break
+
+        if not updated:
+            return jsonify({"error": "Utilisateur non trouvé"}), 404
+
+        return jsonify({
+            "success": True,
+            "new_balance": new_balance,
+            "message": f"Tâche '{task_name}' validée !"
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
                     
 @app.route('/')
 def home():

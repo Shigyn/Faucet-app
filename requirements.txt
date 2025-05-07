@@ -4,3 +4,4 @@ google-api-python-client==2.27.0
 google-auth-httplib2==0.1.0
 google-auth-oauthlib==0.4.6
 pyTelegramBotAPI==4.8.0
+flask-cors==3.0.10

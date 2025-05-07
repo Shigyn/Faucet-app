@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Réclamer des points</title>
+  <title>Faucet Telegram</title>
   <link href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&display=swap" rel="stylesheet">
   <style>
     body {
@@ -11,38 +11,53 @@
       text-align: center;
       background-color: #f9f3e9;
       color: #333;
+      padding-bottom: 60px;
     }
     h1 {
       font-family: 'UnifrakturCook', cursive;
       font-size: 2.5em;
-      margin-top: 50px;
+      margin-top: 30px;
+      color: #d4af37;
     }
     .balance-box {
       background-color: #fff;
       border: 2px solid #d4af37;
-      padding: 20px;
       border-radius: 10px;
-      display: inline-block;
+      padding: 20px;
       margin: 20px auto;
-      font-size: 1.2em;
+      max-width: 300px;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.1);
     }
     .claim-button {
-      display: inline-block;
       background-color: #d4af37;
       color: white;
-      padding: 15px 30px;
       border: none;
-      border-radius: 8px;
+      padding: 12px 25px;
       font-size: 1.1em;
-      text-decoration: none;
+      border-radius: 8px;
       cursor: pointer;
+      margin: 15px 0;
+      transition: background-color 0.3s;
+    }
+    .claim-button:hover {
+      background-color: #c19b2e;
+    }
+    .claim-button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    #error {
+      color: #ff4444;
+      margin: 15px 0;
+      min-height: 20px;
     }
     .bottom-menu {
       position: fixed;
       bottom: 0;
-      width: 100%;
-      background-color: #fff;
-      border-top: 1px solid #ccc;
+      left: 0;
+      right: 0;
+      background-color: white;
+      border-top: 1px solid #eee;
       display: flex;
       justify-content: space-around;
       padding: 10px 0;
@@ -52,51 +67,116 @@
       text-decoration: none;
       font-weight: bold;
     }
+    #loader {
+      display: none;
+      margin: 10px auto;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #d4af37;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
-
-  <h1>Réclamez vos points, aventurier !</h1>
-
-  <!-- Affichage du user_id pour débogage -->
-  <p><strong>Debug user_id :</strong> {{ user_id }}</p>
-
-  <div class="balance-box" id="balanceBox">
-    <p>Ton solde actuel est : <strong>{{ balance }}</strong> points</p>
+  <h1>Faucet Telegram</h1>
+  
+  <div class="balance-box">
+    <p>Votre solde :</p>
+    <p style="font-size: 2em;"><strong id="balance">0</strong> points</p>
   </div>
 
-  <br><br>
+  <div id="error"></div>
+  <div id="loader"></div>
 
-  {% if user_id %}
-    <!-- Lien dynamique pour la réclamation avec l'ID utilisateur dans l'URL -->
-    <a id="claimBtn" class="claim-button" href="{{ url_for('claim_page', user_id=user_id) }}">Réclamer maintenant</a>
-  {% else %}
-    <p>Veuillez vous connecter avec votre identifiant utilisateur pour réclamer des points.</p>
-  {% endif %}
+  <button id="claimBtn" class="claim-button">Réclamer des points</button>
 
   <div class="bottom-menu">
-    {% if user_id %}
-      <a href="{{ url_for('claim_page', user_id=user_id) }}">Claim</a>
-      <a href="{{ url_for('tasks', user_id=user_id) }}">Tasks</a>
-      <a href="{{ url_for('friends', user_id=user_id) }}">Friends</a>
-    {% else %}
-      <a href="#">Claim</a>
-      <a href="#">Tasks</a>
-      <a href="#">Friends</a>
-    {% endif %}
+    <a href="#" onclick="alert('Fonctionnalité à venir')">Historique</a>
+    <a href="#" onclick="alert('Fonctionnalité à venir')">Récompenses</a>
   </div>
 
   <script>
-    // Si user_id est manquant, afficher un message d'erreur et masquer les liens
-    if (!{{ user_id|tojson }}) {
-      document.getElementById("claimBtn").style.display = "none"; // Masquer le bouton "Réclamer"
-      const bottomMenuLinks = document.querySelectorAll(".bottom-menu a");
-      bottomMenuLinks.forEach(link => {
-        link.style.display = "none"; // Masquer les liens du menu bas
-      });
-      alert("Identifiant utilisateur manquant. Veuillez vous connecter.");
+    const tg = window.Telegram?.WebApp;
+    const claimBtn = document.getElementById('claimBtn');
+    const errorDiv = document.getElementById('error');
+    const balanceSpan = document.getElementById('balance');
+    const loader = document.getElementById('loader');
+
+    if (tg) {
+      tg.expand();
+      const user = tg.initDataUnsafe?.user;
+      
+      if (user) {
+        loadBalance();
+        
+        claimBtn.addEventListener('click', async () => {
+          claimBtn.disabled = true;
+          loader.style.display = 'block';
+          errorDiv.textContent = '';
+          
+          try {
+            const response = await fetch('/claim', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user_id: user.id })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+              errorDiv.textContent = data.success;
+              errorDiv.style.color = '#4CAF50';
+              loadBalance();
+            } else {
+              errorDiv.textContent = data.error || 'Erreur inconnue';
+              errorDiv.style.color = '#ff4444';
+            }
+          } catch (err) {
+            errorDiv.textContent = 'Erreur réseau';
+            console.error(err);
+          } finally {
+            claimBtn.disabled = false;
+            loader.style.display = 'none';
+          }
+        });
+      } else {
+        showError('Utilisateur non identifié');
+        claimBtn.disabled = true;
+      }
+    } else {
+      showError('Ouvrez via Telegram');
+      claimBtn.disabled = true;
+    }
+
+    async function loadBalance() {
+      if (!tg?.initDataUnsafe?.user) return;
+      
+      try {
+        const response = await fetch('/get-balance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: tg.initDataUnsafe.user.id })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          balanceSpan.textContent = data.balance;
+        }
+      } catch (err) {
+        console.error('Erreur balance:', err);
+      }
+    }
+
+    function showError(msg) {
+      errorDiv.textContent = msg;
+      errorDiv.style.color = '#ff4444';
     }
   </script>
-
 </body>
 </html>

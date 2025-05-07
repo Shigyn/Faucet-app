@@ -14,7 +14,6 @@ GOOGLE_SHEET_ID = os.getenv('GOOGLE_SHEET_ID')
 USER_RANGE = os.getenv('USER_RANGE')
 TRANSACTION_RANGE = os.getenv('TRANSACTION_RANGE')
 
-# Vérification des variables d'environnement
 if not TELEGRAM_BOT_API_KEY:
     raise ValueError("La variable d'environnement 'TELEGRAM_BOT_API_KEY' est manquante.")
 if not GOOGLE_SHEET_ID:
@@ -38,12 +37,12 @@ def get_google_sheets_service():
 
 @app.route('/', methods=['GET'])
 def home():
-    # On vérifie si l'ID utilisateur est bien passé en URL
-    user_id = request.args.get('user_id')  # Récupère l'ID utilisateur de l'URL
+    user_id = request.args.get('user_id')
+    print(f"[INFO] Accès à / avec user_id={user_id}")  # Debug
     if not user_id:
-        return "L'ID utilisateur est manquant !", 400  # Retourne une erreur si l'ID est manquant
+        return "L'ID utilisateur est manquant !", 400
 
-    balance = get_user_balance(user_id)  # Récupère le solde de l'utilisateur
+    balance = get_user_balance(user_id)
     return render_template('index.html', balance=balance, user_id=user_id)
 
 @app.route('/claim', methods=['GET'])
@@ -52,7 +51,7 @@ def claim_page():
     if not user_id:
         return "ID utilisateur manquant.", 400
     balance = get_user_balance(user_id)
-    points = request.args.get('points')  # Points gagnés sur la page de réclamation
+    points = request.args.get('points')
     return render_template("claim.html", balance=balance, user_id=user_id, points=points)
 
 @app.route('/submit_claim', methods=['POST'])
@@ -61,7 +60,7 @@ def submit_claim():
     if not user_id:
         return "ID utilisateur manquant.", 400
 
-    points = random.randint(10, 100)  # Génère un nombre de points aléatoires entre 10 et 100
+    points = random.randint(10, 100)
 
     service = get_google_sheets_service()
     result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
@@ -83,14 +82,14 @@ def submit_claim():
 
             service.values().update(
                 spreadsheetId=GOOGLE_SHEET_ID,
-                range=f'Users!B{idx + 2}',  # Mettre à jour la colonne de balance
+                range=f'Users!B{idx + 2}',
                 valueInputOption="RAW",
                 body={'values': [[new_balance]]}
             ).execute()
 
             service.values().update(
                 spreadsheetId=GOOGLE_SHEET_ID,
-                range=f'Users!C{idx + 2}',  # Mettre à jour la dernière réclamation
+                range=f'Users!C{idx + 2}',
                 valueInputOption="RAW",
                 body={'values': [[datetime.now().strftime("%d/%m/%Y %H:%M")]]}
             ).execute()
@@ -113,7 +112,6 @@ def submit_claim():
         body={'values': [transaction_row]}
     ).execute()
 
-    # Redirige avec le user_id et les points ajoutés dans l'URL
     return redirect(url_for('claim_page', user_id=user_id, points=points))
 
 def get_user_balance(user_id):
@@ -125,13 +123,17 @@ def get_user_balance(user_id):
             return int(row[1]) if row[1] else 0
     return 0
 
-# Ajout de la gestion des interactions Telegram
+# Telegram bot: message /start
 @bot.message_handler(commands=['start'])
 def start(message):
-    user_id = message.from_user.id  # ID utilisateur Telegram
+    user_id = message.from_user.id
+    url = f"http://127.0.0.1:5000/?user_id={user_id}"
+    print(f"[BOT] Envoi de l'URL au user : {url}")  # Debug
     bot.send_message(user_id, "Bienvenue ! Vous pouvez maintenant réclamer des points.")
-    # Rediriger vers l'application web avec l'ID utilisateur Telegram
-    bot.send_message(user_id, f"Pour réclamer des points, cliquez sur ce lien : http://127.0.0.1:5000/?user_id={user_id}")
+    bot.send_message(user_id, f"👉 Pour réclamer des points, cliquez ici : {url}")
 
+# Démarrage Flask
 if __name__ == "__main__":
+    from threading import Thread
+    Thread(target=bot.polling, kwargs={'none_stop': True}).start()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))

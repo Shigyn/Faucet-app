@@ -59,7 +59,7 @@
     <script>
         // Configuration
         const PUBLIC_URL = "https://faucet-app.onrender.com";
-        const API_BASE_URL = window.location.origin;
+        const API_BASE_URL = https://faucet-app.onrender.com;
         const COOLDOWN_TIME = 5 * 60 * 1000; // 5 minutes
         
         // État de l'application
@@ -108,14 +108,33 @@
 
         // Fonctions API
         async function fetchBalance() {
-            const response = await fetch(`${API_BASE_URL}/get-balance`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: currentUserId })
-            });
-            if (!response.ok) throw new Error("Erreur API");
-            return response.json();
+    try {
+        console.log("Envoi requête balance à:", `${API_BASE_URL}/get-balance`);
+        const response = await fetch(`${API_BASE_URL}/get-balance`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ user_id: currentUserId })
+        });
+        
+        console.log("Réponse reçue:", response);
+        
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(error || "Erreur API");
         }
+        
+        const data = await response.json();
+        console.log("Données balance:", data);
+        return data;
+        
+    } catch (error) {
+        console.error("Erreur fetchBalance:", error);
+        throw error;
+    }
+}
 
         async function fetchTasks() {
             const response = await fetch(`${API_BASE_URL}/get-tasks`);

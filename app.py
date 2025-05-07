@@ -221,6 +221,16 @@ def get_tasks():
         print(f"Erreur get-tasks: {str(e)}")
         return jsonify({"error": "Erreur serveur"}), 500
 
+@app.route('/get-telegram-user')
+def get_telegram_user():
+    """Debug endpoint pour vérifier l'utilisateur Telegram"""
+    from flask import request
+    return jsonify({
+        "is_telegram": "Telegram" in request.headers.get('User-Agent', ''),
+        "headers": dict(request.headers),
+        "note": "Cette route aide à debugger les problèmes d'authentification WebApp"
+    })
+
 @bot.message_handler(commands=['start'])
 def start(message):
     ref_code = None

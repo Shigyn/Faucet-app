@@ -38,8 +38,11 @@ def get_google_sheets_service():
 
 @app.route('/', methods=['GET'])
 def home():
+    # Utilisation de l'ID utilisateur Telegram
     user_id = request.args.get('user_id')  # Récupère l'ID utilisateur de l'URL
-    balance = get_user_balance(user_id) if user_id else 0
+    if not user_id:
+        return "L'ID utilisateur est manquant !"
+    balance = get_user_balance(user_id)  # Récupère le solde de l'utilisateur
     return render_template('index.html', balance=balance, user_id=user_id)
 
 @app.route('/claim', methods=['GET'])
@@ -120,6 +123,14 @@ def get_user_balance(user_id):
         if str(row[0]) == str(user_id):
             return int(row[1]) if row[1] else 0
     return 0
+
+# Ajout de la gestion des interactions Telegram
+@bot.message_handler(commands=['start'])
+def start(message):
+    user_id = message.from_user.id  # ID utilisateur Telegram
+    bot.send_message(user_id, "Bienvenue ! Vous pouvez maintenant réclamer des points.")
+    # Rediriger vers l'application web avec l'ID utilisateur Telegram
+    bot.send_message(user_id, f"Pour réclamer des points, cliquez sur ce lien : http://127.0.0.1:5000/?user_id={user_id}")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))

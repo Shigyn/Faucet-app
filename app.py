@@ -7,16 +7,18 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
 from threading import Thread
 from urllib.parse import quote
+import time
 
 app = Flask(__name__, template_folder='templates')
 
 # Config
 TELEGRAM_BOT_API_KEY = os.getenv('TELEGRAM_BOT_API_KEY')
 GOOGLE_SHEET_ID = os.getenv('GOOGLE_SHEET_ID')
-USER_RANGE = "Users!A2:F"
+USER_RANGE = "Users!A2:G"  # Colonne G ajoutée pour last_claim_timestamp
 TRANSACTION_RANGE = "Transactions!A2:D"
 TASKS_RANGE = "Tasks!A2:D"
 PUBLIC_URL = os.getenv('PUBLIC_URL')
+CLAIM_COOLDOWN = 300  # 5 minutes en secondes
 
 bot = telebot.TeleBot(TELEGRAM_BOT_API_KEY)
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
@@ -31,10 +33,17 @@ def get_google_sheets_service():
 def clean_user_id(user_id):
     return str(user_id).strip().strip("'")
 
-# Routes
-# [...] (le reste du code précédent reste inchangé jusqu'aux routes)
+def get_current_timestamp():
+    return int(time.time())
 
-@app.route('/complete-task', methods=['POST'])
+def parse_timestamp(timestamp_str):
+    try:
+        if not timestamp_str:
+            return 0
+        return int(timestamp_str)
+    except:
+        return 0
+
 @app.route('/complete-task', methods=['POST'])
 def complete_task():
     try:
@@ -46,11 +55,9 @@ def complete_task():
         if not all([user_id, task_name, points > 0]):
             return jsonify({"error": "Données invalides"}), 400
 
-        # 1. Mettre à jour le solde
         service = get_google_sheets_service()
         now = datetime.now().strftime("%d/%m/%Y %H:%M")
         
-        # Trouver l'utilisateur
         result = service.values().get(
             spreadsheetId=GOOGLE_SHEET_ID,
             range=USER_RANGE
@@ -61,7 +68,6 @@ def complete_task():
             if row and clean_user_id(row[0]) == user_id:
                 new_balance = (int(float(row[1])) if len(row) > 1 and row[1] else 0) + points
                 
-                # Mise à jour du solde
                 service.values().update(
                     spreadsheetId=GOOGLE_SHEET_ID,
                     range=f"Users!B{idx+2}",
@@ -69,7 +75,6 @@ def complete_task():
                     body={"values": [[new_balance]]}
                 ).execute()
 
-                # 2. Enregistrer la transaction
                 service.values().append(
                     spreadsheetId=GOOGLE_SHEET_ID,
                     range=TRANSACTION_RANGE,
@@ -103,23 +108,49 @@ def claim_points():
 
         service = get_google_sheets_service()
         now = datetime.now().strftime("%d/%m/%Y %H:%M")
-        points = random.randint(10, 50)  # Gains aléatoires entre 10 et 50 points
+        current_ts = get_current_timestamp()
+        points = random.randint(10, 50)
 
-        # Mise à jour du solde
+        # Trouver et mettre à jour l'utilisateur
         result = service.values().get(spreadsheetId=GOOGLE_SHEET_ID, range=USER_RANGE).execute()
-        for idx, row in enumerate(result.get('values', [])):
+        rows = result.get('values', [])
+        
+        for idx, row in enumerate(rows):
             if row and clean_user_id(row[0]) == user_id:
+                # Vérifier le cooldown
+                last_claim_ts = parse_timestamp(row[6] if len(row) > 6 else 0)
+                if current_ts - last_claim_ts < CLAIM_COOLDOWN:
+                    remaining = CLAIM_COOLDOWN - (current_ts - last_claim_ts)
+                    return jsonify({
+                        "error": f"Attendez {remaining} secondes",
+                        "cooldown": remaining
+                    }), 429
+
+                # Mise à jour du solde et du timestamp
                 new_balance = (int(float(row[1])) if len(row) > 1 and row[1] else 0) + points
+                
+                # Mettre à jour balance et last_claim_timestamp
                 service.values().update(
                     spreadsheetId=GOOGLE_SHEET_ID,
-                    range=f"Users!B{idx+2}",
+                    range=f"Users!B{idx+2}:G{idx+2}",
                     valueInputOption="USER_ENTERED",
-                    body={"values": [[new_balance]]}
+                    body={"values": [[new_balance, now, current_ts]]}
                 ).execute()
-                
+
+                # Enregistrer la transaction
+                service.values().append(
+                    spreadsheetId=GOOGLE_SHEET_ID,
+                    range=TRANSACTION_RANGE,
+                    valueInputOption="USER_ENTERED",
+                    body={"values": [[user_id, "claim", points, now]]}
+                ).execute()
+
                 return jsonify({
-                    "success": f"🎉 +{points} points !",
-                    "new_balance": new_balance
+                    "success": True,
+                    "new_balance": new_balance,
+                    "last_claim": now,
+                    "last_claim_timestamp": current_ts,
+                    "message": f"🎉 +{points} points !"
                 })
 
         return jsonify({"error": "Utilisateur non trouvé"}), 404
@@ -149,15 +180,17 @@ def get_balance():
                 return jsonify({
                     "balance": int(float(row[1])) if len(row) > 1 and row[1] else 0,
                     "last_claim": row[2] if len(row) > 2 else None,
+                    "last_claim_timestamp": parse_timestamp(row[6] if len(row) > 6 else 0),
+                    "referral_code": row[5] if len(row) > 5 else "",
                     "referral_url": f"{PUBLIC_URL}?ref={quote(row[5])}" if len(row) > 5 and row[5] else ""
                 })
         
-        return jsonify({"balance": 0, "last_claim": None})
+        return jsonify({"balance": 0, "last_claim": None, "last_claim_timestamp": 0})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/get-tasks', methods=['GET', 'POST'])
+@app.route('/get-tasks', methods=['GET'])
 def get_tasks():
     try:
         service = get_google_sheets_service()

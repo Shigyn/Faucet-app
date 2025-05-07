@@ -46,10 +46,11 @@
 
     <script>
         // ==================== CONFIG ====================
-        const PUBLIC_URL = "https://faucet-app.onrender.com"; // À modifier si nécessaire
+        const PUBLIC_URL = "https://faucet-app.onrender.com";
         const tgWebApp = window.Telegram?.WebApp;
         let currentUserId = null;
         let currentBalance = 0;
+        let isClaiming = false; // Nouvelle variable pour bloquer les clics multiples
 
         // ==================== INITIALISATION ====================
         if (tgWebApp?.initDataUnsafe?.user) {
@@ -164,6 +165,10 @@
         }
 
         async function claimPoints() {
+            // Blocage du bouton pendant le traitement
+            if (isClaiming) return;
+            
+            const claimBtn = document.getElementById('claim-btn');
             const now = new Date();
             const lastClaimTime = localStorage.getItem('lastClaimTime');
             
@@ -174,6 +179,10 @@
             }
 
             try {
+                isClaiming = true;
+                claimBtn.disabled = true;
+                claimBtn.textContent = "Traitement en cours...";
+                
                 const oldBalance = currentBalance;
                 const response = await fetch('/claim', {
                     method: 'POST',
@@ -189,11 +198,51 @@
                 
                 const pointsGagnes = (result.new_balance || result.balance) - oldBalance;
                 showToast(`+${pointsGagnes} points ! Prochain claim dans 5 minutes.`, 3000);
-                loadData();
+                
+                // Rechargement des données
+                await loadData();
+                
+                // Compte à rebours visuel
+                startCooldownTimer();
+                
             } catch (e) {
                 console.error("Claim error:", e);
                 showToast("Erreur lors de la réclamation", 3000);
+            } finally {
+                // Réactivation du bouton (sauf si cooldown actif)
+                isClaiming = false;
+                if (!localStorage.getItem('lastClaimTime') || (new Date() - new Date(localStorage.getItem('lastClaimTime')) >= 300000) {
+                    claimBtn.disabled = false;
+                    claimBtn.textContent = "🎁 Réclamer des points";
+                }
             }
+        }
+
+        function startCooldownTimer() {
+            const claimBtn = document.getElementById('claim-btn');
+            const lastClaimTime = new Date(localStorage.getItem('lastClaimTime'));
+            const endTime = new Date(lastClaimTime.getTime() + 300000); // +5 minutes
+            
+            function updateTimer() {
+                const now = new Date();
+                const timeLeft = Math.max(0, endTime - now);
+                
+                if (timeLeft <= 0) {
+                    claimBtn.disabled = false;
+                    claimBtn.textContent = "🎁 Réclamer des points";
+                    return;
+                }
+                
+                const minutes = Math.floor(timeLeft / 60000);
+                const seconds = Math.floor((timeLeft % 60000) / 1000);
+                
+                claimBtn.textContent = `⏳ ${minutes}m ${seconds}s`;
+                claimBtn.disabled = true;
+                
+                setTimeout(updateTimer, 1000);
+            }
+            
+            updateTimer();
         }
 
         // ==================== UTILITAIRES ====================
@@ -248,6 +297,12 @@
                         showToast("Lien copié !", 2000);
                     }
                 });
+                
+                // Vérifier le cooldown au chargement
+                if (localStorage.getItem('lastClaimTime') && 
+                    (new Date() - new Date(localStorage.getItem('lastClaimTime'))) < 300000) {
+                    startCooldownTimer();
+                }
             }
         });
     </script>
@@ -278,6 +333,11 @@
         @keyframes fadeOut {
             from { opacity: 1; }
             to { opacity: 0; }
+        }
+        
+        #claim-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
         }
     </style>
 </body>

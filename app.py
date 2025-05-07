@@ -6,14 +6,16 @@ from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
 from threading import Thread
+from urllib.parse import quote
 
 app = Flask(__name__)
 
 # Config
 TELEGRAM_BOT_API_KEY = os.getenv('TELEGRAM_BOT_API_KEY')
 GOOGLE_SHEET_ID = os.getenv('GOOGLE_SHEET_ID')
-USER_RANGE = "Users!A2:E"  # À adapter selon votre configuration exacte
-TRANSACTION_RANGE = "Transactions!A2:D"  # À adapter selon votre configuration exacte
+USER_RANGE = "Users!A2:F"  # Ajout colonne referral_code
+TRANSACTION_RANGE = "Transactions!A2:D"
+TASKS_RANGE = "Tasks!A2:C"
 PUBLIC_URL = os.getenv('PUBLIC_URL')
 
 # Vérification des variables
@@ -29,6 +31,9 @@ def get_google_sheets_service():
         raise Exception("GOOGLE_CREDS manquant")
     creds = Credentials.from_service_account_info(eval(creds_json), scopes=SCOPES)
     return build('sheets', 'v4', credentials=creds).spreadsheets()
+
+def generate_referral_code(user_id):
+    return f"REF-{user_id}-{random.randint(1000,9999)}"
 
 @app.route('/')
 def home():
@@ -52,21 +57,27 @@ def get_balance():
         if str(row[0]) == str(user_id):
             return jsonify({
                 "balance": int(row[1]) if len(row) > 1 and row[1] else 0,
-                "last_claim": row[2] if len(row) > 2 else None
+                "last_claim": row[2] if len(row) > 2 else None,
+                "referral_code": row[5] if len(row) > 5 else generate_referral_code(user_id),
+                "referral_url": f"{PUBLIC_URL}?ref={quote(row[5])}" if len(row) > 5 else ""
             })
     
-    return jsonify({"balance": 0, "last_claim": None})
+    return jsonify({
+        "balance": 0,
+        "last_claim": None,
+        "referral_code": generate_referral_code(user_id),
+        "referral_url": f"{PUBLIC_URL}?ref={quote(generate_referral_code(user_id))}"
+    })
 
 @app.route('/claim', methods=['POST'])
 def claim():
     data = request.get_json()
     user_id = data.get('user_id')
+    referrer_code = data.get('referrer_code', None)
     if not user_id:
         return jsonify({"error": "ID utilisateur manquant"}), 400
 
     service = get_google_sheets_service()
-    
-    # 1. Récupérer toutes les données utilisateurs
     user_result = service.values().get(
         spreadsheetId=GOOGLE_SHEET_ID,
         range=USER_RANGE,
@@ -76,8 +87,9 @@ def claim():
 
     points = random.randint(10, 100)
     now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    referral_bonus = 0
 
-    # 2. Vérifier le délai entre les claims
+    # Vérification délai entre claims
     for row in user_values:
         if str(row[0]) == str(user_id) and len(row) > 2 and row[2]:
             try:
@@ -85,64 +97,104 @@ def claim():
                 if (datetime.now() - last_claim) < timedelta(minutes=5):
                     return jsonify({"error": "Attends 5 minutes entre chaque réclamation"}), 400
             except ValueError:
-                pass  # Si le format de date est invalide, on ignore
+                pass
 
     try:
+        # Trouver le parrain si code de parrainage fourni
+        referrer_id = None
+        if referrer_code:
+            for row in user_values:
+                if len(row) > 5 and row[5] == referrer_code:
+                    referrer_id = row[0]
+                    referral_bonus = int(points * 0.05)  # 5% de bonus
+                    break
+
         updated = False
-        # 3. Parcourir les lignes pour trouver l'utilisateur
+        # Mise à jour utilisateur existant
         for idx, row in enumerate(user_values):
             if str(row[0]) == str(user_id):
                 current_balance = int(row[1]) if len(row) > 1 and row[1] else 0
                 new_balance = current_balance + points
                 
-                # Mise à jour de la ligne existante (Balance en B, last_claim en C)
+                # Générer un code de parrainage si inexistant
+                referral_code = row[5] if len(row) > 5 else generate_referral_code(user_id)
+                
                 service.values().update(
                     spreadsheetId=GOOGLE_SHEET_ID,
-                    range=f"Users!B{idx+2}:C{idx+2}",  # +2 car header + index 0-based
+                    range=f"Users!B{idx+2}:F{idx+2}",  # Mise à jour jusqu'à la colonne F
                     valueInputOption="USER_ENTERED",
-                    body={
-                        "values": [[new_balance, now]]
-                    }
+                    body={"values": [[new_balance, now, row[3] if len(row) > 3 else "", row[4] if len(row) > 4 else "", referral_code]]}
                 ).execute()
                 updated = True
                 break
 
-        # 4. Si nouvel utilisateur
+        # Nouvel utilisateur (insertion en haut)
         if not updated:
+            referral_code = generate_referral_code(user_id)
             service.values().append(
                 spreadsheetId=GOOGLE_SHEET_ID,
                 range=USER_RANGE,
                 valueInputOption="USER_ENTERED",
-                body={
-                    "values": [[user_id, points, now, 0, ""]]  # user_id, balance, last_claim, ads_watched, last_ads
-                }
+                body={"values": [[user_id, points, now, referrer_id if referrer_id else "", "", referral_code]]},
+                insertDataOption="INSERT_ROWS"
             ).execute()
 
-        # 5. Enregistrer la transaction
+        # Transaction utilisateur (insertion en haut)
         service.values().append(
             spreadsheetId=GOOGLE_SHEET_ID,
             range=TRANSACTION_RANGE,
             valueInputOption="USER_ENTERED",
-            body={
-                "values": [[user_id, "claim", points, now]]
-            }
+            body={"values": [[user_id, "claim", points, now]]},
+            insertDataOption="INSERT_ROWS"
         ).execute()
 
+        # Bonus parrainage si applicable
+        if referrer_id and referral_bonus > 0:
+            for idx, row in enumerate(user_values):
+                if str(row[0]) == str(referrer_id):
+                    current_balance = int(row[1]) if len(row) > 1 and row[1] else 0
+                    new_balance = current_balance + referral_bonus
+                    
+                    service.values().update(
+                        spreadsheetId=GOOGLE_SHEET_ID,
+                        range=f"Users!B{idx+2}",
+                        valueInputOption="USER_ENTERED",
+                        body={"values": [[new_balance]]}
+                    ).execute()
+                    
+                    # Enregistrement transaction parrain
+                    service.values().append(
+                        spreadsheetId=GOOGLE_SHEET_ID,
+                        range=TRANSACTION_RANGE,
+                        valueInputOption="USER_ENTERED",
+                        body={"values": [[referrer_id, "referral_bonus", referral_bonus, now]]},
+                        insertDataOption="INSERT_ROWS"
+                    ).execute()
+                    break
+
         return jsonify({
-            "success": f"{points} points ajoutés !",
+            "success": f"{points} points ajoutés !" + (f" (+{referral_bonus} points pour ton parrain !" if referral_bonus else ""),
             "new_balance": new_balance if updated else points,
-            "last_claim": now
+            "last_claim": now,
+            "referral_bonus": referral_bonus
         })
 
     except Exception as e:
         print(f"Erreur Sheets: {str(e)}")
         return jsonify({"error": "Erreur serveur lors de la mise à jour"}), 500
 
+# [...] (Les autres endpoints get-tasks et get-friends restent identiques)
+
 @bot.message_handler(commands=['start'])
 def start(message):
+    ref_code = None
+    if len(message.text.split()) > 1:
+        ref_code = message.text.split()[1]
+    
+    start_url = f"{PUBLIC_URL}?ref={ref_code}" if ref_code else PUBLIC_URL
     bot.send_message(
         message.chat.id,
-        f"🎉 Bienvenue ! Clique ici pour commencer :\n{PUBLIC_URL}",
+        f"🎉 Bienvenue ! Clique ici pour commencer :\n{start_url}",
         disable_web_page_preview=True
     )
 

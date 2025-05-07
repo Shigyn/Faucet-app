@@ -1,232 +1,242 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Faucet Telegram</title>
-  <link href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&display=swap" rel="stylesheet">
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-    body {
-      font-family: 'Arial', sans-serif;
-      text-align: center;
-      background-color: #f9f3e9;
-      color: #333;
-      padding-bottom: 60px;
-    }
-    h1 {
-      font-family: 'UnifrakturCook', cursive;
-      font-size: 2.5em;
-      margin-top: 30px;
-      color: #d4af37;
-    }
-    .balance-box {
-      background-color: #fff;
-      border: 2px solid #d4af37;
-      border-radius: 10px;
-      padding: 20px;
-      margin: 20px auto;
-      max-width: 300px;
-      box-shadow: 0 3px 6px rgba(0,0,0,0.1);
-    }
-    .claim-button {
-      background-color: #d4af37;
-      color: white;
-      border: none;
-      padding: 12px 25px;
-      font-size: 1.1em;
-      border-radius: 8px;
-      cursor: pointer;
-      margin: 15px 0;
-      transition: background-color 0.3s;
-    }
-    .claim-button:hover {
-      background-color: #c19b2e;
-    }
-    .claim-button:disabled {
-      background-color: #cccccc;
-      cursor: not-allowed;
-    }
-    #error {
-      color: #ff4444;
-      margin: 15px 0;
-      min-height: 20px;
-    }
-    .bottom-menu {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background-color: white;
-      border-top: 1px solid #eee;
-      display: flex;
-      justify-content: space-around;
-      padding: 10px 0;
-    }
-    .bottom-menu a {
-      color: #333;
-      text-decoration: none;
-      font-weight: bold;
-    }
-    #loader {
-      display: none;
-      margin: 10px auto;
-      border: 4px solid #f3f3f3;
-      border-top: 4px solid #d4af37;
-      border-radius: 50%;
-      width: 30px;
-      height: 30px;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-  </style>
+    <title>Points App</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            padding-bottom: 60px;
+        }
+        #navbar {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            display: flex;
+            background: #2c3e50;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        }
+        #navbar button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            background: none;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #navbar button.active {
+            background: #3498db;
+        }
+        .section {
+            display: none;
+            padding: 20px;
+        }
+        .section.active {
+            display: block;
+        }
+        .task-card, .friend-card, .referral-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .points-badge {
+            background: #3498db;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 10px;
+            float: right;
+        }
+        .referral-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .referral-link {
+            flex: 1;
+            padding: 12px;
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            word-break: break-all;
+        }
+        .copy-btn {
+            padding: 0 15px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .copy-btn:hover {
+            background: #2980b9;
+        }
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            z-index: 100;
+            display: none;
+        }
+    </style>
 </head>
 <body>
-  <h1>Faucet Telegram</h1>
-  
-  <div class="balance-box">
-    <p>Votre solde :</p>
-    <p style="font-size: 2em;"><strong id="balance">0</strong> points</p>
-  </div>
+    <div id="main-section" class="section active">
+        <h1>Vos Points</h1>
+        <div id="balance-display">Chargement...</div>
+        <button id="claim-btn">🎁 Réclamer des points</button>
+    </div>
 
-  <div id="error"></div>
-  <div id="loader"></div>
+    <div id="tasks-section" class="section">
+        <h1>📋 Tasks</h1>
+        <div id="tasks-list">Chargement des tasks...</div>
+    </div>
 
-  <button id="claimBtn" class="claim-button" disabled>Réclamer des points</button>
-
-  <div class="bottom-menu">
-    <a href="#" onclick="alert('Fonctionnalité à venir')">Historique</a>
-    <a href="#" onclick="alert('Fonctionnalité à venir')">Récompenses</a>
-  </div>
-
-  <script>
-    // Initialisation Telegram WebApp
-    const tg = window.Telegram?.WebApp;
-    const claimBtn = document.getElementById('claimBtn');
-    const errorDiv = document.getElementById('error');
-    const balanceSpan = document.getElementById('balance');
-    const loader = document.getElementById('loader');
-
-    // Fonction principale
-    async function initApp() {
-      if (!tg) {
-        showError("Veuillez ouvrir via l'application Telegram");
-        return;
-      }
-
-      tg.expand(); // Plein écran
-      tg.ready();  // Prêt à interagir
-
-      // Solution robuste pour récupérer l'utilisateur
-      const user = await getTelegramUser();
-      if (!user) return;
-
-      // Activation du bouton
-      claimBtn.disabled = false;
-      claimBtn.textContent = "Réclamer des points";
-
-      // Chargement du solde
-      loadBalance(user.id);
-      
-      // Gestion du clic
-      claimBtn.addEventListener('click', () => handleClaim(user.id));
-    }
-
-    // Récupération de l'utilisateur avec fallback
-    async function getTelegramUser() {
-      if (tg.initDataUnsafe?.user) {
-        return tg.initDataUnsafe.user;
-      }
-
-      showError("Authentification...");
-      loader.style.display = 'block';
-
-      // Attente alternative
-      return new Promise((resolve) => {
-        const checkUser = () => {
-          if (tg.initDataUnsafe?.user) {
-            loader.style.display = 'none';
-            resolve(tg.initDataUnsafe.user);
-          } else {
-            setTimeout(checkUser, 500);
-          }
-        };
-        setTimeout(() => {
-          if (!tg.initDataUnsafe?.user) {
-            loader.style.display = 'none';
-            showError("Connectez-vous via Telegram");
-            resolve(null);
-          }
-        }, 3000);
-        checkUser();
-      });
-    }
-
-    // Chargement du solde
-    async function loadBalance(userId) {
-      try {
-        loader.style.display = 'block';
-        const response = await fetch('/get-balance', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: userId })
-        });
+    <div id="friends-section" class="section">
+        <h1>👥 Friends <small id="referral-count">(0 filleuls)</small></h1>
         
-        if (response.ok) {
-          const data = await response.json();
-          balanceSpan.textContent = data.balance || 0;
-          errorDiv.textContent = '';
-        } else {
-          throw new Error(await response.text());
+        <div class="referral-card">
+            <h3>🎯 Votre lien de parrainage</h3>
+            <p>Gagnez 5% des points de chaque filleul !</p>
+            <div class="referral-container">
+                <div id="referral-link" class="referral-link">Chargement...</div>
+                <button id="copy-btn" class="copy-btn">Copier</button>
+            </div>
+        </div>
+        
+        <h3 style="margin-top: 20px;">Vos filleuls</h3>
+        <div id="friends-list">Chargement des filleuls...</div>
+    </div>
+
+    <div id="coming-section" class="section">
+        <h1>🚀 À venir</h1>
+        <p>Nouvelles fonctionnalités bientôt disponibles !</p>
+    </div>
+
+    <div id="navbar">
+        <button onclick="showSection('main')" class="active">🏠 Accueil</button>
+        <button onclick="showSection('tasks')">✅ Tasks</button>
+        <button onclick="showSection('friends')">👥 Friends</button>
+        <button onclick="showSection('coming')">🔮 À venir</button>
+    </div>
+
+    <div id="toast" class="toast">Lien copié !</div>
+
+    <script>
+        // Variables globales
+        let currentUserId = "USER_ID"; // À remplacer par ton système d'authentification
+        let referralData = null;
+
+        // Fonctions de base
+        function showSection(sectionId) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('#navbar button').forEach(b => b.classList.remove('active'));
+            document.getElementById(`${sectionId}-section`).classList.add('active');
+            document.querySelector(`#navbar button[onclick="showSection('${sectionId}')"]`).classList.add('active');
+            
+            if(sectionId === 'tasks') loadTasks();
+            if(sectionId === 'friends') loadFriends();
         }
-      } catch (err) {
-        showError("Erreur de connexion");
-        console.error(err);
-      } finally {
-        loader.style.display = 'none';
-      }
-    }
 
-    // Gestion de la réclamation
-    async function handleClaim(userId) {
-      try {
-        claimBtn.disabled = true;
-        loader.style.display = 'block';
-        errorDiv.textContent = '';
-        
-        const response = await fetch('/claim', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: userId })
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-          showError(data.success || "Succès !", "success");
-          loadBalance(userId);
-        } else {
-          throw new Error(data.error || "Erreur inconnue");
+        // Charger le solde et le lien de parrainage
+        async function loadUserData() {
+            const response = await fetch('/get-balance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: currentUserId })
+            });
+            const data = await response.json();
+            
+            document.getElementById('balance-display').innerHTML = `
+                Solde: <strong>${data.balance} points</strong>
+                ${data.last_claim ? `<br>Dernière réclamation: ${data.last_claim}` : ''}
+            `;
+            
+            if (data.referral_url) {
+                document.getElementById('referral-link').textContent = data.referral_url;
+                referralData = data;
+            }
         }
-      } catch (err) {
-        showError(err.message);
-      } finally {
-        claimBtn.disabled = false;
-        loader.style.display = 'none';
-      }
-    }
 
-    // Affichage des erreurs
-    function showError(message, type = "error") {
-      errorDiv.textContent = message;
-      errorDiv.style.color = type === "success" ? "#4CAF50" : "#ff4444";
-    }
+        // Chargement des Tasks
+        async function loadTasks() {
+            const response = await fetch('/get-tasks');
+            const tasks = await response.json();
+            
+            let html = '';
+            tasks.forEach(task => {
+                html += `
+                <div class="task-card">
+                    <h3>${task.task_name}</h3>
+                    <p>${task.description}</p>
+                    <span class="points-badge">${task.points} pts</span>
+                </div>`;
+            });
+            
+            document.getElementById('tasks-list').innerHTML = html || "<p>Aucune task disponible</p>";
+        }
 
-    // Lancement
-    document.addEventListener('DOMContentLoaded', initApp);
-  </script>
+        // Chargement des Friends
+        async function loadFriends() {
+            const response = await fetch('/get-friends?user_id=' + currentUserId);
+            const data = await response.json();
+            
+            document.getElementById('referral-count').textContent = `(${data.referrals.length} filleuls)`;
+            
+            let html = '';
+            data.referrals.forEach(friend => {
+                html += `
+                <div class="friend-card">
+                    <h3>${friend.username}</h3>
+                    <p>Points générés: ${friend.total_points} (Vous avez reçu ${friend.commission} pts)</p>
+                </div>`;
+            });
+            
+            document.getElementById('friends-list').innerHTML = html || "<p>Aucun filleul pour le moment</p>";
+        }
+
+        // Fonction pour copier le lien
+        document.getElementById('copy-btn').addEventListener('click', () => {
+            if (!referralData?.referral_url) return;
+            
+            navigator.clipboard.writeText(referralData.referral_url).then(() => {
+                const toast = document.getElementById('toast');
+                toast.style.display = 'block';
+                setTimeout(() => {
+                    toast.style.display = 'none';
+                }, 2000);
+            });
+        });
+
+        // Claim points
+        document.getElementById('claim-btn').addEventListener('click', async () => {
+            const response = await fetch('/claim', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    user_id: currentUserId,
+                    referrer_code: new URLSearchParams(window.location.search).get('ref')
+                })
+            });
+            const result = await response.json();
+            
+            if (result.error) {
+                alert(result.error);
+            } else {
+                alert(result.success);
+                loadUserData();
+            }
+        });
+
+        // Initialisation
+        loadUserData();
+    </script>
 </body>
 </html>

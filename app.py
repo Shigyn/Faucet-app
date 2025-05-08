@@ -76,11 +76,9 @@ def get_sheet_data(service, sheet_id, range_name):
         else:
             logger.error(f"Aucune valeur trouvée pour {range_name}")
             return []
-
     except Exception as e:
         logger.error(f"Erreur lecture sheet {range_name}: {str(e)}")
         raise
-
 
 def find_user_row(service, sheet_id, user_id):
     try:
@@ -142,19 +140,19 @@ def claim_points():
 
         with sheet_lock:
             # Mise à jour utilisateur
-            service.values().update(
+            service.spreadsheets().values().update(
                 spreadsheetId=sheet_id,
                 range=f"Users!C{row_num}:F{row_num}",
                 valueInputOption="USER_ENTERED",
                 body={"values": [[user_id, new_balance, now, user.get('referral_code', user_id)]]}
             ).execute()
             # Ajout transaction
-            service.values().append(
+            service.spreadsheets().values().append(
                 spreadsheetId=sheet_id,
                 range=SHEET_CONFIG['transactions']['range'],
                 valueInputOption="USER_ENTERED",
-                body={"values": [[now, user_id, points, "claim"]]}
-            ).execute()
+                body={"values": [[now, user_id, points, "claim"]]})
+            .execute()
 
         return jsonify({
             "status": "success",

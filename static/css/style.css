@@ -1,123 +1,152 @@
-/* === INSPIRÉ DE L'IMAGE BEHANCE === */
+/* === NOUVEAU STYLE INSPIRÉ DU DESIGN DRIBBBLE === */
 :root {
-  --rpg-dark: #1a1a1a;
-  --rpg-accent: #cb7ce3; /* Violet de l'image */
-  --rpg-gold: #e8c547;
-  --rpg-text: #f0f0f0;
-  --rpg-bg: #2d2d3a;
+  --primary: #6C5CE7;  /* Violet pastel */
+  --secondary: #00CEF5; /* Bleu clair */
+  --accent: #FF7675;   /* Rose corail */
+  --text-dark: #2D3436;
+  --text-light: #636E72;
+  --bg-light: #F5F6FA;
+  --card-shadow: 0 8px 32px rgba(108, 92, 231, 0.12);
 }
 
 body {
-  background: 
-    linear-gradient(to bottom, #0f0c1a, #2d2d3a),
-    url('https://i.imgur.com/JQ9qyZP.jpg') no-repeat center/cover;
-  color: var(--rpg-text);
-  font-family: 'Rajdhani', sans-serif;
+  background-color: var(--bg-light);
+  color: var(--text-dark);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  line-height: 1.5;
+  padding: 0;
+  margin: 0;
 }
 
-#rpg-interface {
+/* Container principal */
+#app-container {
   max-width: 450px;
-  margin: 0 auto;
-  padding: 15px;
+  margin: 20px auto;
+  padding: 16px;
 }
 
-/* Panel Personnage */
-#character-panel {
-  background: rgba(25, 25, 35, 0.9);
-  border: 2px solid var(--rpg-accent);
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 15px;
-  box-shadow: 0 5px 25px rgba(203, 124, 227, 0.2);
+/* Cartes style Dribbble */
+.app-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: var(--card-shadow);
 }
 
-.character-header {
+.card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid var(--rpg-accent);
-  padding-bottom: 10px;
-  margin-bottom: 15px;
+  margin-bottom: 20px;
 }
 
-.character-header h1 {
-  font-family: 'Orbitron', sans-serif;
-  color: var(--rpg-gold);
+.card-title {
+  font-size: 1.4rem;
+  font-weight: 700;
   margin: 0;
-  font-size: 1.8rem;
+  color: var(--text-dark);
 }
 
-.character-level {
-  background: var(--rpg-accent);
+.card-badge {
+  background-color: var(--primary);
   color: white;
-  padding: 3px 10px;
+  padding: 6px 12px;
   border-radius: 20px;
-  font-weight: bold;
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
-/* Panel Inventaire */
-#inventory-panel {
-  background: rgba(40, 40, 50, 0.85);
-  border: 1px solid rgba(203, 124, 227, 0.5);
-  border-radius: 10px;
-  padding: 20px;
-  backdrop-filter: blur(5px);
-}
-
-.rpg-button {
-  background: linear-gradient(to right, #8a2be2, var(--rpg-accent));
-  color: white;
-  border: none;
-  padding: 12px 20px;
-  border-radius: 8px;
-  font-family: 'Rajdhani', sans-serif;
-  font-weight: bold;
-  font-size: 1rem;
+/* Éléments de formulaire */
+.app-input {
   width: 100%;
-  margin: 10px 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  cursor: pointer;
+  padding: 12px 16px;
+  border: 1px solid #E0E0E0;
+  border-radius: 12px;
+  font-size: 1rem;
+  margin-bottom: 16px;
   transition: all 0.3s;
 }
 
-.rpg-button:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 5px 15px rgba(203, 124, 227, 0.4);
+.app-input:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
+}
+
+/* Boutons */
+.app-button {
+  background-color: var(--primary);
+  color: white;
+  border: none;
+  padding: 14px 24px;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  width: 100%;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.app-button.secondary {
+  background-color: white;
+  color: var(--primary);
+  border: 1px solid #E0E0E0;
+}
+
+.app-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(108, 92, 231, 0.15);
 }
 
 /* Navigation */
-#rpg-navbar {
+.app-tabbar {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   display: flex;
-  background: rgba(30, 30, 40, 0.95);
-  border-top: 1px solid var(--rpg-accent);
-  padding: 10px 0;
-  backdrop-filter: blur(5px);
+  background: white;
+  padding: 12px 0;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
 }
 
-.nav-button {
+.tab-item {
   flex: 1;
-  background: none;
-  border: none;
-  color: var(--rpg-text);
   display: flex;
   flex-direction: column;
   align-items: center;
-  font-size: 0.8rem;
-  cursor: pointer;
+  color: var(--text-light);
+  font-size: 0.75rem;
+  text-decoration: none;
 }
 
-.nav-button.active {
-  color: var(--rpg-accent);
+.tab-item.active {
+  color: var(--primary);
 }
 
-.nav-icon {
+.tab-icon {
   font-size: 1.4rem;
-  margin-bottom: 3px;
+  margin-bottom: 4px;
 }
+
+/* Pastilles de couleur comme sur le design */
+.color-dots {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.color-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.dot-primary { background-color: var(--primary); }
+.dot-secondary { background-color: var(--secondary); }
+.dot-accent { background-color: var(--accent); }

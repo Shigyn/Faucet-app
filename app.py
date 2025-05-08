@@ -30,26 +30,25 @@ COOLDOWN_MINUTES = 5
 MIN_CLAIM = 10
 MAX_CLAIM = 100
 
-# Configuration Sheets
+# Configuration Sheets (corrigée pour correspondre au code)
 SHEET_CONFIG = {
     'users': {
-        'range': "Users!A2:F",  # Plage incluant toutes les colonnes de la feuille Users
-        'headers': ['user_id', 'balance', 'last_claim', 'referrer_id', 'username_tg', 'referral_code']  # Nouvelles colonnes
+        'range': "Users!A2:F",
+        'headers': ['timestamp', 'action', 'user_id', 'balance', 'last_claim', 'referral_code']
     },
     'transactions': {
-        'range': "Transactions!A2:D",  # Plage incluant toutes les colonnes de la feuille Transactions
-        'headers': ['user_id', 'action', 'amount', 'timestamp']  # Colonnes pour transactions
+        'range': "Transactions!A2:D",
+        'headers': ['timestamp', 'user_id', 'amount', 'action']
     },
     'tasks': {
-        'range': "Tasks!A2:D",  # Plage incluant toutes les colonnes de la feuille Tasks
-        'headers': ['task_name', 'description', 'points', 'url']  # Colonnes pour tâches
+        'range': "Tasks!A2:D",
+        'headers': ['task_name', 'description', 'points', 'url']
     },
     'friends': {
-        'range': "Referrals!A2:D",  # Plage incluant toutes les colonnes de la feuille Referrals
-        'headers': ['user_id', 'username', 'total_points']  # Colonnes pour referrals
+        'range': "Referrals!A2:D",
+        'headers': ['user_id', 'referred_user_id', 'username', 'total_points']
     }
 }
-
 
 sheet_lock = Lock()
 
@@ -81,7 +80,7 @@ def find_user_row(service, sheet_id, user_id):
     try:
         values = get_sheet_data(service, sheet_id, SHEET_CONFIG['users']['range'])
         for i, row in enumerate(values, start=2):
-            if row and str(row[1]) == str(user_id):  # Changement ici : User_id est en colonne 2 (B)
+            if len(row) >= 3 and str(row[2]) == str(user_id):  # user_id est en 3ème position
                 return i, dict(zip(SHEET_CONFIG['users']['headers'], row))
         return None, None
     except Exception as e:
@@ -91,16 +90,21 @@ def find_user_row(service, sheet_id, user_id):
 def parse_date(date_str):
     if not date_str:
         return None
-    if isinstance(date_str, (int, float)):
-        return datetime(1899, 12, 30) + timedelta(days=float(date_str))
-    if isinstance(date_str, str):
+    try:
+        # Essayer de parser comme timestamp Excel d'abord
+        if isinstance(date_str, (int, float)):
+            return datetime(1899, 12, 30) + timedelta(days=float(date_str))
+        # Sinon essayer différents formats de date
         formats = ["%d/%m/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%m/%d/%Y %H:%M:%S"]
         for fmt in formats:
             try:
                 return datetime.strptime(date_str, fmt)
             except ValueError:
                 continue
-    return None
+        return None
+    except Exception as e:
+        logger.warning(f"Erreur parsing date {date_str}: {str(e)}")
+        return None
 
 @app.route('/claim', methods=['POST'])
 def claim_points():
@@ -129,22 +133,23 @@ def claim_points():
 
         points = random.randint(MIN_CLAIM, MAX_CLAIM)
         new_balance = int(user.get('balance', 0)) + points
-        now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")  # Format `jj/mm/aaaa hh:mm:ss`
+        now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
         with sheet_lock:
-            # Mise à jour balance et action (claim)
+            # Mise à jour de la ligne utilisateur
             service.values().update(
                 spreadsheetId=sheet_id,
-                range=f"Users!B{row_num}:D{row_num}",
+                range=f"Users!C{row_num}:F{row_num}",  # user_id est en colonne C
                 valueInputOption="USER_ENTERED",
-                body={"values": [["claim", user_id, new_balance, now]]}  # Action "claim" ajoutée
+                body={"values": [[user_id, new_balance, now, user.get('referral_code', user_id)]]}
             ).execute()
+            
             # Ajout transaction
             service.values().append(
                 spreadsheetId=sheet_id,
                 range=SHEET_CONFIG['transactions']['range'],
                 valueInputOption="USER_ENTERED",
-                body={"values": [[now, user_id, points]]}
+                body={"values": [[now, user_id, points, "claim"]]}
             ).execute()
 
         return jsonify({
@@ -165,16 +170,22 @@ def get_balance():
             return jsonify({"status": "error", "message": "User ID manquant"}), 400
 
         service = get_google_sheets_service()
-        _, user = find_user_row(service, os.environ['GOOGLE_SHEET_ID'], user_id)
+        sheet_id = os.environ['GOOGLE_SHEET_ID']
+        _, user = find_user_row(service, sheet_id, user_id)
 
         if not user:
-            return jsonify({"status": "error", "message": "Utilisateur non trouvé"}), 404
+            return jsonify({
+                "status": "success",  # Même si non trouvé, retourne un succès avec balance 0
+                "balance": 0,
+                "last_claim": None,
+                "referral_code": user_id
+            })
 
         return jsonify({
             "status": "success",
             "balance": int(user.get('balance', 0)),
             "last_claim": user.get('last_claim'),
-            "referral_code": user_id
+            "referral_code": user.get('referral_code', user_id)
         })
     except Exception as e:
         logger.error(f"Erreur balance: {str(e)}")
@@ -188,15 +199,13 @@ def get_tasks():
 
         tasks = []
         for row in tasks_data:
-            if len(row) >= 3:
-                task = {
-                    "id": row[0],
-                    "name": row[1],
-                    "reward": int(row[2]) if row[2].isdigit() else 0
-                }
-                if len(row) >= 4:
-                    task["completed"] = row[3].lower() in ("true", "vrai", "1", "oui")
-                tasks.append(task)
+            if len(row) >= 4:  # Doit avoir au moins 4 colonnes
+                tasks.append({
+                    "task_name": row[0],
+                    "description": row[1],
+                    "points": int(row[2]) if str(row[2]).isdigit() else 0,
+                    "url": row[3]
+                })
 
         return jsonify({"status": "success", "tasks": tasks})
     except Exception as e:
@@ -213,25 +222,26 @@ def get_friends():
         service = get_google_sheets_service()
         friends_data = get_sheet_data(service, os.environ['GOOGLE_SHEET_ID'], SHEET_CONFIG['friends']['range'])
 
-        friends = []
+        referrals = []
         for row in friends_data:
             if len(row) >= 2 and str(row[0]) == str(user_id):
-                friends.append({
-                    "id": row[1],
-                    "name": row[2] if len(row) > 2 else "Ami"
+                referrals.append({
+                    "username": row[2] if len(row) > 2 else "Anonyme",
+                    "total_points": int(row[3]) if len(row) > 3 and str(row[3]).isdigit() else 0
                 })
 
-        return jsonify({"status": "success", "friends": friends})
+        return jsonify({
+            "status": "success",
+            "referrals": referrals
+        })
     except Exception as e:
         logger.error(f"Erreur get-friends: {str(e)}")
         return jsonify({"status": "error", "message": "Erreur serveur"}), 500
 
-# Endpoint de santé (utilisé par Render)
 @app.route('/health')
 def health_check():
     return "OK", 200
 
-# Routes Frontend
 @app.route('/')
 def index():
     return render_template('index.html')

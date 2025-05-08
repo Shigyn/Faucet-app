@@ -12,94 +12,88 @@
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
     
-    <!-- Correction des chemins statiques -->
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon">
     
-    <meta name="theme-color" content="#0d0221">
-    
-    <style>
-        @keyframes hologram-pulse {
-            0%, 100% { box-shadow: 0 0 20px rgba(0, 255, 255, 0.3); }
-            50% { box-shadow: 0 0 40px rgba(157, 0, 255, 0.5); }
-        }
-</style>
+    <meta name="theme-color" content="#F5F6FA">
 </head>
 <body>
-    <div id="telegram-alert" class="telegram-alert">
+    <div id="telegram-alert" class="app-card alert-card">
         ⚠️ Ouvrez cette application via @CRYPTORATS_bot !
     </div>
 
-    <div id="rpg-interface">
-        <!-- Dashboard Personnage -->
-        <div id="character-panel" class="rpg-panel">
-            <div class="character-header">
-                <h1>CRYPTORATS</h1>
-                <div class="character-level">Niveau 1</div>
-            </div>
-            <div id="balance-display" class="character-stats">
-                <div class="stat">
-                    <span class="stat-label">Points :</span>
-                    <span class="stat-value">0</span>
+    <div id="app-container">
+        <div id="rpg-interface">
+            <!-- Dashboard Personnage -->
+            <div id="character-panel" class="app-card">
+                <div class="card-header">
+                    <h1 class="card-title">CRYPTORATS</h1>
+                    <div class="card-badge" id="level-badge">Niveau 1</div>
                 </div>
-                <div class="stat">
-                    <span class="stat-label">Dernier claim :</span>
-                    <span class="stat-value">-</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Inventaire -->
-        <div id="inventory-panel" class="rpg-panel">
-            <button id="claim-btn" class="rpg-button">
-                <span class="button-icon">🎁</span>
-                <span class="button-text">Réclamer des Points</span>
-            </button>
-
-            <div class="inventory-section">
-                <h2 class="section-title">Parrainage</h2>
-                <p class="section-description">Gagnez 10% des points de vos filleuls</p>
-                <div class="referral-container">
-                    <input type="text" id="referral-link" class="rpg-input" readonly value="Chargement...">
-                    <button id="copy-btn" class="rpg-button small">
-                        <span class="button-icon">📋</span>
-                        <span class="button-text">Copier</span>
-                    </button>
+                <div id="balance-display" class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">Points :</span>
+                        <span class="stat-value" id="balance-value">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Dernier claim :</span>
+                        <span class="stat-value" id="last-claim-value">-</span>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Sections cachées -->
-        <div id="tasks-panel" class="rpg-panel" style="display:none">
-            <h2>Tâches Disponibles</h2>
-            <div id="tasks-list">
-                <p>Chargement des tâches...</p>
+            <!-- Inventaire -->
+            <div id="inventory-panel" class="app-card">
+                <button id="claim-btn" class="app-button">
+                    <span class="button-icon">🎁</span>
+                    <span class="button-text">Réclamer des Points</span>
+                </button>
+
+                <div class="card-section">
+                    <h2 class="section-title">Parrainage</h2>
+                    <p class="section-description">Gagnez 10% des points de vos filleuls</p>
+                    <div class="input-group">
+                        <input type="text" id="referral-link" class="app-input" readonly value="Chargement...">
+                        <button id="copy-btn" class="app-button secondary">
+                            <span class="button-icon">📋</span>
+                            <span class="button-text">Copier</span>
+                        </button>
+                    </div>
+                </div>
             </div>
-        </div>
 
-        <div id="friends-panel" class="rpg-panel" style="display:none">
-            <h2>Votre Réseau</h2>
-            <div id="friends-list">
-                <p>Chargement des filleuls...</p>
+            <!-- Sections cachées -->
+            <div id="tasks-panel" class="app-card hidden-panel">
+                <h2 class="card-title">Tâches Disponibles</h2>
+                <div id="tasks-list" class="cards-container">
+                    <p>Chargement des tâches...</p>
+                </div>
             </div>
-        </div>
 
-        <!-- Navigation -->
-        <div id="rpg-navbar">
-            <button class="nav-button active" data-section="home">
-                <span class="nav-icon">👤</span>
-                <span class="nav-label">Profil</span>
-            </button>
-            <button class="nav-button" data-section="tasks">
-                <span class="nav-icon">✅</span>
-                <span class="nav-label">Quêtes</span>
-            </button>
-            <button class="nav-button" data-section="friends">
-                <span class="nav-icon">👥</span>
-                <span class="nav-label">Réseau</span>
-            </button>
+            <div id="friends-panel" class="app-card hidden-panel">
+                <h2 class="card-title">Votre Réseau</h2>
+                <div id="friends-list" class="cards-container">
+                    <p>Chargement des filleuls...</p>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div id="app-tabbar">
+                <button class="tab-item active" data-section="home">
+                    <span class="tab-icon">👤</span>
+                    <span class="tab-label">Profil</span>
+                </button>
+                <button class="tab-item" data-section="tasks">
+                    <span class="tab-icon">✅</span>
+                    <span class="tab-label">Quêtes</span>
+                </button>
+                <button class="tab-item" data-section="friends">
+                    <span class="tab-icon">👥</span>
+                    <span class="tab-label">Réseau</span>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -107,7 +101,7 @@
         // Configuration
         const PUBLIC_URL = "https://faucet-app.onrender.com";
         const API_BASE_URL = "https://faucet-app.onrender.com";
-        const COOLDOWN_MINUTES = 5; // ← Cooldown de 5 minutes pour les tests
+        const COOLDOWN_MINUTES = 5;
         
         let currentUserId = null;
         let currentBalance = 0;
@@ -120,7 +114,7 @@
             if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
                 initTelegramWebApp();
             } else {
-                showTelegramAlert();
+                document.getElementById('telegram-alert').style.display = 'block';
             }
             setupEventListeners();
         }
@@ -153,7 +147,6 @@
             }
         }
 
-        // Fonctions API
         async function fetchBalance() {
             try {
                 const response = await fetch(`${API_BASE_URL}/get-balance`, {
@@ -167,18 +160,13 @@
                 
                 if (!response.ok) {
                     const error = await response.text();
-                    console.error("Erreur balance:", error);
                     throw new Error(error || "Erreur API");
                 }
                 
                 const data = await response.json();
-                console.log("Balance data:", data); // Debug
                 
                 if (data.last_claim) {
                     lastClaimTime = new Date(data.last_claim);
-                    console.log("Last claim parsed:", lastClaimTime); // Debug
-                } else {
-                    console.warn("Pas de last_claim dans la réponse");
                 }
                 
                 return data;
@@ -206,30 +194,23 @@
             updateReferralLink(balance);
             updateClaimButton(balance);
             
-            // Mise à jour des autres sections si besoin
             if (tasks) updateTasksList(tasks);
             if (friends) updateFriendsList(friends);
         }
 
         function updateBalanceDisplay(data) {
             currentBalance = data?.balance || 0;
-            const balanceValue = document.querySelector('.character-stats .stat:nth-child(1) .stat-value');
-            const lastClaimValue = document.querySelector('.character-stats .stat:nth-child(2) .stat-value');
+            document.getElementById('balance-value').textContent = currentBalance;
             
-            if (balanceValue) balanceValue.textContent = currentBalance;
-            if (lastClaimValue) {
-                lastClaimValue.textContent = data?.last_claim 
-                    ? new Date(data.last_claim).toLocaleTimeString() 
-                    : 'Jamais';
-            }
+            const lastClaimElement = document.getElementById('last-claim-value');
+            lastClaimElement.textContent = data?.last_claim 
+                ? new Date(data.last_claim).toLocaleTimeString() 
+                : 'Jamais';
             
-            const levelElement = document.querySelector('.character-level');
-            if (levelElement) {
-                levelElement.textContent = `Niveau ${Math.floor(currentBalance / 100) + 1}`;
-            }
+            document.getElementById('level-badge').textContent = `Niveau ${Math.floor(currentBalance / 100) + 1}`;
         }
 
-                function updateTasksList(tasks) {
+        function updateTasksList(tasks) {
             const container = document.getElementById('tasks-list');
             if (!tasks?.tasks?.length) {
                 container.innerHTML = "<p>Aucune tâche disponible</p>";
@@ -267,11 +248,9 @@
 
         function updateReferralLink(data) {
             const referralLink = document.getElementById('referral-link');
-            if (referralLink) {
-                referralLink.value = data?.referral_code 
-                    ? `${PUBLIC_URL}?ref=${data.referral_code}` 
-                    : `${PUBLIC_URL}?ref=${currentUserId}`;
-            }
+            referralLink.value = data?.referral_code 
+                ? `${PUBLIC_URL}?ref=${data.referral_code}` 
+                : `${PUBLIC_URL}?ref=${currentUserId}`;
         }
 
         function updateClaimButton(balanceData) {
@@ -375,27 +354,24 @@
 
         // Navigation
         function showSection(sectionId) {
-            // Masquer toutes les sections
-            document.querySelectorAll('.rpg-panel').forEach(panel => {
-                panel.style.display = 'none';
+            document.querySelectorAll('.app-card').forEach(panel => {
+                panel.classList.add('hidden-panel');
             });
 
-            // Afficher la section demandée
             switch(sectionId) {
                 case 'home':
-                    document.getElementById('character-panel').style.display = 'block';
-                    document.getElementById('inventory-panel').style.display = 'block';
+                    document.getElementById('character-panel').classList.remove('hidden-panel');
+                    document.getElementById('inventory-panel').classList.remove('hidden-panel');
                     break;
                 case 'tasks':
-                    document.getElementById('tasks-panel').style.display = 'block';
+                    document.getElementById('tasks-panel').classList.remove('hidden-panel');
                     break;
                 case 'friends':
-                    document.getElementById('friends-panel').style.display = 'block';
+                    document.getElementById('friends-panel').classList.remove('hidden-panel');
                     break;
             }
 
-            // Mettre à jour la navigation active
-            document.querySelectorAll('#rpg-navbar .nav-button').forEach(btn => {
+            document.querySelectorAll('#app-tabbar .tab-item').forEach(btn => {
                 btn.classList.toggle('active', btn.getAttribute('data-section') === sectionId);
             });
         }
@@ -411,7 +387,7 @@
                 });
             });
 
-            document.querySelectorAll('#rpg-navbar .nav-button').forEach(button => {
+            document.querySelectorAll('#app-tabbar .tab-item').forEach(button => {
                 button.addEventListener('click', function() {
                     const section = this.getAttribute('data-section');
                     showSection(section);
@@ -457,4 +433,3 @@
     </script>
 </body>
 </html>
-

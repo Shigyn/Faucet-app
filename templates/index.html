@@ -149,33 +149,29 @@
             }
         }
 
-        async function fetchBalance() {
-            try {
-                const response = await fetch(`${API_BASE_URL}/get-balance`, {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({ user_id: currentUserId })
-                });
-                
-                if (!response.ok) {
-                    throw new Error("Erreur API");
-                }
-                
-                const data = await response.json();
-                
-                if (data.last_claim) {
-                    lastClaimTime = new Date(data.last_claim);
-                }
-                
-                return data;
-            } catch (error) {
-                console.error("Erreur fetchBalance:", error);
-                throw error;
-            }
+  async function fetchBalance() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/get-balance`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ user_id: currentUserId })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || "Erreur API");
         }
+        
+        return await response.json();
+    } catch (error) {
+        console.error("Erreur fetchBalance:", error);
+        showToast(error.message, 3000, 'error');
+        throw error;
+    }
+}
 
         async function fetchTasks() {
             const response = await fetch(`${API_BASE_URL}/get-tasks`);

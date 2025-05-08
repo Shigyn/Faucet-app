@@ -10,9 +10,8 @@ import logging
 from threading import Lock
 from flask_cors import CORS
 
-# Désactivation du cache discovery (correctement désactivé via monkey patch)
 import googleapiclient.discovery_cache
-googleapiclient.discovery_cache = None
+googleapiclient.discovery_cache.base.CACHE = {}
 
 # Configuration initiale
 app = Flask(__name__, template_folder='templates', static_folder='static')

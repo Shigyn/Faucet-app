@@ -21,6 +21,32 @@
     <style>
         .hidden { display: none !important; }
         .active-page { display: block !important; }
+        
+        /* Ajouts pour améliorer l'UI */
+        .tab-bar {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            background: #fff;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            padding: 10px 0;
+        }
+        .tab-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 12px;
+            color: #666;
+        }
+        .tab-item.active {
+            color: #007bff;
+        }
+        .tab-icon {
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
     </style>
 </head>
 <body>
@@ -29,14 +55,15 @@
     </div>
 
     <div id="app-container">
-        <!-- Page Dashboard -->
+        <!-- Page Dashboard/Claim -->
         <div id="dashboard-page" class="page active-page">
-            <div id="character-panel" class="app-card">
+            <div class="app-card profile-card">
                 <div class="card-header">
-                    <h1 class="card-title">CRYPTORATS</h1>
+                    <h1 id="username-display">Chargement...</h1>
                     <div class="card-badge" id="level-badge">Niveau 1</div>
                 </div>
-                <div id="balance-display" class="stats-grid">
+                
+                <div class="stats-grid">
                     <div class="stat-item">
                         <span class="stat-label">Points :</span>
                         <span class="stat-value" id="balance-value">0</span>
@@ -46,10 +73,8 @@
                         <span class="stat-value" id="last-claim-value">-</span>
                     </div>
                 </div>
-            </div>
-
-            <div class="app-card">
-                <button id="claim-btn" class="app-button">
+                
+                <button id="claim-btn" class="app-button primary-btn">
                     <span class="button-icon">🎁</span>
                     <span class="button-text">Réclamer des Points</span>
                 </button>
@@ -59,15 +84,21 @@
         <!-- Page Parrainage -->
         <div id="referral-page" class="page hidden">
             <div class="app-card">
-                <div class="card-section">
-                    <h2 class="section-title">Parrainage</h2>
-                    <p class="section-description">Gagnez 10% des points de vos filleuls</p>
-                    <div class="input-group">
-                        <input type="text" id="referral-link" class="app-input" readonly value="Chargement...">
-                        <button id="copy-btn" class="app-button secondary">
-                            <span class="button-icon">📋</span>
-                            <span class="button-text">Copier</span>
-                        </button>
+                <h2 class="card-title">Parrainage</h2>
+                <p class="card-subtitle">Gagnez 5% des points de vos filleuls</p>
+                
+                <div class="input-group">
+                    <input type="text" id="referral-link" class="app-input" readonly>
+                    <button id="copy-btn" class="app-button secondary">
+                        <span class="button-icon">📋</span>
+                        <span class="button-text">Copier</span>
+                    </button>
+                </div>
+                
+                <div class="referrals-list" id="referrals-list">
+                    <h3>Vos filleuls</h3>
+                    <div id="referrals-container" class="referrals-container">
+                        <p>Chargement des filleuls...</p>
                     </div>
                 </div>
             </div>
@@ -77,36 +108,36 @@
         <div id="tasks-page" class="page hidden">
             <div class="app-card">
                 <h2 class="card-title">Tâches Disponibles</h2>
-                <div id="tasks-list" class="cards-container">
+                <div id="tasks-list" class="tasks-container">
                     <p>Chargement des tâches...</p>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Navigation -->
-        <div id="app-tabbar">
-            <button class="tab-item active" data-page="dashboard-page">
-                <span class="tab-icon">👤</span>
-                <span class="tab-label">Profil</span>
-            </button>
-            <button class="tab-item" data-page="referral-page">
-                <span class="tab-icon">👥</span>
-                <span class="tab-label">Parrainage</span>
-            </button>
-            <button class="tab-item" data-page="tasks-page">
-                <span class="tab-icon">✅</span>
-                <span class="tab-label">Tâches</span>
-            </button>
+    <!-- Barre de navigation en bas -->
+    <div class="tab-bar">
+        <div class="tab-item active" data-page="dashboard-page">
+            <span class="tab-icon">💰</span>
+            <span class="tab-label">Claim</span>
+        </div>
+        <div class="tab-item" data-page="tasks-page">
+            <span class="tab-icon">✅</span>
+            <span class="tab-label">Tâches</span>
+        </div>
+        <div class="tab-item" data-page="referral-page">
+            <span class="tab-icon">👥</span>
+            <span class="tab-label">Filleuls</span>
         </div>
     </div>
 
     <script>
         // Configuration
-        const PUBLIC_URL = "https://faucet-app.onrender.com";
         const API_BASE_URL = "https://faucet-app.onrender.com";
         const COOLDOWN_MINUTES = 5;
         
         let currentUserId = null;
+        let currentUsername = "Utilisateur";
         let currentBalance = 0;
         let isClaiming = false;
         let refreshInterval;
@@ -114,11 +145,18 @@
 
         // Initialisation
         function initApp() {
-            if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
+            const tgWebApp = window.Telegram?.WebApp;
+            
+            if (tgWebApp?.initDataUnsafe?.user) {
                 initTelegramWebApp();
             } else {
                 document.getElementById('telegram-alert').style.display = 'block';
+                // Simuler des données pour le développement
+                currentUserId = "dev-user-123";
+                currentUsername = "Développeur";
+                startAutoRefresh();
             }
+            
             setupEventListeners();
             loadData();
         }
@@ -127,8 +165,16 @@
             const tgWebApp = window.Telegram.WebApp;
             tgWebApp.expand();
             tgWebApp.ready();
+            
             document.getElementById('telegram-alert').style.display = 'none';
-            currentUserId = tgWebApp.initDataUnsafe.user.id.toString();
+            
+            const userData = tgWebApp.initDataUnsafe.user;
+            currentUserId = userData.id.toString();
+            currentUsername = userData.username || 
+                            [userData.first_name, userData.last_name].filter(Boolean).join(' ') || 
+                            "Utilisateur";
+            
+            document.getElementById('username-display').textContent = currentUsername;
             startAutoRefresh();
         }
 
@@ -137,58 +183,97 @@
             if (!currentUserId) return;
 
             try {
-                const [balance, tasks] = await Promise.all([
+                const [balance, tasks, referrals] = await Promise.all([
                     fetchBalance(),
-                    fetchTasks()
+                    fetchTasks(),
+                    fetchReferrals()
                 ]);
                 
-                updateUI({ balance, tasks });
+                updateUI({ balance, tasks, referrals });
             } catch (error) {
                 console.error("Erreur de chargement:", error);
                 showToast("Erreur de chargement des données", 3000, 'error');
             }
         }
 
-  async function fetchBalance() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/get-balance`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({ user_id: currentUserId })
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || "Erreur API");
+        async function fetchBalance() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/get-balance`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        user_id: currentUserId,
+                        initData: window.Telegram?.WebApp?.initData || null
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || "Erreur API");
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error("Erreur fetchBalance:", error);
+                showToast(error.message, 3000, 'error');
+                throw error;
+            }
         }
-        
-        return await response.json();
-    } catch (error) {
-        console.error("Erreur fetchBalance:", error);
-        showToast(error.message, 3000, 'error');
-        throw error;
-    }
-}
 
         async function fetchTasks() {
-            const response = await fetch(`${API_BASE_URL}/get-tasks`);
-            if (!response.ok) throw new Error("Erreur API");
-            return response.json();
+            try {
+                const response = await fetch(`${API_BASE_URL}/get-tasks`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        user_id: currentUserId,
+                        initData: window.Telegram?.WebApp?.initData || null
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || "Erreur API");
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error("Erreur fetchTasks:", error);
+                showToast("Erreur de chargement des tâches", 3000, 'error');
+                return { tasks: [] };
+            }
+        }
+
+        async function fetchReferrals() {
+            try {
+                // À implémenter côté backend
+                return { referrals: [] };
+            } catch (error) {
+                console.error("Erreur fetchReferrals:", error);
+                return { referrals: [] };
+            }
         }
 
         // Mise à jour de l'interface
-        function updateUI({ balance, tasks }) {
+        function updateUI({ balance, tasks, referrals }) {
             if (balance) {
                 updateBalanceDisplay(balance);
-                updateReferralLink(balance);
+                updateReferralLink();
                 updateClaimButton(balance);
             }
             
             if (tasks) {
                 updateTasksList(tasks);
+            }
+            
+            if (referrals) {
+                updateReferralsList(referrals);
             }
         }
 
@@ -200,8 +285,8 @@
             
             const lastClaimElement = document.getElementById('last-claim-value');
             if (data.last_claim) {
-                const claimDate = new Date(data.last_claim);
-                lastClaimElement.textContent = claimDate.toLocaleString();
+                lastClaimTime = new Date(data.last_claim);
+                lastClaimElement.textContent = lastClaimTime.toLocaleString();
             } else {
                 lastClaimElement.textContent = 'Jamais';
             }
@@ -216,26 +301,35 @@
                 return;
             }
 
-            container.innerHTML = tasks.tasks.map(task => ` 
+            container.innerHTML = tasks.tasks.map(task => `
                 <div class="task-card">
-                    <h3>${escapeHTML(task.task_name)}</h3>
-                    <p>${escapeHTML(task.description)}</p>
-                    <span class="points-badge">${task.points} pts</span>
-                    <a href="${escapeHTML(task.url)}" target="_blank" 
-                       class="task-btn ${isTaskCompleted(task.task_name) ? 'completed' : ''}"
-                       onclick="return handleTaskClick(event, '${escapeString(task.task_name)}', ${task.points})">
-                        ${isTaskCompleted(task.task_name) ? '✅ Terminé' : 'Commencer'}
-                    </a>
+                    <h3>${escapeHTML(task[1] || 'Tâche sans nom')}</h3>
+                    <p>${escapeHTML(task[2] || 'Description non disponible')}</p>
+                    <span class="points-badge">${task[3] || '?'} pts</span>
+                    <button class="task-btn" onclick="completeTask('${escapeString(task[1])}', ${task[3] || 0})">
+                        ${isTaskCompleted(task[1]) ? '✅ Terminé' : 'Commencer'}
+                    </button>
                 </div>`).join('');
         }
 
-        function updateReferralLink(data) {
-            if (!data) return;
-            
+        function updateReferralsList(referrals) {
+            const container = document.getElementById('referrals-container');
+            if (!referrals?.referrals?.length) {
+                container.innerHTML = "<p>Aucun filleul pour le moment</p>";
+                return;
+            }
+
+            container.innerHTML = referrals.referrals.map(ref => `
+                <div class="referral-item">
+                    <div class="ref-username">${escapeHTML(ref.username)}</div>
+                    <div class="ref-points">+${ref.points_earned || 0} pts</div>
+                    <div class="ref-last-seen">${new Date(ref.last_seen).toLocaleDateString()}</div>
+                </div>`).join('');
+        }
+
+        function updateReferralLink() {
             const referralLink = document.getElementById('referral-link');
-            referralLink.value = data.referral_code 
-                ? `${PUBLIC_URL}?ref=${data.referral_code}` 
-                : `${PUBLIC_URL}?ref=${currentUserId}`;
+            referralLink.value = `${window.location.href.split('?')[0]}?ref=${currentUserId}`;
         }
 
         function updateClaimButton() {
@@ -266,15 +360,20 @@
 
                 const response = await fetch(`${API_BASE_URL}/claim`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: currentUserId })
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        user_id: currentUserId,
+                        initData: window.Telegram?.WebApp?.initData || null
+                    })
                 });
 
                 const result = await response.json();
-                console.log(result); // Affiche la réponse de l'API
                 if (result.error) throw new Error(result.error);
 
-                showToast(`+${result.points_earned || '?'} points !`, 3000, 'success');
+                showToast(`+${result.points_earned || 10} points !`, 3000, 'success');
                 loadData();
 
                 if (result.last_claim) {
@@ -283,9 +382,47 @@
                     startCooldownTimer(cooldownEnd);
                 }
             } catch (error) {
-                showToast(error.message || "Erreur", 3000, 'error');
+                console.error("Erreur claim:", error);
+                showToast(error.message || "Erreur lors du claim", 3000, 'error');
             } finally {
                 isClaiming = false;
+            }
+        }
+
+        async function completeTask(taskName, points) {
+            if (isTaskCompleted(taskName)) {
+                showToast('Cette tâche est déjà terminée', 3000, 'info');
+                return;
+            }
+
+            try {
+                // Enregistrer la tâche comme complétée
+                const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || [];
+                completedTasks.push(taskName);
+                localStorage.setItem('completedTasks', JSON.stringify(completedTasks));
+
+                // Envoyer au backend
+                const response = await fetch(`${API_BASE_URL}/complete-task`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        user_id: currentUserId,
+                        task_name: taskName,
+                        points: points,
+                        initData: window.Telegram?.WebApp?.initData || null
+                    })
+                });
+
+                if (!response.ok) throw new Error("Erreur API");
+
+                showToast(`Tâche "${taskName}" complétée !`, 3000, 'success');
+                loadData();
+            } catch (error) {
+                console.error("Erreur completeTask:", error);
+                showToast("Erreur lors de la complétion de la tâche", 3000, 'error');
             }
         }
 
@@ -296,7 +433,7 @@
                 if (document.visibilityState === 'visible') {
                     loadData();
                 }
-            }, 30000);
+            }, 30000); // Actualisation toutes les 30 secondes
         }
 
         function startCooldownTimer(cooldownEnd) {
@@ -338,7 +475,6 @@
             }, duration);
         }
 
-        // Navigation
         function switchPage(pageId) {
             // Masquer toutes les pages
             document.querySelectorAll('.page').forEach(page => {
@@ -347,99 +483,98 @@
             });
 
             // Afficher la page demandée
-            document.getElementById(pageId).classList.remove('hidden');
-            document.getElementById(pageId).classList.add('active-page');
+            const page = document.getElementById(pageId);
+            if (page) {
+                page.classList.remove('hidden');
+                page.classList.add('active-page');
+            }
 
             // Mettre à jour la navigation active
-            document.querySelectorAll('#app-tabbar .tab-item').forEach(btn => {
+            document.querySelectorAll('.tab-bar .tab-item').forEach(btn => {
                 btn.classList.toggle('active', btn.getAttribute('data-page') === pageId);
             });
         }
 
-                   // Événements
-        function setupEventListeners() {
-            document.getElementById('claim-btn')?.addEventListener('click', claimPoints);
+        function isTaskCompleted(taskName) {
+            const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]');
+            return completedTasks.includes(taskName);
+        }
 
+        function escapeHTML(str) {
+            if (!str) return '';
+            return str.toString()
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function escapeString(str) {
+            if (!str) return '';
+            return str.toString()
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/"/g, '\\"')
+                .replace(/\n/g, '\\n')
+                .replace(/\r/g, '\\r');
+        }
+
+        // Configuration des événements
+        function setupEventListeners() {
+            // Bouton claim
+            document.getElementById('claim-btn')?.addEventListener('click', claimPoints);
+            
+            // Bouton copier lien de parrainage
             document.getElementById('copy-btn')?.addEventListener('click', () => {
                 const link = document.getElementById('referral-link');
                 link.select();
                 document.execCommand('copy');
                 showToast('Lien copié dans le presse-papiers', 3000, 'info');
             });
-
+            
             // Navigation
-            document.querySelectorAll('#app-tabbar .tab-item').forEach(btn => {
-                btn.addEventListener('click', (event) => {
+            document.querySelectorAll('.tab-bar .tab-item').forEach(btn => {
+                btn.addEventListener('click', () => {
                     const pageId = btn.getAttribute('data-page');
                     switchPage(pageId);
                 });
             });
-        }
-
-        // Fonction de bascule de page
-        function switchPage(pageId) {
-            // Masquer toutes les pages
-            document.querySelectorAll('.page').forEach(page => {
-                page.classList.add('hidden');
-                page.classList.remove('active-page');
-            });
-
-            // Afficher la page demandée
-            document.getElementById(pageId).classList.remove('hidden');
-            document.getElementById(pageId).classList.add('active-page');
-
-            // Mettre à jour la navigation active
-            document.querySelectorAll('#app-tabbar .tab-item').forEach(btn => {
-                btn.classList.toggle('active', btn.getAttribute('data-page') === pageId);
-            });
-        }
-
-        // Échappement de texte pour sécurité
-        function escapeHTML(str) {
-            return str.replace(/[&<>"']/g, (char) => {
-                return {
-                    '&': '&amp;',
-                    '<': '&lt;',
-                    '>': '&gt;',
-                    '"': '&quot;',
-                    "'": '&#39;',
-                }[char];
-            });
-        }
-
-        // Échappement de chaîne pour sécurité
-        function escapeString(str) {
-            return str.replace(/[\0\x08\x09\x1a\n\r\x0c\x0b'"\\]/g, '\\$&');
-        }
-
-        // Vérification si une tâche est terminée
-        function isTaskCompleted(taskName) {
-            const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]');
-            return completedTasks.includes(taskName);
-        }
-
-        // Gestion de l'activation de la tâche
-        function handleTaskClick(event, taskName, points) {
-            if (isTaskCompleted(taskName)) {
-                event.preventDefault();
-                showToast('Cette tâche est déjà terminée', 3000, 'info');
-                return false;
+            
+            // Gestion du paramètre ref dans l'URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const refParam = urlParams.get('ref');
+            if (refParam && refParam !== currentUserId) {
+                // Enregistrer le parrainage
+                registerReferral(refParam);
             }
-
-            const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]');
-            completedTasks.push(taskName);
-            localStorage.setItem('completedTasks', JSON.stringify(completedTasks));
-
-            updateTasksList();
-            showToast(`+${points} points pour la tâche '${taskName}'`, 3000, 'success');
         }
 
-        // Chargement initial
-        window.onload = function() {
-            initApp();
-        };
+        async function registerReferral(referrerId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/register-referral`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        referrer_id: referrerId,
+                        user_id: currentUserId,
+                        initData: window.Telegram?.WebApp?.initData || null
+                    })
+                });
+                
+                if (!response.ok) throw new Error("Erreur API");
+                
+                showToast("Parrainage enregistré avec succès!", 3000, 'success');
+            } catch (error) {
+                console.error("Erreur registerReferral:", error);
+            }
+        }
 
+        // Démarrer l'application
+        document.addEventListener('DOMContentLoaded', initApp);
     </script>
 </body>
 </html>
-

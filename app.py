@@ -1,6 +1,8 @@
 import os
 import json
 import logging
+import hashlib
+import hmac
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from googleapiclient.discovery import build
@@ -15,6 +17,9 @@ CORS(app)
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+# Remplacez par votre vrai token de bot Telegram
+TELEGRAM_BOT_TOKEN = 'VOTRE_BOT_TOKEN'  
+
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SERVICE_ACCOUNT_FILE = 'google/credentials.json'
 SPREADSHEET_ID = '1efhyhjqfXzu12fKN5KubPRephwJch4__QDG0ikmUv4s'
@@ -22,8 +27,42 @@ USERS_RANGE = 'Users!A2:F'
 TRANSACTIONS_RANGE = 'Transactions!A2:D'
 TASKS_RANGE = 'Tasks!A2:D'
 FRIENDS_RANGE = 'Friends!A2:C'
+REFERRALS_RANGE = 'Referrals!A2:D'
 
 sheet_lock = Lock()
+
+def validate_telegram_webapp(data):
+    """
+    Valide l'authentification Telegram WebApp
+    """
+    try:
+        if not data or not isinstance(data, dict):
+            return False
+            
+        received_hash = data.get('hash', '')
+        if not received_hash:
+            return False
+            
+        data_check_string = '\n'.join(
+            f"{k}={v}" for k, v in sorted(data.items()) if k != 'hash'
+        )
+        
+        secret_key = hmac.new(
+            "WebAppData".encode(), 
+            TELEGRAM_BOT_TOKEN.encode(), 
+            hashlib.sha256
+        ).digest()
+        
+        computed_hash = hmac.new(
+            secret_key, 
+            data_check_string.encode(), 
+            hashlib.sha256
+        ).hexdigest()
+        
+        return computed_hash == received_hash
+    except Exception as e:
+        logger.error(f"Erreur validation Telegram: {str(e)}")
+        return False
 
 def get_google_sheets_service():
     """Authentification Google Sheets avec fallback"""
@@ -47,6 +86,19 @@ def get_google_sheets_service():
         logger.error(f"Erreur auth: {str(e)}")
         raise
 
+def get_user_data(service, user_id):
+    """Récupère les données utilisateur depuis Google Sheets"""
+    result = service.spreadsheets().values().get(
+        spreadsheetId=SPREADSHEET_ID,
+        range=USERS_RANGE
+    ).execute()
+    
+    users = result.get('values', [])
+    for i, user in enumerate(users):
+        if len(user) > 2 and user[2] == user_id:
+            return i, user
+    return None, None
+
 # ---------------------------
 # ROUTES PRINCIPALES
 # ---------------------------
@@ -58,32 +110,36 @@ def home():
 @app.route('/get-balance', methods=['POST'])
 def get_balance():
     try:
+        if not validate_telegram_webapp(request.json):
+            return jsonify({"error": "Authentification invalide"}), 401
+
         user_id = request.json.get('user_id')
         if not user_id:
             return jsonify({"error": "user_id requis"}), 400
 
         service = get_google_sheets_service()
-        result = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range=USERS_RANGE
-        ).execute()
+        _, user = get_user_data(service, user_id)
+        
+        if not user:
+            return jsonify({"error": "Utilisateur non trouvé"}), 404
 
-        for user in result.get('values', []):
-            if len(user) > 2 and user[2] == user_id:
-                return jsonify({
-                    "balance": user[3] if len(user) > 3 else 0,
-                    "last_claim": user[4] if len(user) > 4 else None
-                }), 200
-
-        return jsonify({"error": "Utilisateur non trouvé"}), 404
+        return jsonify({
+            "balance": user[3] if len(user) > 3 else 0,
+            "last_claim": user[4] if len(user) > 4 else None,
+            "username": user[1] if len(user) > 1 else "Utilisateur",
+            "referral_code": user[5] if len(user) > 5 else user_id
+        }), 200
 
     except Exception as e:
-        logger.error(f"Erreur get_balance: {str(e)}")
+        logger.error(f"Erreur get_balance: {str(e)}", exc_info=True)
         return jsonify({"error": "Erreur serveur"}), 500
 
 @app.route('/claim', methods=['POST'])
 def claim():
     try:
+        if not validate_telegram_webapp(request.json):
+            return jsonify({"error": "Authentification invalide"}), 401
+
         user_id = request.json.get('user_id')
         amount = int(request.json.get('amount', 10))
 
@@ -91,164 +147,61 @@ def claim():
             return jsonify({"error": "user_id requis"}), 400
 
         service = get_google_sheets_service()
-        result = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range=USERS_RANGE
-        ).execute()
+        user_index, user = get_user_data(service, user_id)
+        
+        if not user:
+            return jsonify({"error": "Utilisateur non trouvé"}), 404
 
-        users = result.get('values', [])
-        for i, user in enumerate(users):
-            if len(user) > 2 and user[2] == user_id:
-                current_balance = int(user[3]) if len(user) > 3 and user[3] else 0
-                new_balance = current_balance + amount
-                timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        current_balance = int(user[3]) if len(user) > 3 and user[3] else 0
+        new_balance = current_balance + amount
+        timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
-                with sheet_lock:
-                    # Mise à jour balance
-                    service.spreadsheets().values().update(
-                        spreadsheetId=SPREADSHEET_ID,
-                        range=f"Users!D{i+2}",
-                        valueInputOption='USER_ENTERED',
-                        body={'values': [[str(new_balance)]]}
-                    ).execute()
+        with sheet_lock:
+            # Mise à jour balance
+            service.spreadsheets().values().update(
+                spreadsheetId=SPREADSHEET_ID,
+                range=f"Users!D{user_index+2}",
+                valueInputOption='USER_ENTERED',
+                body={'values': [[str(new_balance)]]}
+            ).execute()
 
-                    # Mise à jour last claim
-                    service.spreadsheets().values().update(
-                        spreadsheetId=SPREADSHEET_ID,
-                        range=f"Users!E{i+2}",
-                        valueInputOption='USER_ENTERED',
-                        body={'values': [[timestamp]]}
-                    ).execute()
+            # Mise à jour last claim
+            service.spreadsheets().values().update(
+                spreadsheetId=SPREADSHEET_ID,
+                range=f"Users!E{user_index+2}",
+                valueInputOption='USER_ENTERED',
+                body={'values': [[timestamp]]}
+            ).execute()
 
-                    # Ajout transaction
-                    service.spreadsheets().values().append(
-                        spreadsheetId=SPREADSHEET_ID,
-                        range=TRANSACTIONS_RANGE,
-                        valueInputOption='USER_ENTERED',
-                        body={'values': [[user_id, str(amount), 'claim', timestamp]]}
-                    ).execute()
+            # Ajout transaction
+            service.spreadsheets().values().append(
+                spreadsheetId=SPREADSHEET_ID,
+                range=TRANSACTIONS_RANGE,
+                valueInputOption='USER_ENTERED',
+                body={'values': [[user_id, str(amount), 'claim', timestamp]]}
+            ).execute()
 
-                return jsonify({
-                    "message": "Claim réussi",
-                    "new_balance": new_balance,
-                    "last_claim": timestamp
-                }), 200
-
-        return jsonify({"error": "Utilisateur non trouvé"}), 404
+        return jsonify({
+            "message": "Claim réussi",
+            "new_balance": new_balance,
+            "last_claim": timestamp,
+            "points_earned": amount
+        }), 200
 
     except Exception as e:
-        logger.error(f"Erreur claim: {str(e)}")
+        logger.error(f"Erreur claim: {str(e)}", exc_info=True)
         return jsonify({"error": "Erreur serveur"}), 500
 
 # ---------------------------
-# ROUTES SECONDARES
+# ROUTES TÂCHES
 # ---------------------------
-
-@app.route('/add-transaction', methods=['POST'])
-def add_transaction():
-    try:
-        data = request.json
-        required = ['user_id', 'amount', 'action']
-        if not all(k in data for k in required):
-            return jsonify({"error": "Données manquantes"}), 400
-
-        service = get_google_sheets_service()
-        service.spreadsheets().values().append(
-            spreadsheetId=SPREADSHEET_ID,
-            range=TRANSACTIONS_RANGE,
-            valueInputOption='USER_ENTERED',
-            body={'values': [[
-                data['user_id'],
-                str(data['amount']),
-                data['action'],
-                datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            ]]}
-        ).execute()
-
-        return jsonify({"message": "Transaction ajoutée"}), 200
-
-    except Exception as e:
-        logger.error(f"Erreur add_transaction: {str(e)}")
-        return jsonify({"error": "Erreur serveur"}), 500
-
-@app.route('/update-last-claim', methods=['POST'])
-def update_last_claim():
-    try:
-        user_id = request.json.get('user_id')
-        if not user_id:
-            return jsonify({"error": "user_id requis"}), 400
-
-        service = get_google_sheets_service()
-        result = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range=USERS_RANGE
-        ).execute()
-
-        users = result.get('values', [])
-        for i, user in enumerate(users):
-            if len(user) > 2 and user[2] == user_id:
-                timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                service.spreadsheets().values().update(
-                    spreadsheetId=SPREADSHEET_ID,
-                    range=f"Users!E{i+2}",
-                    valueInputOption='USER_ENTERED',
-                    body={'values': [[timestamp]]}
-                ).execute()
-                return jsonify({"message": "Last claim updated"}), 200
-
-        return jsonify({"error": "User not found"}), 404
-
-    except Exception as e:
-        logger.error(f"Erreur update_last_claim: {str(e)}")
-        return jsonify({"error": "Erreur serveur"}), 500
-
-@app.route('/add-friend', methods=['POST'])
-def add_friend():
-    try:
-        user_id = request.json.get('user_id')
-        friend_id = request.json.get('friend_id')
-        if not all([user_id, friend_id]):
-            return jsonify({"error": "Données manquantes"}), 400
-
-        service = get_google_sheets_service()
-        service.spreadsheets().values().append(
-            spreadsheetId=SPREADSHEET_ID,
-            range=FRIENDS_RANGE,
-            valueInputOption='USER_ENTERED',
-            body={'values': [[user_id, friend_id]]}
-        ).execute()
-
-        return jsonify({"message": "Ami ajouté"}), 200
-
-    except Exception as e:
-        logger.error(f"Erreur add_friend: {str(e)}")
-        return jsonify({"error": "Erreur serveur"}), 500
-
-@app.route('/add-task', methods=['POST'])
-def add_task():
-    try:
-        user_id = request.json.get('user_id')
-        task = request.json.get('task')
-        if not all([user_id, task]):
-            return jsonify({"error": "Données manquantes"}), 400
-
-        service = get_google_sheets_service()
-        service.spreadsheets().values().append(
-            spreadsheetId=SPREADSHEET_ID,
-            range=TASKS_RANGE,
-            valueInputOption='USER_ENTERED',
-            body={'values': [[user_id, task]]}
-        ).execute()
-
-        return jsonify({"message": "Tâche ajoutée"}), 200
-
-    except Exception as e:
-        logger.error(f"Erreur add_task: {str(e)}")
-        return jsonify({"error": "Erreur serveur"}), 500
 
 @app.route('/get-tasks', methods=['POST'])
 def get_tasks():
     try:
+        if not validate_telegram_webapp(request.json):
+            return jsonify({"error": "Authentification invalide"}), 401
+
         user_id = request.json.get('user_id')
         if not user_id:
             return jsonify({"error": "user_id requis"}), 400
@@ -259,11 +212,204 @@ def get_tasks():
             range=TASKS_RANGE
         ).execute()
 
-        tasks = [t for t in result.get('values', []) if t[0] == user_id]
+        tasks = []
+        for task in result.get('values', []):
+            if len(task) >= 4 and task[0] == user_id:
+                tasks.append({
+                    "id": task[0],
+                    "name": task[1],
+                    "description": task[2],
+                    "points": int(task[3]) if task[3].isdigit() else 0,
+                    "completed": False  # À implémenter avec un système de suivi
+                })
+
         return jsonify({"tasks": tasks}), 200
 
     except Exception as e:
-        logger.error(f"Erreur get_tasks: {str(e)}")
+        logger.error(f"Erreur get_tasks: {str(e)}", exc_info=True)
+        return jsonify({"error": "Erreur serveur"}), 500
+
+@app.route('/complete-task', methods=['POST'])
+def complete_task():
+    try:
+        if not validate_telegram_webapp(request.json):
+            return jsonify({"error": "Authentification invalide"}), 401
+
+        user_id = request.json.get('user_id')
+        task_name = request.json.get('task_name')
+        points = int(request.json.get('points', 0))
+
+        if not all([user_id, task_name]):
+            return jsonify({"error": "Données manquantes"}), 400
+
+        service = get_google_sheets_service()
+        user_index, user = get_user_data(service, user_id)
+        
+        if not user:
+            return jsonify({"error": "Utilisateur non trouvé"}), 404
+
+        current_balance = int(user[3]) if len(user) > 3 and user[3] else 0
+        new_balance = current_balance + points
+        timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+        with sheet_lock:
+            # Mise à jour balance
+            service.spreadsheets().values().update(
+                spreadsheetId=SPREADSHEET_ID,
+                range=f"Users!D{user_index+2}",
+                valueInputOption='USER_ENTERED',
+                body={'values': [[str(new_balance)]]}
+            ).execute()
+
+            # Ajout transaction
+            service.spreadsheets().values().append(
+                spreadsheetId=SPREADSHEET_ID,
+                range=TRANSACTIONS_RANGE,
+                valueInputOption='USER_ENTERED',
+                body={'values': [[user_id, str(points), f'task:{task_name}', timestamp]]}
+            ).execute()
+
+        return jsonify({
+            "message": "Tâche complétée",
+            "new_balance": new_balance,
+            "points_earned": points,
+            "task_name": task_name
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Erreur complete_task: {str(e)}", exc_info=True)
+        return jsonify({"error": "Erreur serveur"}), 500
+
+# ---------------------------
+# ROUTES PARRAINAGE
+# ---------------------------
+
+@app.route('/get-referrals', methods=['POST'])
+def get_referrals():
+    try:
+        if not validate_telegram_webapp(request.json):
+            return jsonify({"error": "Authentification invalide"}), 401
+
+        user_id = request.json.get('user_id')
+        if not user_id:
+            return jsonify({"error": "user_id requis"}), 400
+
+        service = get_google_sheets_service()
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=REFERRALS_RANGE
+        ).execute()
+
+        referrals = []
+        for ref in result.get('values', []):
+            if len(ref) >= 3 and ref[0] == user_id:
+                referrals.append({
+                    "user_id": ref[1],
+                    "points_earned": int(ref[2]) if ref[2].isdigit() else 0,
+                    "last_active": ref[3] if len(ref) > 3 else None
+                })
+
+        return jsonify({"referrals": referrals}), 200
+
+    except Exception as e:
+        logger.error(f"Erreur get_referrals: {str(e)}", exc_info=True)
+        return jsonify({"error": "Erreur serveur"}), 500
+
+@app.route('/register-referral', methods=['POST'])
+def register_referral():
+    try:
+        if not validate_telegram_webapp(request.json):
+            return jsonify({"error": "Authentification invalide"}), 401
+
+        referrer_id = request.json.get('referrer_id')
+        user_id = request.json.get('user_id')
+        
+        if not all([referrer_id, user_id]):
+            return jsonify({"error": "Données manquantes"}), 400
+
+        if referrer_id == user_id:
+            return jsonify({"error": "Auto-parrainage impossible"}), 400
+
+        service = get_google_sheets_service()
+        timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+        with sheet_lock:
+            # Enregistrement du parrainage
+            service.spreadsheets().values().append(
+                spreadsheetId=SPREADSHEET_ID,
+                range=REFERRALS_RANGE,
+                valueInputOption='USER_ENTERED',
+                body={'values': [[referrer_id, user_id, '0', timestamp]]}
+            ).execute()
+
+        return jsonify({
+            "message": "Parrainage enregistré",
+            "referrer_id": referrer_id,
+            "user_id": user_id
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Erreur register_referral: {str(e)}", exc_info=True)
+        return jsonify({"error": "Erreur serveur"}), 500
+
+# ---------------------------
+# ROUTES UTILITAIRES
+# ---------------------------
+
+@app.route('/update-user', methods=['POST'])
+def update_user():
+    try:
+        if not validate_telegram_webapp(request.json):
+            return jsonify({"error": "Authentification invalide"}), 401
+
+        user_id = request.json.get('user_id')
+        username = request.json.get('username')
+        
+        if not all([user_id, username]):
+            return jsonify({"error": "Données manquantes"}), 400
+
+        service = get_google_sheets_service()
+        user_index, user = get_user_data(service, user_id)
+        
+        if not user:
+            # Création d'un nouvel utilisateur
+            with sheet_lock:
+                service.spreadsheets().values().append(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range=USERS_RANGE,
+                    valueInputOption='USER_ENTERED',
+                    body={'values': [[
+                        str(datetime.now().strftime("%d/%m/%Y %H:%M:%S")),
+                        username,
+                        user_id,
+                        '0',  # Balance initiale
+                        '',   # Last claim
+                        user_id  # Code de parrainage
+                    ]]}
+                ).execute()
+            
+            return jsonify({
+                "message": "Nouvel utilisateur créé",
+                "balance": 0,
+                "username": username
+            }), 201
+        else:
+            # Mise à jour de l'utilisateur existant
+            with sheet_lock:
+                service.spreadsheets().values().update(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range=f"Users!B{user_index+2}",
+                    valueInputOption='USER_ENTERED',
+                    body={'values': [[username]]}
+                ).execute()
+            
+            return jsonify({
+                "message": "Utilisateur mis à jour",
+                "username": username
+            }), 200
+
+    except Exception as e:
+        logger.error(f"Erreur update_user: {str(e)}", exc_info=True)
         return jsonify({"error": "Erreur serveur"}), 500
 
 if __name__ == '__main__':

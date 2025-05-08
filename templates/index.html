@@ -22,7 +22,6 @@
         .hidden { display: none !important; }
         .active-page { display: block !important; }
         
-        /* Ajouts pour améliorer l'UI */
         .tab-bar {
             position: fixed;
             bottom: 0;
@@ -145,88 +144,95 @@
 
         // Initialisation
         function initApp() {
-            const tgWebApp = window.Telegram?.WebApp;
+            console.log("Initialisation de l'application...");
             
-            if (tgWebApp?.initDataUnsafe?.user) {
+            // Debug: Vérifier les données Telegram
+            if (window.Telegram?.WebApp?.initData) {
+                console.log("Données Telegram détectées:", {
+                    user: window.Telegram.WebApp.initDataUnsafe?.user,
+                    initData: window.Telegram.WebApp.initData.substring(0, 50) + "..."
+                });
                 initTelegramWebApp();
             } else {
+                console.warn("Mode debug activé (pas via Telegram)");
                 document.getElementById('telegram-alert').style.display = 'block';
-                // Simuler des données pour le développement
-                currentUserId = "dev-user-123";
-                currentUsername = "Développeur";
+                currentUserId = "debug_user_" + Math.floor(Math.random() * 1000);
+                currentUsername = "DebugUser";
                 startAutoRefresh();
+                loadData();
             }
             
             setupEventListeners();
-            loadData();
         }
 
-       function initTelegramWebApp() {
-    const tgWebApp = window.Telegram.WebApp;
-    
-    // Vérification plus poussée des données Telegram
-    if (!tgWebApp.initDataUnsafe?.user) {
-        console.error("Erreur: Données utilisateur Telegram manquantes");
-        return;
-    }
+        function initTelegramWebApp() {
+            const tg = window.Telegram.WebApp;
+            
+            // Validation stricte des données
+            if (!tg.initData || !tg.initDataUnsafe?.user?.id) {
+                console.error("Données Telegram incomplètes:", {
+                    initData: tg.initData,
+                    user: tg.initDataUnsafe?.user
+                });
+                return;
+            }
 
-    tgWebApp.expand(); // Agrandit l'application
-    tgWebApp.ready(); // Prêt à interagir
-    document.getElementById('telegram-alert').style.display = 'none';
-    
-    // Récupération des données utilisateur
-    const userData = tgWebApp.initDataUnsafe.user;
-    currentUserId = userData.id.toString();
-    currentUsername = userData.username || 
-                     [userData.first_name, userData.last_name].filter(Boolean).join(' ') || 
-                     "Utilisateur";
-    
-    // Affiche immédiatement le nom (feedback visuel)
-    document.getElementById('username-display').textContent = currentUsername;
+            tg.expand();
+            tg.ready();
+            document.getElementById('telegram-alert').style.display = 'none';
+            
+            const user = tg.initDataUnsafe.user;
+            currentUserId = user.id.toString();
+            currentUsername = user.username || 
+                           [user.first_name, user.last_name].filter(Boolean).join(' ') || 
+                           "Joueur";
+            
+            document.getElementById('username-display').textContent = currentUsername;
+            console.log(`Utilisateur initialisé: ${currentUsername} (${currentUserId})`);
 
-    // Appel API pour créer/mettre à jour l'utilisateur
-    fetch(`${API_BASE_URL}/update-user`, {
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-            user_id: currentUserId,
-            username: currentUsername,
-            initData: tgWebApp.initData  // Important pour la validation
-        })
-    })
-    .then(response => {
-        if (!response.ok) throw new Error("Erreur création utilisateur");
-        return response.json();
-    })
-    .then(data => {
-        console.log("Utilisateur créé:", data);
-        startAutoRefresh();
-        loadData(); // Charge les données après création
-    })
-    .catch(error => {
-        console.error("Erreur init:", error);
-        showToast("Erreur d'initialisation", 3000, 'error');
-    });
-}
+            // Création/Mise à jour de l'utilisateur
+            fetch(`${API_BASE_URL}/update-user`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: currentUserId,
+                    username: currentUsername,
+                    initData: tg.initData
+                })
+            })
+            .then(response => {
+                if (!response.ok) throw new Error("Erreur serveur");
+                return response.json();
+            })
+            .then(data => {
+                console.log("Utilisateur enregistré:", data);
+                startAutoRefresh();
+                loadData();
+            })
+            .catch(error => {
+                console.error("Erreur d'enregistrement:", error);
+                showToast("Erreur de connexion", 3000, 'error');
+            });
+        }
 
         // Gestion des données
         async function loadData() {
-            if (!currentUserId) return;
+            if (!currentUserId) {
+                console.warn("loadData appelé sans currentUserId");
+                return;
+            }
 
             try {
-                const [balance, tasks, referrals] = await Promise.all([
+                console.log("Chargement des données...");
+                const [balance, tasks] = await Promise.all([
                     fetchBalance(),
-                    fetchTasks(),
-                    fetchReferrals()
+                    fetchTasks()
                 ]);
                 
-                updateUI({ balance, tasks, referrals });
+                updateUI({ balance, tasks });
             } catch (error) {
                 console.error("Erreur de chargement:", error);
-                showToast("Erreur de chargement des données", 3000, 'error');
+                showToast("Erreur de chargement", 3000, 'error');
             }
         }
 
@@ -234,25 +240,21 @@
             try {
                 const response = await fetch(`${API_BASE_URL}/get-balance`, {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         user_id: currentUserId,
-                        initData: window.Telegram?.WebApp?.initData || null
+                        initData: window.Telegram?.WebApp?.initData
                     })
                 });
                 
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || "Erreur API");
+                    const error = await response.json();
+                    throw new Error(error.error || "Erreur API");
                 }
                 
                 return await response.json();
             } catch (error) {
                 console.error("Erreur fetchBalance:", error);
-                showToast(error.message, 3000, 'error');
                 throw error;
             }
         }
@@ -261,59 +263,34 @@
             try {
                 const response = await fetch(`${API_BASE_URL}/get-tasks`, {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         user_id: currentUserId,
-                        initData: window.Telegram?.WebApp?.initData || null
+                        initData: window.Telegram?.WebApp?.initData
                     })
                 });
                 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || "Erreur API");
-                }
-                
+                if (!response.ok) throw new Error("Erreur API");
                 return await response.json();
             } catch (error) {
                 console.error("Erreur fetchTasks:", error);
-                showToast("Erreur de chargement des tâches", 3000, 'error');
                 return { tasks: [] };
             }
         }
 
-        async function fetchReferrals() {
-            try {
-                // À implémenter côté backend
-                return { referrals: [] };
-            } catch (error) {
-                console.error("Erreur fetchReferrals:", error);
-                return { referrals: [] };
-            }
-        }
-
         // Mise à jour de l'interface
-        function updateUI({ balance, tasks, referrals }) {
+        function updateUI({ balance, tasks }) {
             if (balance) {
                 updateBalanceDisplay(balance);
-                updateReferralLink();
                 updateClaimButton(balance);
             }
             
             if (tasks) {
                 updateTasksList(tasks);
             }
-            
-            if (referrals) {
-                updateReferralsList(referrals);
-            }
         }
 
         function updateBalanceDisplay(data) {
-            if (!data) return;
-            
             currentBalance = data.balance || 0;
             document.getElementById('balance-value').textContent = currentBalance;
             
@@ -346,26 +323,6 @@
                 </div>`).join('');
         }
 
-        function updateReferralsList(referrals) {
-            const container = document.getElementById('referrals-container');
-            if (!referrals?.referrals?.length) {
-                container.innerHTML = "<p>Aucun filleul pour le moment</p>";
-                return;
-            }
-
-            container.innerHTML = referrals.referrals.map(ref => `
-                <div class="referral-item">
-                    <div class="ref-username">${escapeHTML(ref.username)}</div>
-                    <div class="ref-points">+${ref.points_earned || 0} pts</div>
-                    <div class="ref-last-seen">${new Date(ref.last_seen).toLocaleDateString()}</div>
-                </div>`).join('');
-        }
-
-        function updateReferralLink() {
-            const referralLink = document.getElementById('referral-link');
-            referralLink.value = `${window.location.href.split('?')[0]}?ref=${currentUserId}`;
-        }
-
         function updateClaimButton() {
             const claimBtn = document.getElementById('claim-btn');
             if (!claimBtn) return;
@@ -383,111 +340,47 @@
         }
 
         // Actions utilisateur
-       async function claimPoints() {
-    if (isClaiming) return;
+        async function claimPoints() {
+            if (isClaiming || !currentUserId) return;
 
-    const claimBtn = document.getElementById('claim-btn');
-    try {
-        // 1. Désactiver le bouton immédiatement
-        isClaiming = true;
-        claimBtn.disabled = true;
-        claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Traitement...</span>';
-
-        // 2. Debug avant l'envoi
-        console.log("Envoi du claim pour user:", currentUserId, "avec initData:", window.Telegram?.WebApp?.initData?.substring(0, 20) + "...");
-
-        // 3. Appel API avec timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-        
-        const response = await fetch(`${API_BASE_URL}/claim`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({ 
-                user_id: currentUserId,
-                initData: window.Telegram?.WebApp?.initData || null,
-                username: window.Telegram?.WebApp?.initDataUnsafe?.user?.username || "Unknown"
-            }),
-            signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-
-        // 4. Vérification réponse
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(errorText || "Erreur inconnue");
-        }
-
-        const result = await response.json();
-        console.log("Réponse du serveur:", result); // Debug crucial
-
-        // 5. Gestion réussite
-        showToast(`+${result.points_earned ?? 10} points !`, 3000, 'success');
-        
-        // 6. Forcer le rechargement des données
-        await loadData(); // Note: ajoutez 'await' ici
-
-        // 7. Gestion cooldown
-        if (result.last_claim) {
-            lastClaimTime = new Date(result.last_claim);
-            const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
-            startCooldownTimer(cooldownEnd);
-        } else {
-            claimBtn.disabled = false; // Réactiver si pas de cooldown
-        }
-
-    } catch (error) {
-        console.error("Erreur claim:", error);
-        showToast(error.message.includes("Failed to fetch") 
-            ? "Problème de connexion" 
-            : (error.message || "Erreur technique"), 
-        3000, 'error');
-        
-        // Réactiver le bouton en cas d'échec
-        claimBtn.disabled = false;
-        claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Réclamer</span>';
-    } finally {
-        isClaiming = false;
-    }
-}
-
-        async function completeTask(taskName, points) {
-            if (isTaskCompleted(taskName)) {
-                showToast('Cette tâche est déjà terminée', 3000, 'info');
-                return;
-            }
-
+            const claimBtn = document.getElementById('claim-btn');
             try {
-                // Enregistrer la tâche comme complétée
-                const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || [];
-                completedTasks.push(taskName);
-                localStorage.setItem('completedTasks', JSON.stringify(completedTasks));
+                isClaiming = true;
+                claimBtn.disabled = true;
+                claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Traitement...</span>';
 
-                // Envoyer au backend
-                const response = await fetch(`${API_BASE_URL}/complete-task`, {
+                console.log("Envoi claim pour:", currentUserId);
+                const response = await fetch(`${API_BASE_URL}/claim`, {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         user_id: currentUserId,
-                        task_name: taskName,
-                        points: points,
-                        initData: window.Telegram?.WebApp?.initData || null
+                        initData: window.Telegram?.WebApp?.initData
                     })
                 });
 
-                if (!response.ok) throw new Error("Erreur API");
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || "Erreur serveur");
+                }
 
-                showToast(`Tâche "${taskName}" complétée !`, 3000, 'success');
-                loadData();
+                const result = await response.json();
+                console.log("Claim réussi:", result);
+                
+                showToast(`+${result.points_earned || 10} points !`, 3000, 'success');
+                await loadData();
+
+                if (result.last_claim) {
+                    lastClaimTime = new Date(result.last_claim);
+                    const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
+                    startCooldownTimer(cooldownEnd);
+                }
             } catch (error) {
-                console.error("Erreur completeTask:", error);
-                showToast("Erreur lors de la complétion de la tâche", 3000, 'error');
+                console.error("Erreur claim:", error);
+                showToast(error.message || "Erreur", 3000, 'error');
+                claimBtn.disabled = false;
+            } finally {
+                isClaiming = false;
             }
         }
 
@@ -498,7 +391,7 @@
                 if (document.visibilityState === 'visible') {
                     loadData();
                 }
-            }, 30000); // Actualisation toutes les 30 secondes
+            }, 30000);
         }
 
         function startCooldownTimer(cooldownEnd) {
@@ -511,7 +404,7 @@
                 const remaining = Math.max(0, cooldownEnd - Date.now());
                 if (remaining <= 0) {
                     claimBtn.disabled = false;
-                    claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Réclamer des Points</span>';
+                    claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Réclamer</span>';
                     return;
                 }
 
@@ -541,27 +434,24 @@
         }
 
         function switchPage(pageId) {
-            // Masquer toutes les pages
             document.querySelectorAll('.page').forEach(page => {
                 page.classList.add('hidden');
                 page.classList.remove('active-page');
             });
 
-            // Afficher la page demandée
             const page = document.getElementById(pageId);
             if (page) {
                 page.classList.remove('hidden');
                 page.classList.add('active-page');
             }
 
-            // Mettre à jour la navigation active
             document.querySelectorAll('.tab-bar .tab-item').forEach(btn => {
                 btn.classList.toggle('active', btn.getAttribute('data-page') === pageId);
             });
         }
 
         function isTaskCompleted(taskName) {
-            const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]');
+            const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]';
             return completedTasks.includes(taskName);
         }
 
@@ -580,62 +470,25 @@
             return str.toString()
                 .replace(/\\/g, '\\\\')
                 .replace(/'/g, "\\'")
-                .replace(/"/g, '\\"')
-                .replace(/\n/g, '\\n')
-                .replace(/\r/g, '\\r');
+                .replace(/"/g, '\\"');
         }
 
         // Configuration des événements
         function setupEventListeners() {
-            // Bouton claim
             document.getElementById('claim-btn')?.addEventListener('click', claimPoints);
             
-            // Bouton copier lien de parrainage
             document.getElementById('copy-btn')?.addEventListener('click', () => {
                 const link = document.getElementById('referral-link');
                 link.select();
                 document.execCommand('copy');
-                showToast('Lien copié dans le presse-papiers', 3000, 'info');
+                showToast('Lien copié !', 2000, 'info');
             });
             
-            // Navigation
             document.querySelectorAll('.tab-bar .tab-item').forEach(btn => {
                 btn.addEventListener('click', () => {
-                    const pageId = btn.getAttribute('data-page');
-                    switchPage(pageId);
+                    switchPage(btn.getAttribute('data-page'));
                 });
             });
-            
-            // Gestion du paramètre ref dans l'URL
-            const urlParams = new URLSearchParams(window.location.search);
-            const refParam = urlParams.get('ref');
-            if (refParam && refParam !== currentUserId) {
-                // Enregistrer le parrainage
-                registerReferral(refParam);
-            }
-        }
-
-        async function registerReferral(referrerId) {
-            try {
-                const response = await fetch(`${API_BASE_URL}/register-referral`, {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({ 
-                        referrer_id: referrerId,
-                        user_id: currentUserId,
-                        initData: window.Telegram?.WebApp?.initData || null
-                    })
-                });
-                
-                if (!response.ok) throw new Error("Erreur API");
-                
-                showToast("Parrainage enregistré avec succès!", 3000, 'success');
-            } catch (error) {
-                console.error("Erreur registerReferral:", error);
-            }
         }
 
         // Démarrer l'application

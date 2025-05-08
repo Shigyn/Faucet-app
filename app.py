@@ -89,12 +89,15 @@ def find_user_row(service, sheet_id, user_id):
 def parse_date(date_str):
     if not date_str:
         return None
-    formats = ["%Y-%m-%d %H:%M:%S", "%d/%m/%Y %H:%M:%S", "%m/%d/%Y %H:%M:%S"]
-    for fmt in formats:
-        try:
-            return datetime.strptime(date_str, fmt)
-        except ValueError:
-            continue
+    if isinstance(date_str, (int, float)):
+        return datetime(1899, 12, 30) + timedelta(days=float(date_str))
+    if isinstance(date_str, str):
+        formats = ["%Y-%m-%d %H:%M:%S", "%d/%m/%Y %H:%M:%S", "%m/%d/%Y %H:%M:%S"]
+        for fmt in formats:
+            try:
+                return datetime.strptime(date_str, fmt)
+            except ValueError:
+                continue
     return None
 
 @app.route('/claim', methods=['POST'])

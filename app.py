@@ -10,9 +10,6 @@ import logging
 from threading import Lock
 from flask_cors import CORS
 
-import googleapiclient.discovery_cache
-googleapiclient.discovery_cache.base.CACHE = {}
-
 # Configuration initiale
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
@@ -58,7 +55,7 @@ def get_google_sheets_service():
             raise ValueError("Configuration Google Sheets manquante")
         creds_dict = json.loads(creds_json)
         creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
-        return build('sheets', 'v4', credentials=creds).spreadsheets()
+        return build('sheets', 'v4', credentials=creds, cache_discovery=False)
     except Exception as e:
         logger.error(f"Erreur Google Sheets: {str(e)}")
         raise

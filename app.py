@@ -33,21 +33,23 @@ MAX_CLAIM = 100
 # Configuration Sheets
 SHEET_CONFIG = {
     'users': {
-        'range': "Users!A2:C",
-        'headers': ['user_id', 'balance', 'last_claim']
+        'range': "Users!A2:F",  # Plage incluant toutes les colonnes de la feuille Users
+        'headers': ['user_id', 'balance', 'last_claim', 'referrer_id', 'username_tg', 'referral_code']  # Nouvelles colonnes
     },
     'transactions': {
-        'range': "Transactions!A2:C"
+        'range': "Transactions!A2:D",  # Plage incluant toutes les colonnes de la feuille Transactions
+        'headers': ['user_id', 'action', 'amount', 'timestamp']  # Colonnes pour transactions
     },
     'tasks': {
-        'range': "Tasks!A2:D",
-        'headers': ['id', 'name', 'reward', 'completed']
+        'range': "Tasks!A2:D",  # Plage incluant toutes les colonnes de la feuille Tasks
+        'headers': ['task_name', 'description', 'points', 'url']  # Colonnes pour tâches
     },
     'friends': {
-        'range': "Referrals!A2:C",
-        'headers': ['user_id', 'friend_id', 'friend_name']
+        'range': "Referrals!A2:D",  # Plage incluant toutes les colonnes de la feuille Referrals
+        'headers': ['user_id', 'username', 'total_points']  # Colonnes pour referrals
     }
 }
+
 
 sheet_lock = Lock()
 
@@ -79,7 +81,7 @@ def find_user_row(service, sheet_id, user_id):
     try:
         values = get_sheet_data(service, sheet_id, SHEET_CONFIG['users']['range'])
         for i, row in enumerate(values, start=2):
-            if row and str(row[0]) == str(user_id):
+            if row and str(row[1]) == str(user_id):  # Changement ici : User_id est en colonne 2 (B)
                 return i, dict(zip(SHEET_CONFIG['users']['headers'], row))
         return None, None
     except Exception as e:
@@ -92,7 +94,7 @@ def parse_date(date_str):
     if isinstance(date_str, (int, float)):
         return datetime(1899, 12, 30) + timedelta(days=float(date_str))
     if isinstance(date_str, str):
-        formats = ["%Y-%m-%d %H:%M:%S", "%d/%m/%Y %H:%M:%S", "%m/%d/%Y %H:%M:%S"]
+        formats = ["%d/%m/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%m/%d/%Y %H:%M:%S"]
         for fmt in formats:
             try:
                 return datetime.strptime(date_str, fmt)
@@ -127,15 +129,15 @@ def claim_points():
 
         points = random.randint(MIN_CLAIM, MAX_CLAIM)
         new_balance = int(user.get('balance', 0)) + points
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")  # Format `jj/mm/aaaa hh:mm:ss`
 
         with sheet_lock:
-            # Mise à jour balance
+            # Mise à jour balance et action (claim)
             service.values().update(
                 spreadsheetId=sheet_id,
-                range=f"Users!B{row_num}:C{row_num}",
+                range=f"Users!B{row_num}:D{row_num}",
                 valueInputOption="USER_ENTERED",
-                body={"values": [[new_balance, now]]}
+                body={"values": [["claim", user_id, new_balance, now]]}  # Action "claim" ajoutée
             ).execute()
             # Ajout transaction
             service.values().append(

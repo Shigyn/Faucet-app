@@ -10,9 +10,9 @@ import logging
 from threading import Lock
 from flask_cors import CORS
 
-# Désactive le cache Google API
+# Désactivation du cache discovery (correctement désactivé via monkey patch)
 import googleapiclient.discovery_cache
-googleapiclient.discovery_cache.DISCOVERY_URI = 'https://www.googleapis.com/discovery/v1/apis/{api}/{apiVersion}/rest'
+googleapiclient.discovery_cache = None
 
 # Configuration initiale
 app = Flask(__name__, template_folder='templates', static_folder='static')
@@ -30,7 +30,7 @@ COOLDOWN_MINUTES = 5
 MIN_CLAIM = 10
 MAX_CLAIM = 100
 
-# Configuration Sheets (corrigée pour correspondre au code)
+# Configuration Sheets
 SHEET_CONFIG = {
     'users': {
         'range': "Users!A2:F",
@@ -80,8 +80,8 @@ def find_user_row(service, sheet_id, user_id):
     try:
         values = get_sheet_data(service, sheet_id, SHEET_CONFIG['users']['range'])
         for i, row in enumerate(values, start=2):
-            if len(row) >= 3 and str(row[2]) == str(user_id):  # user_id est en 3ème position
-                return i, dict(zip(SHEET_CONFIG['users']['headers'], row))
+            if len(row) >= 3 and str(row[2]) == str(user_id):
+                return i, dict(zip(SHEET_CONFIG['users']['headers'], row + [""] * (6 - len(row))))
         return None, None
     except Exception as e:
         logger.error(f"Erreur recherche utilisateur: {str(e)}")
@@ -91,10 +91,8 @@ def parse_date(date_str):
     if not date_str:
         return None
     try:
-        # Essayer de parser comme timestamp Excel d'abord
         if isinstance(date_str, (int, float)):
             return datetime(1899, 12, 30) + timedelta(days=float(date_str))
-        # Sinon essayer différents formats de date
         formats = ["%d/%m/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%m/%d/%Y %H:%M:%S"]
         for fmt in formats:
             try:
@@ -132,18 +130,18 @@ def claim_points():
                 }), 400
 
         points = random.randint(MIN_CLAIM, MAX_CLAIM)
-        new_balance = int(user.get('balance', 0)) + points
+        current_balance = int(user.get('balance') or 0)
+        new_balance = current_balance + points
         now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
         with sheet_lock:
-            # Mise à jour de la ligne utilisateur
+            # Mise à jour utilisateur
             service.values().update(
                 spreadsheetId=sheet_id,
-                range=f"Users!C{row_num}:F{row_num}",  # user_id est en colonne C
+                range=f"Users!C{row_num}:F{row_num}",
                 valueInputOption="USER_ENTERED",
                 body={"values": [[user_id, new_balance, now, user.get('referral_code', user_id)]]}
             ).execute()
-            
             # Ajout transaction
             service.values().append(
                 spreadsheetId=sheet_id,
@@ -175,7 +173,7 @@ def get_balance():
 
         if not user:
             return jsonify({
-                "status": "success",  # Même si non trouvé, retourne un succès avec balance 0
+                "status": "success",
                 "balance": 0,
                 "last_claim": None,
                 "referral_code": user_id
@@ -183,7 +181,7 @@ def get_balance():
 
         return jsonify({
             "status": "success",
-            "balance": int(user.get('balance', 0)),
+            "balance": int(user.get('balance') or 0),
             "last_claim": user.get('last_claim'),
             "referral_code": user.get('referral_code', user_id)
         })
@@ -199,7 +197,7 @@ def get_tasks():
 
         tasks = []
         for row in tasks_data:
-            if len(row) >= 4:  # Doit avoir au moins 4 colonnes
+            if len(row) >= 4:
                 tasks.append({
                     "task_name": row[0],
                     "description": row[1],

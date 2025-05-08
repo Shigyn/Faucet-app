@@ -70,6 +70,21 @@
             </div>
         </div>
 
+        <!-- Sections cachées -->
+        <div id="tasks-panel" class="rpg-panel" style="display:none">
+            <h2>Tâches Disponibles</h2>
+            <div id="tasks-list">
+                <p>Chargement des tâches...</p>
+            </div>
+        </div>
+
+        <div id="friends-panel" class="rpg-panel" style="display:none">
+            <h2>Votre Réseau</h2>
+            <div id="friends-list">
+                <p>Chargement des filleuls...</p>
+            </div>
+        </div>
+
         <!-- Navigation -->
         <div id="rpg-navbar">
             <button class="nav-button active" data-section="home">
@@ -88,10 +103,10 @@
     </div>
 
     <script>
-        // Configuration originale conservée
+        // Configuration
         const PUBLIC_URL = "https://faucet-app.onrender.com";
         const API_BASE_URL = "https://faucet-app.onrender.com";
-        const COOLDOWN_HOURS = 0.08;
+        const COOLDOWN_MINUTES = 5; // ← Cooldown de 5 minutes pour les tests
         
         let currentUserId = null;
         let currentBalance = 0;
@@ -99,6 +114,7 @@
         let refreshInterval;
         let lastClaimTime = null;
 
+        // Initialisation
         function initApp() {
             if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
                 initTelegramWebApp();
@@ -118,6 +134,7 @@
             loadData();
         }
 
+        // Gestion des données
         async function loadData() {
             if (!currentUserId) return;
 
@@ -127,6 +144,7 @@
                     fetchTasks(),
                     fetchFriends()
                 ]);
+                
                 updateUI({ balance, tasks, friends });
             } catch (error) {
                 console.error("Erreur de chargement:", error);
@@ -134,6 +152,7 @@
             }
         }
 
+        // Fonctions API
         async function fetchBalance() {
             try {
                 const response = await fetch(`${API_BASE_URL}/get-balance`, {
@@ -173,10 +192,15 @@
             return response.json();
         }
 
-        function updateUI({ balance }) {
+        // Mise à jour de l'interface
+        function updateUI({ balance, tasks, friends }) {
             updateBalanceDisplay(balance);
             updateReferralLink(balance);
             updateClaimButton(balance);
+            
+            // Mise à jour des autres sections si besoin
+            if (tasks) updateTasksList(tasks);
+            if (friends) updateFriendsList(friends);
         }
 
         function updateBalanceDisplay(data) {
@@ -197,6 +221,42 @@
             }
         }
 
+        function updateTasksList(tasks) {
+            const container = document.getElementById('tasks-list');
+            if (!tasks?.tasks?.length) {
+                container.innerHTML = "<p>Aucune tâche disponible</p>";
+                return;
+            }
+
+            container.innerHTML = tasks.tasks.map(task => `
+                <div class="task-card">
+                    <h3>${escapeHTML(task.task_name)}</h3>
+                    <p>${escapeHTML(task.description)}</p>
+                    <span class="points-badge">${task.points} pts</span>
+                    <a href="${escapeHTML(task.url)}" target="_blank" 
+                       class="task-btn ${isTaskCompleted(task.task_name) ? 'completed' : ''}"
+                       onclick="return handleTaskClick(event, '${escapeString(task.task_name)}', ${task.points})">
+                        ${isTaskCompleted(task.task_name) ? '✅ Terminé' : 'Commencer'}
+                    </a>
+                </div>`
+            ).join('');
+        }
+
+        function updateFriendsList(friends) {
+            const container = document.getElementById('friends-list');
+            if (!friends?.referrals?.length) {
+                container.innerHTML = "<p>Invitez des amis pour gagner des bonus !</p>";
+                return;
+            }
+
+            container.innerHTML = friends.referrals.map(friend => `
+                <div class="friend-card">
+                    <h3>${escapeHTML(friend.username || 'Anonyme')}</h3>
+                    <p>Points générés: ${friend.total_points || 0}</p>
+                </div>`
+            ).join('');
+        }
+
         function updateReferralLink(data) {
             const referralLink = document.getElementById('referral-link');
             if (referralLink) {
@@ -210,15 +270,19 @@
             const claimBtn = document.getElementById('claim-btn');
             if (!claimBtn) return;
             
-            if (balanceData?.cooldown && lastClaimTime) {
-                const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_HOURS * 60 * 60 * 1000);
-                startCooldownTimer(cooldownEnd);
-            } else {
-                claimBtn.disabled = false;
-                claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Réclamer des Points</span>';
+            if (lastClaimTime) {
+                const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
+                if (Date.now() < cooldownEnd) {
+                    startCooldownTimer(cooldownEnd);
+                    return;
+                }
             }
+            
+            claimBtn.disabled = false;
+            claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Réclamer des Points</span>';
         }
 
+        // Actions utilisateur
         async function claimPoints() {
             if (isClaiming) return;
             
@@ -241,7 +305,8 @@
                 loadData();
                 
                 if (result.last_claim) {
-                    const cooldownEnd = new Date(new Date(result.last_claim).getTime() + COOLDOWN_HOURS * 60 * 60 * 1000);
+                    lastClaimTime = new Date(result.last_claim);
+                    const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
                     startCooldownTimer(cooldownEnd);
                 }
             } catch (error) {
@@ -251,10 +316,13 @@
             }
         }
 
+        // Utilitaires
         function startAutoRefresh() {
             clearInterval(refreshInterval);
             refreshInterval = setInterval(() => {
-                if (document.visibilityState === 'visible') loadData();
+                if (document.visibilityState === 'visible') {
+                    loadData();
+                }
             }, 30000);
         }
 
@@ -272,13 +340,12 @@
                     return;
                 }
                 
-                const hours = Math.floor(remaining / (60 * 60 * 1000));
-                const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
-                const seconds = Math.floor((remaining % (60 * 1000)) / 1000);
+                const minutes = Math.floor(remaining / 60000);
+                const seconds = Math.floor((remaining % 60000) / 1000);
                 
                 claimBtn.innerHTML = `
                     <span class="button-icon">⏳</span>
-                    <span class="button-text">${hours}h ${minutes}m ${seconds}s</span>
+                    <span class="button-text">${minutes}m ${seconds}s</span>
                 `;
                 setTimeout(updateTimer, 1000);
             }
@@ -298,6 +365,34 @@
             }, duration);
         }
 
+        // Navigation
+        function showSection(sectionId) {
+            // Masquer toutes les sections
+            document.querySelectorAll('.rpg-panel').forEach(panel => {
+                panel.style.display = 'none';
+            });
+            
+            // Afficher la section demandée
+            switch(sectionId) {
+                case 'home':
+                    document.getElementById('character-panel').style.display = 'block';
+                    document.getElementById('inventory-panel').style.display = 'block';
+                    break;
+                case 'tasks':
+                    document.getElementById('tasks-panel').style.display = 'block';
+                    break;
+                case 'friends':
+                    document.getElementById('friends-panel').style.display = 'block';
+                    break;
+            }
+            
+            // Mettre à jour la navigation active
+            document.querySelectorAll('#rpg-navbar .nav-button').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-section') === sectionId);
+            });
+        }
+
+        // Événements
         function setupEventListeners() {
             document.getElementById('claim-btn')?.addEventListener('click', claimPoints);
             
@@ -312,16 +407,44 @@
                 button.addEventListener('click', function() {
                     const section = this.getAttribute('data-section');
                     showSection(section);
-                    this.classList.add('active');
                 });
             });
         }
 
-        function showSection(sectionId) {
-            // Implémentez ici la logique de navigation si nécessaire
-            console.log(`Section ${sectionId} sélectionnée`);
+        // Fonctions globales
+        window.handleTaskClick = function(event, taskName, points) {
+            event.preventDefault();
+            if (!isTaskCompleted(taskName)) {
+                completeTask(taskName, points);
+            }
+            return false;
+        };
+
+        function completeTask(taskName, points) {
+            if (!confirm(`Valider "${taskName}" ?\n+${points} points`)) return;
+            
+            localStorage.setItem(`task_${taskName}_completed`, 'true');
+            showToast(`Tâche validée (+${points} pts)`, 2000, 'success');
+            loadData();
         }
 
+        function isTaskCompleted(taskName) {
+            return localStorage.getItem(`task_${taskName}_completed`);
+        }
+
+        function escapeHTML(str) {
+            return str.replace(/&/g, "&amp;")
+                     .replace(/</g, "&lt;")
+                     .replace(/>/g, "&gt;")
+                     .replace(/"/g, "&quot;")
+                     .replace(/'/g, "&#039;");
+        }
+
+        function escapeString(str) {
+            return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
+        }
+
+        // Initialisation
         document.addEventListener('DOMContentLoaded', initApp);
     </script>
 </body>

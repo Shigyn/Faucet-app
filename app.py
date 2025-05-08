@@ -67,7 +67,13 @@ def get_sheet_data(service, sheet_id, range_name):
             range=range_name,
             majorDimension="ROWS"
         ).execute()
-        return result.get('values', [])
+
+        # Vérifier si 'values' est dans la réponse
+        if 'values' in result:
+            return result['values']
+        else:
+            logger.error(f"Pas de valeurs retournées dans la réponse pour {range_name}")
+            return []
     except Exception as e:
         logger.error(f"Erreur lecture sheet {range_name}: {str(e)}")
         raise

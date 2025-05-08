@@ -33,6 +33,16 @@ TRANSACTIONS_RANGE = "Transactions!A2:C"  # A: timestamp, B: user_id, C: amount
 # Verrou pour les accès concurrents
 sheet_lock = Lock()
 
+# Décorateur de validation
+def validate_user_data(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not request.json or 'user_id' not in request.json:
+            logger.error("Données utilisateur manquantes dans la requête")
+            return jsonify({"error": "Données utilisateur manquantes"}), 400
+        return f(*args, **kwargs)
+    return decorated_function
+
 def get_google_sheets_service():
     """Crée le service Google Sheets avec gestion d'erreur améliorée"""
     try:
@@ -47,12 +57,32 @@ def get_google_sheets_service():
         logger.error(f"Erreur d'initialisation Google Sheets: {str(e)}", exc_info=True)
         raise
 
+def find_user_row(service, sheet_id, user_id):
+    """Trouve la ligne d'un utilisateur dans la feuille Users"""
+    try:
+        result = service.values().get(
+            spreadsheetId=sheet_id,
+            range=USER_RANGE
+        ).execute()
+        
+        values = result.get('values', [])
+        
+        for i, row in enumerate(values, start=2):  # start=2 car on commence à la ligne 2
+            if row and str(row[0]) == str(user_id):
+                return i, row
+        return None, None
+    except Exception as e:
+        logger.error(f"Erreur lors de la recherche de l'utilisateur: {str(e)}", exc_info=True)
+        raise
+
 def parse_date(date_str):
     """Tente de parser la date dans différents formats"""
     formats = [
         "%Y-%m-%d %H:%M:%S",  # Format ISO
         "%d/%m/%Y %H:%M",     # Format français
-        "%m/%d/%Y %H:%M"      # Format américain
+        "%m/%d/%Y %H:%M",     # Format américain
+        "%d/%m/%Y %H:%M:%S",  # Format français avec secondes
+        "%d.%m.%Y %H:%M"      # Format alternatif
     ]
     
     for fmt in formats:
@@ -60,6 +90,7 @@ def parse_date(date_str):
             return datetime.strptime(date_str, fmt)
         except ValueError:
             continue
+    logger.warning(f"Format de date non reconnu: {date_str}")
     return None
 
 def log_transaction(service, sheet_id, user_id, amount):
@@ -141,6 +172,54 @@ def claim_points():
     except Exception as e:
         logger.error(f"Erreur claim: {str(e)}", exc_info=True)
         return jsonify({"error": "Erreur lors de la réclamation", "details": str(e)}), 500
+
+@app.route('/get-balance', methods=['POST'])
+@validate_user_data
+def get_balance():
+    try:
+        user_id = str(request.json['user_id'])
+        logger.info(f"Requête balance reçue pour user_id: {user_id}")
+        
+        service = get_google_sheets_service()
+        _, row = find_user_row(service, os.environ['GOOGLE_SHEET_ID'], user_id)
+        
+        if not row:
+            return jsonify({"error": "Utilisateur non trouvé"}), 404
+
+        balance = int(row[1]) if len(row) > 1 and row[1] else 0
+        last_claim = parse_date(row[2]) if len(row) > 2 and row[2] else None
+        
+        return jsonify({
+            "balance": balance,
+            "last_claim": last_claim.strftime("%Y-%m-%d %H:%M:%S") if last_claim else None,
+            "referral_code": user_id  # Utilisation de l'user_id comme code de parrainage
+        })
+        
+    except Exception as e:
+        logger.error(f"Erreur balance: {str(e)}", exc_info=True)
+        return jsonify({"error": "Erreur lors de la récupération du solde"}), 500
+
+@app.route('/get-friends', methods=['GET'])
+def get_friends():
+    try:
+        user_id = request.args.get('user_id')
+        if not user_id:
+            return jsonify({"error": "Paramètre user_id manquant"}), 400
+            
+        logger.info(f"Requête get-friends reçue pour user_id: {user_id}")
+        return jsonify({"friends": []})  # Fonctionnalité à implémenter
+        
+    except Exception as e:
+        logger.error(f"Erreur get-friends: {str(e)}", exc_info=True)
+        return jsonify({"error": "Erreur lors de la récupération des amis"}), 500
+
+@app.route('/')
+def serve_index():
+    return send_from_directory(app.static_folder, 'index.html')
+
+@app.route('/<path:path>')
+def serve_static(path):
+    return send_from_directory(app.static_folder, path)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))

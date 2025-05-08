@@ -220,7 +220,7 @@
                 return;
             }
 
-            container.innerHTML = tasks.tasks.map(task => `
+            container.innerHTML = tasks.tasks.map(task => ` 
                 <div class="task-card">
                     <h3>${escapeHTML(task.task_name)}</h3>
                     <p>${escapeHTML(task.description)}</p>
@@ -230,8 +230,7 @@
                        onclick="return handleTaskClick(event, '${escapeString(task.task_name)}', ${task.points})">
                         ${isTaskCompleted(task.task_name) ? '✅ Terminé' : 'Commencer'}
                     </a>
-                </div>`
-            ).join('');
+                </div>`).join('');
         }
 
         function updateReferralLink(data) {
@@ -276,6 +275,7 @@
                 });
 
                 const result = await response.json();
+                console.log(result); // Affiche la réponse de l'API
                 if (result.error) throw new Error(result.error);
 
                 showToast(`+${result.points_earned || '?'} points !`, 3000, 'success');
@@ -360,60 +360,90 @@
             });
         }
 
-        // Événements
+                   // Événements
         function setupEventListeners() {
             document.getElementById('claim-btn')?.addEventListener('click', claimPoints);
 
             document.getElementById('copy-btn')?.addEventListener('click', () => {
-                const link = document.getElementById('referral-link').value;
-                navigator.clipboard.writeText(link).then(() => {
-                    showToast("Lien copié !", 2000, 'success');
-                });
+                const link = document.getElementById('referral-link');
+                link.select();
+                document.execCommand('copy');
+                showToast('Lien copié dans le presse-papiers', 3000, 'info');
             });
 
-            document.querySelectorAll('#app-tabbar .tab-item').forEach(button => {
-                button.addEventListener('click', function() {
-                    const page = this.getAttribute('data-page');
-                    switchPage(page);
+            // Navigation
+            document.querySelectorAll('#app-tabbar .tab-item').forEach(btn => {
+                btn.addEventListener('click', (event) => {
+                    const pageId = btn.getAttribute('data-page');
+                    switchPage(pageId);
                 });
             });
         }
 
-        // Fonctions globales
-        window.handleTaskClick = function(event, taskName, points) {
-            event.preventDefault();
-            if (!isTaskCompleted(taskName)) {
-                completeTask(taskName, points);
+        // Fonction de bascule de page
+        function switchPage(pageId) {
+            // Masquer toutes les pages
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.add('hidden');
+                page.classList.remove('active-page');
+            });
+
+            // Afficher la page demandée
+            document.getElementById(pageId).classList.remove('hidden');
+            document.getElementById(pageId).classList.add('active-page');
+
+            // Mettre à jour la navigation active
+            document.querySelectorAll('#app-tabbar .tab-item').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-page') === pageId);
+            });
+        }
+
+        // Échappement de texte pour sécurité
+        function escapeHTML(str) {
+            return str.replace(/[&<>"']/g, (char) => {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;',
+                }[char];
+            });
+        }
+
+        // Échappement de chaîne pour sécurité
+        function escapeString(str) {
+            return str.replace(/[\0\x08\x09\x1a\n\r\x0c\x0b'"\\]/g, '\\$&');
+        }
+
+        // Vérification si une tâche est terminée
+        function isTaskCompleted(taskName) {
+            const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]');
+            return completedTasks.includes(taskName);
+        }
+
+        // Gestion de l'activation de la tâche
+        function handleTaskClick(event, taskName, points) {
+            if (isTaskCompleted(taskName)) {
+                event.preventDefault();
+                showToast('Cette tâche est déjà terminée', 3000, 'info');
+                return false;
             }
-            return false;
+
+            const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]');
+            completedTasks.push(taskName);
+            localStorage.setItem('completedTasks', JSON.stringify(completedTasks));
+
+            updateTasksList();
+            showToast(`+${points} points pour la tâche '${taskName}'`, 3000, 'success');
+        }
+
+        // Chargement initial
+        window.onload = function() {
+            initApp();
         };
 
-        function completeTask(taskName, points) {
-            if (!confirm(`Valider "${taskName}" ?\n+${points} points`)) return;
-
-            localStorage.setItem(`task_${taskName}_completed`, 'true');
-            showToast(`Tâche validée (+${points} pts)`, 2000, 'success');
-            loadData();
-        }
-
-        function isTaskCompleted(taskName) {
-            return localStorage.getItem(`task_${taskName}_completed`);
-        }
-
-        function escapeHTML(str) {
-            return str.replace(/&/g, "&amp;")
-                     .replace(/</g, "&lt;")
-                     .replace(/>/g, "&gt;")
-                     .replace(/"/g, "&quot;")
-                     .replace(/'/g, "&#039;");
-        }
-
-        function escapeString(str) {
-            return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
-        }
-
-        // Initialisation
-        document.addEventListener('DOMContentLoaded', initApp);
     </script>
 </body>
 </html>
+

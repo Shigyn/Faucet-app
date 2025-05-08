@@ -6,6 +6,7 @@ from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 import time
 from datetime import datetime
+from threading import Lock  # Importation du verrou pour la gestion concurrente
 
 app = Flask(__name__)
 
@@ -22,6 +23,9 @@ USERS_RANGE = 'Users!A2:F'
 TRANSACTIONS_RANGE = 'Transactions!A2:D'
 TASKS_RANGE = 'Tasks!A2:D'
 FRIENDS_RANGE = 'Friends!A2:C'
+
+# Verrou pour sécuriser l'accès à Google Sheets
+sheet_lock = Lock()
 
 # Fonction d'authentification Google
 def get_google_sheets_service():
@@ -109,21 +113,22 @@ def claim():
                 new_balance = current_balance + int(amount)
                 user[3] = str(new_balance)
 
-                # Mise à jour de la balance dans la feuille
-                service.spreadsheets().values().update(
-                    spreadsheetId=SPREADSHEET_ID,
-                    range=f"Users!D{users.index(user) + 2}",
-                    valueInputOption='RAW',
-                    body={'values': [[str(new_balance)]]}
-                ).execute()
+                with sheet_lock:  # Utilisation du verrou pour la mise à jour de la feuille
+                    # Mise à jour de la balance dans la feuille
+                    service.spreadsheets().values().update(
+                        spreadsheetId=SPREADSHEET_ID,
+                        range=f"Users!D{users.index(user) + 2}",
+                        valueInputOption='RAW',
+                        body={'values': [[str(new_balance)]]}
+                    ).execute()
 
-                # Ajouter une transaction pour le claim
-                service.spreadsheets().values().append(
-                    spreadsheetId=SPREADSHEET_ID,
-                    range=TRANSACTIONS_RANGE,
-                    valueInputOption='RAW',
-                    body={'values': [[user_id, amount, 'claim']]}
-                ).execute()
+                    # Ajouter une transaction pour le claim
+                    service.spreadsheets().values().append(
+                        spreadsheetId=SPREADSHEET_ID,
+                        range=TRANSACTIONS_RANGE,
+                        valueInputOption='RAW',
+                        body={'values': [[user_id, amount, 'claim']]},
+                    ).execute()
 
                 return jsonify({"message": f"Claim successful, new balance: {new_balance}"}), 200
         

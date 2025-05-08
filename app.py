@@ -11,7 +11,7 @@ from threading import Lock
 from flask_cors import CORS
 
 # Configuration initiale
-app = Flask(__name__, template_folder='templates')
+app = Flask(__name__, template_folder='templates', static_folder='static')
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
@@ -27,8 +27,9 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 COOLDOWN_MINUTES = 5
 MIN_CLAIM = 10
 MAX_CLAIM = 100
-USER_RANGE = "Users!A2:C"
-TRANSACTIONS_RANGE = "Transactions!A2:C"
+USER_RANGE = "Users!A2:C"  # user_id, balance, last_claim
+TRANSACTIONS_RANGE = "Transactions!A2:C"  # timestamp, user_id, amount
+TASKS_RANGE = "Tasks!A2:D"  # id, name, reward, completed
 
 # Verrou pour les accès concurrents
 sheet_lock = Lock()
@@ -38,13 +39,11 @@ def validate_user_data(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not request.json or 'user_id' not in request.json:
-            logger.error("Données utilisateur manquantes")
             return jsonify({"error": "Données utilisateur manquantes"}), 400
         return f(*args, **kwargs)
     return decorated_function
 
 def get_google_sheets_service():
-    """Initialise le service Google Sheets"""
     try:
         creds_json = os.environ.get('GOOGLE_CREDS')
         if not creds_json:
@@ -57,7 +56,6 @@ def get_google_sheets_service():
         raise
 
 def find_user_row(service, sheet_id, user_id):
-    """Trouve un utilisateur dans la feuille"""
     try:
         result = service.values().get(
             spreadsheetId=sheet_id,
@@ -73,7 +71,6 @@ def find_user_row(service, sheet_id, user_id):
         raise
 
 def parse_date(date_str):
-    """Parse les dates dans différents formats"""
     formats = [
         "%Y-%m-%d %H:%M:%S",
         "%d/%m/%Y %H:%M",
@@ -86,22 +83,6 @@ def parse_date(date_str):
         except ValueError:
             continue
     return None
-
-def log_transaction(service, sheet_id, user_id, amount):
-    """Enregistre une transaction"""
-    try:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        values = [[timestamp, user_id, amount]]
-        service.values().append(
-            spreadsheetId=sheet_id,
-            range=TRANSACTIONS_RANGE,
-            valueInputOption="USER_ENTERED",
-            body={"values": values}
-        ).execute()
-        return True
-    except Exception as e:
-        logger.error(f"Erreur transaction: {str(e)}")
-        return False
 
 # Routes API
 @app.route('/claim', methods=['POST'])
@@ -130,18 +111,27 @@ def claim_points():
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         with sheet_lock:
+            # Mise à jour du solde
             service.values().update(
                 spreadsheetId=os.environ['GOOGLE_SHEET_ID'],
                 range=f"Users!B{row_num}:C{row_num}",
                 valueInputOption="USER_ENTERED",
                 body={"values": [[new_balance, now]]}
             ).execute()
-            log_transaction(service, os.environ['GOOGLE_SHEET_ID'], user_id, points)
+            
+            # Log transaction
+            service.values().append(
+                spreadsheetId=os.environ['GOOGLE_SHEET_ID'],
+                range=TRANSACTIONS_RANGE,
+                valueInputOption="USER_ENTERED",
+                body={"values": [[now, user_id, points]]}
+            ).execute()
 
         return jsonify({
             "success": True,
             "new_balance": new_balance,
-            "points_earned": points
+            "points_earned": points,
+            "referral_code": user_id
         })
     except Exception as e:
         logger.error(f"Erreur claim: {str(e)}")
@@ -163,10 +153,53 @@ def get_balance():
         
         return jsonify({
             "balance": balance,
-            "last_claim": last_claim.strftime("%Y-%m-%d %H:%M:%S") if last_claim else None
+            "last_claim": last_claim.strftime("%Y-%m-%d %H:%M:%S") if last_claim else None,
+            "referral_code": user_id
         })
     except Exception as e:
         logger.error(f"Erreur balance: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/get-tasks', methods=['GET'])
+def get_tasks():
+    try:
+        service = get_google_sheets_service()
+        result = service.values().get(
+            spreadsheetId=os.environ['GOOGLE_SHEET_ID'],
+            range=TASKS_RANGE
+        ).execute()
+        
+        tasks = []
+        for row in result.get('values', []):
+            if len(row) >= 4:
+                tasks.append({
+                    "id": row[0],
+                    "name": row[1],
+                    "reward": int(row[2]),
+                    "completed": row[3].lower() == "true" if len(row) > 3 else False
+                })
+        
+        return jsonify({"tasks": tasks})
+    except Exception as e:
+        logger.error(f"Erreur get-tasks: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/get-friends', methods=['GET'])
+def get_friends():
+    try:
+        user_id = request.args.get('user_id')
+        if not user_id:
+            return jsonify({"error": "Paramètre user_id manquant"}), 400
+            
+        # Implémentation basique - à adapter
+        return jsonify({
+            "friends": [
+                {"id": "123", "name": "Ami 1"},
+                {"id": "456", "name": "Ami 2"}
+            ]
+        })
+    except Exception as e:
+        logger.error(f"Erreur get-friends: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 # Routes Frontend

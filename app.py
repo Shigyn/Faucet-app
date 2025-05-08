@@ -62,21 +62,25 @@ def get_google_sheets_service():
 
 def get_sheet_data(service, sheet_id, range_name):
     try:
-        result = service.values().get(
+        result = service.spreadsheets().values().get(
             spreadsheetId=sheet_id,
-            range=range_name,
-            majorDimension="ROWS"
+            range=range_name
         ).execute()
 
-        # Vérifier si 'values' est dans la réponse
+        # Log de la réponse brute pour analyse
+        logger.info(f"Réponse brute de Google Sheets pour {range_name}: {result}")
+
+        # Vérification et récupération des valeurs
         if 'values' in result:
             return result['values']
         else:
-            logger.error(f"Pas de valeurs retournées dans la réponse pour {range_name}")
+            logger.error(f"Aucune valeur trouvée pour {range_name}")
             return []
+
     except Exception as e:
         logger.error(f"Erreur lecture sheet {range_name}: {str(e)}")
         raise
+
 
 def find_user_row(service, sheet_id, user_id):
     try:

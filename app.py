@@ -146,50 +146,57 @@ def get_balance():
 def claim_points():
     try:
         user_id = str(request.json['user_id'])
-        logger.info(f"Requête claim reçue pour user_id: {user_id}")
-        
         service = get_google_sheets_service()
         row_num, row = find_user_row(service, os.environ['GOOGLE_SHEET_ID'], user_id)
         
         if not row_num:
-            logger.warning(f"Utilisateur non trouvé: {user_id}")
             return jsonify({"error": "Utilisateur non trouvé"}), 404
+
+        # Debug: Affiche les données actuelles
+        print(f"Données utilisateur avant claim: {row}")
             
         # Vérification cooldown
-        if len(row) > 2 and row[2]:
+        if len(row) > 2 and row[2]:  # Vérifie si last_claim existe
             try:
                 last_claim = datetime.strptime(row[2], "%Y-%m-%d %H:%M:%S")
-                if datetime.now() - last_claim < timedelta(hours=COOLDOWN_HOURS):
-                    logger.info(f"Cooldown actif pour user_id: {user_id}")
+                elapsed_hours = (datetime.now() - last_claim).total_seconds() / 3600
+                print(f"Dernier claim: {last_claim} | Heures écoulées: {elapsed_hours}")
+                
+                if elapsed_hours < COOLDOWN_HOURS:
                     return jsonify({
-                        "error": f"Attendez {COOLDOWN_HOURS}h entre chaque claim",
+                        "error": f"Attendez {COOLDOWN_HOURS*60} minutes entre chaque claim",
                         "cooldown": True
                     }), 400
             except ValueError as e:
-                logger.warning(f"Format de date invalide: {row[2]}")
-        
-        # Calcul nouveau solde
+                print(f"Erreur parsing date: {e}")
+
+        # Génération des points
         points = random.randint(MIN_CLAIM, MAX_CLAIM)
         current_balance = int(row[1]) if len(row) > 1 and row[1] else 0
         new_balance = current_balance + points
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        # Mise à jour Google Sheets
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # Format explicite
+
+        # Mise à jour Sheets
         with sheet_lock:
-            service.values().update(
+            update_result = service.values().update(
                 spreadsheetId=os.environ['GOOGLE_SHEET_ID'],
                 range=f"Users!B{row_num}:C{row_num}",
                 valueInputOption="USER_ENTERED",
                 body={"values": [[new_balance, now]]}
             ).execute()
-        
-        logger.info(f"Claim réussi pour {user_id}: +{points} points")
+            
+            print(f"Update result: {update_result}")
+
         return jsonify({
             "success": True,
             "new_balance": new_balance,
             "points_earned": points,
-            "last_claim": now
+            "last_claim": now  # Renvoie la date formatée
         })
+        
+    except Exception as e:
+        print(f"Erreur claim: {str(e)}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
         
     except Exception as e:
         logger.error(f"Erreur claim: {str(e)}", exc_info=True)

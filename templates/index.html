@@ -153,32 +153,39 @@
         }
 
         // Fonctions API
-        async function fetchBalance() {
-            try {
-                const response = await fetch(`${API_BASE_URL}/get-balance`, {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({ user_id: currentUserId })
-                });
-                
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || "Erreur API");
-                }
-                
-                const data = await response.json();
-                if (data.last_claim) {
-                    lastClaimTime = new Date(data.last_claim);
-                }
-                return data;
-            } catch (error) {
-                console.error("Erreur fetchBalance:", error);
-                throw error;
-            }
+       async function fetchBalance() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/get-balance`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ user_id: currentUserId })
+        });
+        
+        if (!response.ok) {
+            const error = await response.text();
+            console.error("Erreur balance:", error);
+            throw new Error(error || "Erreur API");
         }
+        
+        const data = await response.json();
+        console.log("Balance data:", data); // Debug
+        
+        if (data.last_claim) {
+            lastClaimTime = new Date(data.last_claim);
+            console.log("Last claim parsed:", lastClaimTime); // Debug
+        } else {
+            console.warn("Pas de last_claim dans la réponse");
+        }
+        
+        return data;
+    } catch (error) {
+        console.error("Erreur fetchBalance:", error);
+        throw error;
+    }
+}
 
         async function fetchTasks() {
             const response = await fetch(`${API_BASE_URL}/get-tasks`);

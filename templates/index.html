@@ -154,39 +154,39 @@
         }
 
         // Fonctions API
-       async function fetchBalance() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/get-balance`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({ user_id: currentUserId })
-        });
-        
-        if (!response.ok) {
-            const error = await response.text();
-            console.error("Erreur balance:", error);
-            throw new Error(error || "Erreur API");
+        async function fetchBalance() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/get-balance`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ user_id: currentUserId })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.text();
+                    console.error("Erreur balance:", error);
+                    throw new Error(error || "Erreur API");
+                }
+                
+                const data = await response.json();
+                console.log("Balance data:", data); // Debug
+                
+                if (data.last_claim) {
+                    lastClaimTime = new Date(data.last_claim);
+                    console.log("Last claim parsed:", lastClaimTime); // Debug
+                } else {
+                    console.warn("Pas de last_claim dans la réponse");
+                }
+                
+                return data;
+            } catch (error) {
+                console.error("Erreur fetchBalance:", error);
+                throw error;
+            }
         }
-        
-        const data = await response.json();
-        console.log("Balance data:", data); // Debug
-        
-        if (data.last_claim) {
-            lastClaimTime = new Date(data.last_claim);
-            console.log("Last claim parsed:", lastClaimTime); // Debug
-        } else {
-            console.warn("Pas de last_claim dans la réponse");
-        }
-        
-        return data;
-    } catch (error) {
-        console.error("Erreur fetchBalance:", error);
-        throw error;
-    }
-}
 
         async function fetchTasks() {
             const response = await fetch(`${API_BASE_URL}/get-tasks`);
@@ -229,7 +229,7 @@
             }
         }
 
-        function updateTasksList(tasks) {
+                function updateTasksList(tasks) {
             const container = document.getElementById('tasks-list');
             if (!tasks?.tasks?.length) {
                 container.innerHTML = "<p>Aucune tâche disponible</p>";
@@ -269,7 +269,7 @@
             const referralLink = document.getElementById('referral-link');
             if (referralLink) {
                 referralLink.value = data?.referral_code 
-                    ? `${PUBLIC_URL}?ref=${data.referral_code}`
+                    ? `${PUBLIC_URL}?ref=${data.referral_code}` 
                     : `${PUBLIC_URL}?ref=${currentUserId}`;
             }
         }
@@ -277,7 +277,7 @@
         function updateClaimButton(balanceData) {
             const claimBtn = document.getElementById('claim-btn');
             if (!claimBtn) return;
-            
+
             if (lastClaimTime) {
                 const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
                 if (Date.now() < cooldownEnd) {
@@ -285,7 +285,7 @@
                     return;
                 }
             }
-            
+
             claimBtn.disabled = false;
             claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Réclamer des Points</span>';
         }
@@ -293,25 +293,25 @@
         // Actions utilisateur
         async function claimPoints() {
             if (isClaiming) return;
-            
+
             const claimBtn = document.getElementById('claim-btn');
             try {
                 isClaiming = true;
                 claimBtn.disabled = true;
                 claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Traitement...</span>';
-                
+
                 const response = await fetch(`${API_BASE_URL}/claim`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: currentUserId })
                 });
-                
+
                 const result = await response.json();
                 if (result.error) throw new Error(result.error);
-                
+
                 showToast(`+${result.points_earned || '?'} points !`, 3000, 'success');
                 loadData();
-                
+
                 if (result.last_claim) {
                     lastClaimTime = new Date(result.last_claim);
                     const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
@@ -337,9 +337,9 @@
         function startCooldownTimer(cooldownEnd) {
             const claimBtn = document.getElementById('claim-btn');
             if (!claimBtn) return;
-            
+
             claimBtn.disabled = true;
-            
+
             function updateTimer() {
                 const remaining = Math.max(0, cooldownEnd - Date.now());
                 if (remaining <= 0) {
@@ -347,17 +347,17 @@
                     claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Réclamer des Points</span>';
                     return;
                 }
-                
+
                 const minutes = Math.floor(remaining / 60000);
                 const seconds = Math.floor((remaining % 60000) / 1000);
-                
+
                 claimBtn.innerHTML = `
                     <span class="button-icon">⏳</span>
                     <span class="button-text">${minutes}m ${seconds}s</span>
                 `;
                 setTimeout(updateTimer, 1000);
             }
-            
+
             updateTimer();
         }
 
@@ -366,7 +366,7 @@
             toast.className = `toast-message toast-${type}`;
             toast.textContent = message;
             document.body.appendChild(toast);
-            
+
             setTimeout(() => {
                 toast.classList.add('fade-out');
                 setTimeout(() => toast.remove(), 500);
@@ -379,7 +379,7 @@
             document.querySelectorAll('.rpg-panel').forEach(panel => {
                 panel.style.display = 'none';
             });
-            
+
             // Afficher la section demandée
             switch(sectionId) {
                 case 'home':
@@ -393,7 +393,7 @@
                     document.getElementById('friends-panel').style.display = 'block';
                     break;
             }
-            
+
             // Mettre à jour la navigation active
             document.querySelectorAll('#rpg-navbar .nav-button').forEach(btn => {
                 btn.classList.toggle('active', btn.getAttribute('data-section') === sectionId);
@@ -403,14 +403,14 @@
         // Événements
         function setupEventListeners() {
             document.getElementById('claim-btn')?.addEventListener('click', claimPoints);
-            
+
             document.getElementById('copy-btn')?.addEventListener('click', () => {
                 const link = document.getElementById('referral-link').value;
                 navigator.clipboard.writeText(link).then(() => {
                     showToast("Lien copié !", 2000, 'success');
                 });
             });
-            
+
             document.querySelectorAll('#rpg-navbar .nav-button').forEach(button => {
                 button.addEventListener('click', function() {
                     const section = this.getAttribute('data-section');
@@ -430,7 +430,7 @@
 
         function completeTask(taskName, points) {
             if (!confirm(`Valider "${taskName}" ?\n+${points} points`)) return;
-            
+
             localStorage.setItem(`task_${taskName}_completed`, 'true');
             showToast(`Tâche validée (+${points} pts)`, 2000, 'success');
             loadData();
@@ -457,3 +457,4 @@
     </script>
 </body>
 </html>
+

@@ -1,6 +1,6 @@
 import os
 import random
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
@@ -10,8 +10,8 @@ import logging
 from threading import Lock
 from flask_cors import CORS
 
-# Configuration initiale
-app = Flask(__name__, static_folder='static', static_url_path='')
+# Configuration initiale modifiée pour servir depuis le dossier principal
+app = Flask(__name__, static_folder='.', static_url_path='')
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
@@ -213,13 +213,29 @@ def get_friends():
         logger.error(f"Erreur get-friends: {str(e)}", exc_info=True)
         return jsonify({"error": "Erreur lors de la récupération des amis"}), 500
 
+# Routes modifiées pour servir depuis le dossier principal
 @app.route('/')
 def serve_index():
-    return send_from_directory(app.static_folder, 'index.html')
+    try:
+        return send_file('index.html')
+    except FileNotFoundError:
+        return jsonify({
+            "status": "API en marche",
+            "message": "index.html non trouvé dans le dossier principal",
+            "endpoints": {
+                "claim": {"method": "POST", "path": "/claim"},
+                "balance": {"method": "POST", "path": "/get-balance"},
+                "friends": {"method": "GET", "path": "/get-friends"}
+            }
+        }), 404
 
-@app.route('/<path:path>')
+@app.route('/favicon.ico')
+def serve_favicon():
+    return send_from_directory('.', 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
+@app.route('/static/<path:path>')
 def serve_static(path):
-    return send_from_directory(app.static_folder, path)
+    return send_from_directory('static', path)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))

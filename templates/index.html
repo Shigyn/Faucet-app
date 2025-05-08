@@ -161,22 +161,56 @@
             loadData();
         }
 
-        function initTelegramWebApp() {
-            const tgWebApp = window.Telegram.WebApp;
-            tgWebApp.expand();
-            tgWebApp.ready();
-            
-            document.getElementById('telegram-alert').style.display = 'none';
-            
-            const userData = tgWebApp.initDataUnsafe.user;
-            currentUserId = userData.id.toString();
-            currentUsername = userData.username || 
-                            [userData.first_name, userData.last_name].filter(Boolean).join(' ') || 
-                            "Utilisateur";
-            
-            document.getElementById('username-display').textContent = currentUsername;
-            startAutoRefresh();
-        }
+       function initTelegramWebApp() {
+    const tgWebApp = window.Telegram.WebApp;
+    
+    // Vérification plus poussée des données Telegram
+    if (!tgWebApp.initDataUnsafe?.user) {
+        console.error("Erreur: Données utilisateur Telegram manquantes");
+        return;
+    }
+
+    tgWebApp.expand(); // Agrandit l'application
+    tgWebApp.ready(); // Prêt à interagir
+    document.getElementById('telegram-alert').style.display = 'none';
+    
+    // Récupération des données utilisateur
+    const userData = tgWebApp.initDataUnsafe.user;
+    currentUserId = userData.id.toString();
+    currentUsername = userData.username || 
+                     [userData.first_name, userData.last_name].filter(Boolean).join(' ') || 
+                     "Utilisateur";
+    
+    // Affiche immédiatement le nom (feedback visuel)
+    document.getElementById('username-display').textContent = currentUsername;
+
+    // Appel API pour créer/mettre à jour l'utilisateur
+    fetch(`${API_BASE_URL}/update-user`, {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+            user_id: currentUserId,
+            username: currentUsername,
+            initData: tgWebApp.initData  // Important pour la validation
+        })
+    })
+    .then(response => {
+        if (!response.ok) throw new Error("Erreur création utilisateur");
+        return response.json();
+    })
+    .then(data => {
+        console.log("Utilisateur créé:", data);
+        startAutoRefresh();
+        loadData(); // Charge les données après création
+    })
+    .catch(error => {
+        console.error("Erreur init:", error);
+        showToast("Erreur d'initialisation", 3000, 'error');
+    });
+}
 
         // Gestion des données
         async function loadData() {

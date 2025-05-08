@@ -1,193 +1,234 @@
 import os
-import random
-from flask import Flask, request, jsonify, send_from_directory, render_template
-from googleapiclient.discovery import build
-from google.oauth2.service_account import Credentials
-from datetime import datetime, timedelta
-from functools import wraps
-import json
 import logging
-from threading import Lock
-from flask_cors import CORS
+from flask import Flask, render_template, request, redirect, url_for, jsonify
+from googleapiclient.discovery import build
+from google.auth.transport.requests import Request
+from google.oauth2 import service_account
+import time
+from datetime import datetime
 
-# Configuration initiale
-app = Flask(__name__, template_folder='templates', static_folder='static')
-app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
-app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
-CORS(app)
+app = Flask(__name__)
 
-# Configuration logging
+# Configurez le logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
-# Constantes
+# Configuration des credentials Google API
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-COOLDOWN_MINUTES = 5
-MIN_CLAIM = 10
-MAX_CLAIM = 100
+SERVICE_ACCOUNT_FILE = 'path/to/your/service-account-file.json'
 
-# Configuration Sheets
-SHEET_CONFIG = {
-    'users': {
-        'range': "Users!A2:F",
-        'headers': ['timestamp', 'action', 'user_id', 'balance', 'last_claim', 'referral_code']
-    },
-    'transactions': {
-        'range': "Transactions!A2:D",
-        'headers': ['timestamp', 'user_id', 'amount', 'action']
-    },
-    'tasks': {
-        'range': "Tasks!A2:D",
-        'headers': ['task_name', 'description', 'points', 'url']
-    },
-    'friends': {
-        'range': "Referrals!A2:D",
-        'headers': ['user_id', 'referred_user_id', 'username', 'total_points']
-    }
-}
+# ID du spreadsheet et des feuilles
+SPREADSHEET_ID = 'votre_id_de_spreadsheet'
+USERS_RANGE = 'Users!A2:F'
+TRANSACTIONS_RANGE = 'Transactions!A2:D'
+TASKS_RANGE = 'Tasks!A2:D'
+FRIENDS_RANGE = 'Friends!A2:C'
 
-sheet_lock = Lock()
-
+# Fonction d'authentification Google
 def get_google_sheets_service():
-    try:
-        creds_json = os.environ.get('GOOGLE_CREDS')
-        if not creds_json:
-            raise ValueError("Configuration Google Sheets manquante")
-        creds_dict = json.loads(creds_json)
-        creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
-        return build('sheets', 'v4', credentials=creds, cache_discovery=False)
-    except Exception as e:
-        logger.error(f"Erreur Google Sheets: {str(e)}")
-        raise
+    creds = None
+    if os.path.exists('token.json'):
+        creds = service_account.Credentials.from_service_account_file(
+            SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            raise Exception("Credentials are missing or invalid")
+    service = build('sheets', 'v4', credentials=creds)
+    return service
 
-def get_sheet_data(service, sheet_id, range_name):
+# Page d'accueil
+@app.route('/')
+def home():
+    return render_template('index.html')  # Assurez-vous que ce fichier existe dans templates
+
+# Récupérer la balance utilisateur
+@app.route('/get-balance', methods=['POST'])
+def get_balance():
+    user_id = request.json.get('user_id')
+    service = get_google_sheets_service()
+    
     try:
-        result = service.spreadsheets().values().get(
-            spreadsheetId=sheet_id,
-            range=range_name
+        # Récupérer les données des utilisateurs
+        sheet = service.spreadsheets().values().get(spreadsheetId=SPREADSHEET_ID, range=USERS_RANGE).execute()
+        users = sheet.get('values', [])
+        
+        # Chercher la balance de l'utilisateur
+        for user in users:
+            if user[2] == user_id:
+                balance = user[3]
+                return jsonify({"balance": balance}), 200
+        
+        return jsonify({"error": "User not found"}), 404
+    
+    except Exception as e:
+        logging.error(f"Error retrieving balance: {e}")
+        return jsonify({"error": "Unable to retrieve balance"}), 500
+
+# Ajouter une transaction
+@app.route('/add-transaction', methods=['POST'])
+def add_transaction():
+    user_id = request.json.get('user_id')
+    amount = request.json.get('amount')
+    action = request.json.get('action')
+    
+    service = get_google_sheets_service()
+    
+    try:
+        # Ajouter une ligne dans la feuille de transactions
+        sheet = service.spreadsheets().values().append(
+            spreadsheetId=SPREADSHEET_ID,
+            range=TRANSACTIONS_RANGE,
+            valueInputOption='RAW',
+            body={'values': [[user_id, amount, action]]}
         ).execute()
 
-        # Log de la réponse brute pour analyse
-        logger.info(f"Réponse brute de Google Sheets pour {range_name}: {result}")
-
-        # Vérification et récupération des valeurs
-        if 'values' in result:
-            return result['values']
-        else:
-            logger.error(f"Aucune valeur trouvée pour {range_name}")
-            return []
-    except Exception as e:
-        logger.error(f"Erreur lecture sheet {range_name}: {str(e)}")
-        raise
-
-def find_user_row(service, sheet_id, user_id):
-    try:
-        values = get_sheet_data(service, sheet_id, SHEET_CONFIG['users']['range'])
-        for i, row in enumerate(values, start=2):
-            if len(row) >= 3 and str(row[2]) == str(user_id):
-                return i, dict(zip(SHEET_CONFIG['users']['headers'], row + [""] * (6 - len(row))))
-        return None, None
-    except Exception as e:
-        logger.error(f"Erreur recherche utilisateur: {str(e)}")
-        raise
-
-# Fonction pour ajouter ou mettre à jour un utilisateur
-def add_or_update_user(service, sheet_id, user_id, balance, last_claim=None):
-    try:
-        # Vérifier si l'utilisateur existe déjà
-        row_num, user = find_user_row(service, sheet_id, user_id)
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        if row_num:
-            # Mise à jour de l'utilisateur existant
-            service.spreadsheets().values().update(
-                spreadsheetId=sheet_id,
-                range=f"Users!C{row_num}:F{row_num}",
-                valueInputOption="USER_ENTERED",
-                body={"values": [[user_id, balance, last_claim or "", user.get('referral_code', user_id)]]}
-            ).execute()
-        else:
-            # Si l'utilisateur n'existe pas, créer une nouvelle ligne
-            new_row = [now, "claim", user_id, balance, last_claim or "", user_id]
-            service.spreadsheets().values().append(
-                spreadsheetId=sheet_id,
-                range=SHEET_CONFIG['users']['range'],
-                valueInputOption="USER_ENTERED",
-                body={"values": [new_row]}
-            ).execute()
+        return jsonify({"message": "Transaction added successfully"}), 200
 
     except Exception as e:
-        logger.error(f"Erreur ajout ou mise à jour utilisateur: {str(e)}")
-        raise
+        logging.error(f"Error adding transaction: {e}")
+        return jsonify({"error": "Unable to add transaction"}), 500
 
-def parse_date(date_str):
-    if not date_str:
-        return None
-    try:
-        if isinstance(date_str, (int, float)):
-            return datetime(1899, 12, 30) + timedelta(days=float(date_str))
-        formats = ["%d/%m/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%m/%d/%Y %H:%M:%S"]
-        for fmt in formats:
-            try:
-                return datetime.strptime(date_str, fmt)
-            except ValueError:
-                continue
-        return None
-    except Exception as e:
-        logger.warning(f"Erreur parsing date {date_str}: {str(e)}")
-        return None
-
+# Mise à jour de la balance après un claim
 @app.route('/claim', methods=['POST'])
-def claim_points():
+def claim():
+    user_id = request.json.get('user_id')
+    amount = request.json.get('amount')
+    
+    service = get_google_sheets_service()
+    
     try:
-        user_id = str(request.json.get('user_id'))
-        if not user_id:
-            return jsonify({"status": "error", "message": "User ID manquant"}), 400
+        # Récupérer les données des utilisateurs
+        sheet = service.spreadsheets().values().get(spreadsheetId=SPREADSHEET_ID, range=USERS_RANGE).execute()
+        users = sheet.get('values', [])
+        
+        # Chercher l'utilisateur et mettre à jour la balance
+        for user in users:
+            if user[2] == user_id:
+                current_balance = int(user[3])
+                new_balance = current_balance + int(amount)
+                user[3] = str(new_balance)
 
-        service = get_google_sheets_service()
-        sheet_id = os.environ['GOOGLE_SHEET_ID']
-        row_num, user = find_user_row(service, sheet_id, user_id)
+                # Mise à jour de la balance dans la feuille
+                service.spreadsheets().values().update(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range=f"Users!D{users.index(user) + 2}",
+                    valueInputOption='RAW',
+                    body={'values': [[str(new_balance)]]}
+                ).execute()
 
-        # Cooldown
-        if user and user.get('last_claim'):
-            last_claim = parse_date(user['last_claim'])
-            if last_claim and (datetime.now() - last_claim) < timedelta(minutes=COOLDOWN_MINUTES):
-                remaining = (last_claim + timedelta(minutes=COOLDOWN_MINUTES) - datetime.now()).seconds // 60
-                return jsonify({
-                    "status": "error",
-                    "message": f"Attendez {remaining} minutes",
-                    "cooldown": True
-                }), 400
+                # Ajouter une transaction pour le claim
+                service.spreadsheets().values().append(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range=TRANSACTIONS_RANGE,
+                    valueInputOption='RAW',
+                    body={'values': [[user_id, amount, 'claim']]}
+                ).execute()
 
-        points = random.randint(MIN_CLAIM, MAX_CLAIM)
-        current_balance = int(user.get('balance') or 0)
-        new_balance = current_balance + points
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        with sheet_lock:
-            # Mise à jour utilisateur ou création
-            add_or_update_user(service, sheet_id, user_id, new_balance, last_claim=now)
-
-            # Ajout transaction
-            service.spreadsheets().values().append(
-                spreadsheetId=sheet_id,
-                range=SHEET_CONFIG['transactions']['range'],
-                valueInputOption="USER_ENTERED",
-                body={"values": [[now, user_id, points, "claim"]]}
-            ).execute()
-
-        return jsonify({
-            "status": "success",
-            "balance": new_balance,
-            "last_claim": now,
-            "points_earned": points
-        })
+                return jsonify({"message": f"Claim successful, new balance: {new_balance}"}), 200
+        
+        return jsonify({"error": "User not found"}), 404
+    
     except Exception as e:
-        logger.error(f"Erreur claim: {str(e)}")
-        return jsonify({"status": "error", "message": "Erreur serveur"}), 500
+        logging.error(f"Error handling claim: {e}")
+        return jsonify({"error": "Unable to process claim"}), 500
 
-# Routes restantes inchangées...
+# Mettre à jour la dernière action de claim
+@app.route('/update-last-claim', methods=['POST'])
+def update_last_claim():
+    user_id = request.json.get('user_id')
+    timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    
+    service = get_google_sheets_service()
+    
+    try:
+        # Récupérer les données des utilisateurs
+        sheet = service.spreadsheets().values().get(spreadsheetId=SPREADSHEET_ID, range=USERS_RANGE).execute()
+        users = sheet.get('values', [])
+        
+        # Chercher l'utilisateur et mettre à jour le champ 'last_claim'
+        for user in users:
+            if user[2] == user_id:
+                # Update last claim timestamp
+                service.spreadsheets().values().update(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range=f"Users!E{users.index(user) + 2}",
+                    valueInputOption='RAW',
+                    body={'values': [[timestamp]]}
+                ).execute()
+                return jsonify({"message": "Last claim updated"}), 200
+        
+        return jsonify({"error": "User not found"}), 404
+    
+    except Exception as e:
+        logging.error(f"Error updating last claim: {e}")
+        return jsonify({"error": "Unable to update last claim"}), 500
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port, debug=os.environ.get("FLASK_DEBUG", "false").lower() == "true")
+# Route pour gérer les amis
+@app.route('/add-friend', methods=['POST'])
+def add_friend():
+    user_id = request.json.get('user_id')
+    friend_id = request.json.get('friend_id')
+    
+    service = get_google_sheets_service()
+    
+    try:
+        # Ajouter un ami à la feuille "Friends"
+        sheet = service.spreadsheets().values().append(
+            spreadsheetId=SPREADSHEET_ID,
+            range=FRIENDS_RANGE,
+            valueInputOption='RAW',
+            body={'values': [[user_id, friend_id]]}
+        ).execute()
+
+        return jsonify({"message": "Friend added successfully"}), 200
+
+    except Exception as e:
+        logging.error(f"Error adding friend: {e}")
+        return jsonify({"error": "Unable to add friend"}), 500
+
+# Route pour gérer les tâches
+@app.route('/add-task', methods=['POST'])
+def add_task():
+    user_id = request.json.get('user_id')
+    task = request.json.get('task')
+    
+    service = get_google_sheets_service()
+    
+    try:
+        # Ajouter une tâche à la feuille "Tasks"
+        sheet = service.spreadsheets().values().append(
+            spreadsheetId=SPREADSHEET_ID,
+            range=TASKS_RANGE,
+            valueInputOption='RAW',
+            body={'values': [[user_id, task]]}
+        ).execute()
+
+        return jsonify({"message": "Task added successfully"}), 200
+
+    except Exception as e:
+        logging.error(f"Error adding task: {e}")
+        return jsonify({"error": "Unable to add task"}), 500
+
+# Route pour récupérer les tâches d'un utilisateur
+@app.route('/get-tasks', methods=['POST'])
+def get_tasks():
+    user_id = request.json.get('user_id')
+    service = get_google_sheets_service()
+    
+    try:
+        # Récupérer les données des tâches
+        sheet = service.spreadsheets().values().get(spreadsheetId=SPREADSHEET_ID, range=TASKS_RANGE).execute()
+        tasks = sheet.get('values', [])
+        
+        # Chercher les tâches pour l'utilisateur
+        user_tasks = [task for task in tasks if task[0] == user_id]
+        return jsonify({"tasks": user_tasks}), 200
+    
+    except Exception as e:
+        logging.error(f"Error retrieving tasks: {e}")
+        return jsonify({"error": "Unable to retrieve tasks"}), 500
+
+# Lancer l'application
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=10000)

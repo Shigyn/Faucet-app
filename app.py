@@ -30,6 +30,7 @@ MAX_CLAIM = 100
 USER_RANGE = "Users!A2:C"  # user_id, balance, last_claim
 TRANSACTIONS_RANGE = "Transactions!A2:C"  # timestamp, user_id, amount
 TASKS_RANGE = "Tasks!A2:D"  # id, name, reward, completed
+FRIENDS_RANGE = "Friends!A2:C"  # user_id, friend_id, friend_name
 
 # Verrou pour les accès concurrents
 sheet_lock = Lock()
@@ -135,7 +136,7 @@ def claim_points():
         })
     except Exception as e:
         logger.error(f"Erreur claim: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Erreur serveur lors de la réclamation"}), 500
 
 @app.route('/get-balance', methods=['POST'])
 @validate_user_data
@@ -158,7 +159,7 @@ def get_balance():
         })
     except Exception as e:
         logger.error(f"Erreur balance: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Erreur serveur lors de la récupération du solde"}), 500
 
 @app.route('/get-tasks', methods=['GET'])
 def get_tasks():
@@ -166,23 +167,29 @@ def get_tasks():
         service = get_google_sheets_service()
         result = service.values().get(
             spreadsheetId=os.environ['GOOGLE_SHEET_ID'],
-            range=TASKS_RANGE
+            range=TASKS_RANGE,
+            majorDimension="ROWS"
         ).execute()
         
         tasks = []
         for row in result.get('values', []):
-            if len(row) >= 4:
-                tasks.append({
+            if len(row) >= 3:  # Au moins id, name, reward
+                task = {
                     "id": row[0],
                     "name": row[1],
-                    "reward": int(row[2]),
-                    "completed": row[3].lower() == "true" if len(row) > 3 else False
-                })
+                    "reward": int(row[2]) if row[2].isdigit() else 0
+                }
+                if len(row) >= 4:  # Si completed existe
+                    task["completed"] = row[3].lower() in ("true", "vrai", "1", "oui")
+                tasks.append(task)
         
-        return jsonify({"tasks": tasks})
+        if not tasks:
+            logger.warning("Aucune tâche trouvée dans la feuille")
+        
+        return jsonify({"status": "success", "tasks": tasks})
     except Exception as e:
         logger.error(f"Erreur get-tasks: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"status": "error", "message": "Erreur lors de la récupération des tâches"}), 500
 
 @app.route('/get-friends', methods=['GET'])
 def get_friends():
@@ -191,16 +198,32 @@ def get_friends():
         if not user_id:
             return jsonify({"error": "Paramètre user_id manquant"}), 400
             
-        # Implémentation basique - à adapter
+        service = get_google_sheets_service()
+        result = service.values().get(
+            spreadsheetId=os.environ['GOOGLE_SHEET_ID'],
+            range=FRIENDS_RANGE,
+            majorDimension="ROWS"
+        ).execute()
+        
+        friends = []
+        for row in result.get('values', []):
+            if len(row) >= 2 and str(row[0]) == str(user_id):
+                friend = {
+                    "id": row[1],
+                    "name": row[2] if len(row) > 2 else "Ami sans nom"
+                }
+                friends.append(friend)
+        
         return jsonify({
-            "friends": [
-                {"id": "123", "name": "Ami 1"},
-                {"id": "456", "name": "Ami 2"}
-            ]
+            "status": "success",
+            "friends": friends
         })
     except Exception as e:
         logger.error(f"Erreur get-friends: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "status": "error",
+            "message": "Erreur lors de la récupération des amis"
+        }), 500
 
 # Routes Frontend
 @app.route('/')

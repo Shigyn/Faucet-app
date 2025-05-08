@@ -383,45 +383,76 @@
         }
 
         // Actions utilisateur
-        async function claimPoints() {
-            if (isClaiming) return;
+       async function claimPoints() {
+    if (isClaiming) return;
 
-            const claimBtn = document.getElementById('claim-btn');
-            try {
-                isClaiming = true;
-                claimBtn.disabled = true;
-                claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Traitement...</span>';
+    const claimBtn = document.getElementById('claim-btn');
+    try {
+        // 1. Désactiver le bouton immédiatement
+        isClaiming = true;
+        claimBtn.disabled = true;
+        claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Traitement...</span>';
 
-                const response = await fetch(`${API_BASE_URL}/claim`, {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({ 
-                        user_id: currentUserId,
-                        initData: window.Telegram?.WebApp?.initData || null
-                    })
-                });
+        // 2. Debug avant l'envoi
+        console.log("Envoi du claim pour user:", currentUserId, "avec initData:", window.Telegram?.WebApp?.initData?.substring(0, 20) + "...");
 
-                const result = await response.json();
-                if (result.error) throw new Error(result.error);
+        // 3. Appel API avec timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+        
+        const response = await fetch(`${API_BASE_URL}/claim`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ 
+                user_id: currentUserId,
+                initData: window.Telegram?.WebApp?.initData || null,
+                username: window.Telegram?.WebApp?.initDataUnsafe?.user?.username || "Unknown"
+            }),
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
 
-                showToast(`+${result.points_earned || 10} points !`, 3000, 'success');
-                loadData();
-
-                if (result.last_claim) {
-                    lastClaimTime = new Date(result.last_claim);
-                    const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
-                    startCooldownTimer(cooldownEnd);
-                }
-            } catch (error) {
-                console.error("Erreur claim:", error);
-                showToast(error.message || "Erreur lors du claim", 3000, 'error');
-            } finally {
-                isClaiming = false;
-            }
+        // 4. Vérification réponse
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || "Erreur inconnue");
         }
+
+        const result = await response.json();
+        console.log("Réponse du serveur:", result); // Debug crucial
+
+        // 5. Gestion réussite
+        showToast(`+${result.points_earned ?? 10} points !`, 3000, 'success');
+        
+        // 6. Forcer le rechargement des données
+        await loadData(); // Note: ajoutez 'await' ici
+
+        // 7. Gestion cooldown
+        if (result.last_claim) {
+            lastClaimTime = new Date(result.last_claim);
+            const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
+            startCooldownTimer(cooldownEnd);
+        } else {
+            claimBtn.disabled = false; // Réactiver si pas de cooldown
+        }
+
+    } catch (error) {
+        console.error("Erreur claim:", error);
+        showToast(error.message.includes("Failed to fetch") 
+            ? "Problème de connexion" 
+            : (error.message || "Erreur technique"), 
+        3000, 'error');
+        
+        // Réactiver le bouton en cas d'échec
+        claimBtn.disabled = false;
+        claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Réclamer</span>';
+    } finally {
+        isClaiming = false;
+    }
+}
 
         async function completeTask(taskName, points) {
             if (isTaskCompleted(taskName)) {

@@ -24,10 +24,10 @@ logger = logging.getLogger(__name__)
 
 # Constantes
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-COOLDOWN_MINUTES = 5  # Cooldown de 5 minutes pour les tests
+COOLDOWN_MINUTES = 5  # Cooldown de 5 minutes
 MIN_CLAIM = 10
 MAX_CLAIM = 100
-USER_RANGE = "Users!A2:C"  # A: user_id, B: amount, C: timestamp
+USER_RANGE = "Users!A2:C"  # A: user_id, B: balance, C: last_claim
 TRANSACTIONS_RANGE = "Transactions!A2:C"  # A: timestamp, B: user_id, C: amount
 
 # Verrou pour les accès concurrents
@@ -47,43 +47,20 @@ def get_google_sheets_service():
         logger.error(f"Erreur d'initialisation Google Sheets: {str(e)}", exc_info=True)
         raise
 
-def validate_user_data(func):
-    """Décorateur pour valider les données utilisateur"""
-    @wraps(func)
-    def wrapper(*args, **kwargs):
+def parse_date(date_str):
+    """Tente de parser la date dans différents formats"""
+    formats = [
+        "%Y-%m-%d %H:%M:%S",  # Format ISO
+        "%d/%m/%Y %H:%M",     # Format français
+        "%m/%d/%Y %H:%M"      # Format américain
+    ]
+    
+    for fmt in formats:
         try:
-            data = request.get_json()
-            if not data or 'user_id' not in data:
-                logger.warning("Données utilisateur manquantes dans la requête")
-                return jsonify({"error": "Données utilisateur manquantes"}), 400
-            return func(*args, **kwargs)
-        except Exception as e:
-            logger.error(f"Erreur validation données: {str(e)}", exc_info=True)
-            return jsonify({"error": "Erreur de traitement des données"}), 400
-    return wrapper
-
-def find_user_row(service, sheet_id, user_id):
-    """Trouve la ligne d'un utilisateur dans la feuille Users"""
-    try:
-        with sheet_lock:
-            result = service.values().get(
-                spreadsheetId=sheet_id,
-                range=USER_RANGE
-            ).execute()
-            
-        rows = result.get('values', [])
-        logger.info(f"Trouvé {len(rows)} lignes dans la feuille Users")
-        
-        for idx, row in enumerate(rows):
-            if row and str(row[0]) == str(user_id):
-                logger.info(f"Utilisateur trouvé à la ligne {idx + 2}")
-                return idx + 2, row
-                
-        logger.warning(f"Utilisateur {user_id} non trouvé")
-        return None, None
-    except Exception as e:
-        logger.error(f"Erreur recherche utilisateur: {str(e)}", exc_info=True)
-        raise
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+    return None
 
 def log_transaction(service, sheet_id, user_id, amount):
     """Log une transaction dans l'onglet Transactions"""
@@ -91,80 +68,19 @@ def log_transaction(service, sheet_id, user_id, amount):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         values = [[timestamp, user_id, amount]]
         
-        with sheet_lock:
-            result = service.values().append(
-                spreadsheetId=sheet_id,
-                range=TRANSACTIONS_RANGE,
-                valueInputOption="USER_ENTERED",
-                insertDataOption="INSERT_ROWS",
-                body={"values": values}
-            ).execute()
-            
-        logger.info(f"Transaction loggée: {result.get('updates').get('updatedCells')} cellules mises à jour")
+        result = service.values().append(
+            spreadsheetId=sheet_id,
+            range=TRANSACTIONS_RANGE,
+            valueInputOption="USER_ENTERED",
+            insertDataOption="INSERT_ROWS",
+            body={"values": values}
+        ).execute()
+        
+        logger.info(f"Transaction enregistrée: {result.get('updates').get('updatedCells')} cellules mises à jour")
         return True
     except Exception as e:
-        logger.error(f"Erreur lors du log de transaction: {str(e)}", exc_info=True)
+        logger.error(f"Erreur lors de l'enregistrement de la transaction: {str(e)}", exc_info=True)
         return False
-
-@app.route('/favicon.ico')
-def favicon():
-    return send_from_directory('static', 'favicon.ico', mimetype='image/vnd.microsoft.icon')
-
-@app.route('/')
-def serve_index():
-    return send_from_directory('templates', 'index.html')
-
-@app.route('/<path:path>')
-def catch_all(path):
-    return send_from_directory('templates', 'index.html')
-
-@app.route('/static/<path:filename>')
-def serve_static(filename):
-    return send_from_directory('static', filename)
-
-@app.route('/get-balance', methods=['POST'])
-@validate_user_data
-def get_balance():
-    try:
-        user_id = str(request.json['user_id'])
-        logger.info(f"Requête balance reçue pour user_id: {user_id}")
-        
-        service = get_google_sheets_service()
-        row_num, row = find_user_row(service, os.environ['GOOGLE_SHEET_ID'], user_id)
-        
-        if not row:
-            logger.info(f"Nouvel utilisateur détecté: {user_id}")
-            return jsonify({
-                "balance": 0, 
-                "last_claim": None, 
-                "referral_code": user_id
-            })
-        
-        response = {
-            "balance": int(row[1]) if len(row) > 1 and row[1] else 0,
-            "last_claim": row[2] if len(row) > 2 else None,
-            "referral_code": user_id  # Utilise user_id comme code de parrainage par défaut
-        }
-        
-        if response['last_claim']:
-            try:
-                last_claim = datetime.strptime(response['last_claim'], "%Y-%m-%d %H:%M:%S")
-                cooldown_end = last_claim + timedelta(minutes=COOLDOWN_MINUTES)
-                if datetime.now() < cooldown_end:
-                    response['cooldown'] = True
-                    remaining = cooldown_end - datetime.now()
-                    response['cooldown_remaining'] = round(remaining.total_seconds() / 60)  # en minutes
-                    logger.info(f"Cooldown actif pour user_id: {user_id}")
-            except ValueError as e:
-                logger.warning(f"Format de date invalide: {response['last_claim']}")
-                response['last_claim'] = None
-        
-        logger.info(f"Réponse balance pour {user_id}: {response}")
-        return jsonify(response)
-        
-    except Exception as e:
-        logger.error(f"Erreur get-balance: {str(e)}", exc_info=True)
-        return jsonify({"error": "Erreur serveur", "details": str(e)}), 500
 
 @app.route('/claim', methods=['POST'])
 @validate_user_data
@@ -179,22 +95,20 @@ def claim_points():
         if not row_num:
             return jsonify({"error": "Utilisateur non trouvé"}), 404
 
-        # Vérification cooldown
+        # Vérification cooldown avec gestion des formats de date multiples
         if len(row) > 2 and row[2]:
-            try:
-                last_claim = datetime.strptime(row[2], "%Y-%m-%d %H:%M:%S")
+            last_claim = parse_date(row[2])
+            if last_claim:
                 cooldown_end = last_claim + timedelta(minutes=COOLDOWN_MINUTES)
                 if datetime.now() < cooldown_end:
-                    remaining = cooldown_end - datetime.now()
-                    remaining_minutes = round(remaining.total_seconds() / 60)
-                    logger.info(f"Cooldown actif - Temps restant: {remaining_minutes} minutes")
+                    remaining = (cooldown_end - datetime.now()).total_seconds() / 60
+                    logger.info(f"Cooldown actif - Temps restant: {remaining:.1f} minutes")
                     return jsonify({
-                        "error": f"Attendez encore {remaining_minutes} minutes",
-                        "cooldown": True,
-                        "cooldown_remaining": remaining_minutes
+                        "error": f"Attendez encore {int(remaining)} minutes",
+                        "cooldown": True
                     }), 400
-            except ValueError as e:
-                logger.warning(f"Format de date invalide: {row[2]} - {str(e)}")
+            else:
+                logger.warning(f"Format de date non reconnu: {row[2]}")
 
         # Génération des points
         points = random.randint(MIN_CLAIM, MAX_CLAIM)
@@ -213,7 +127,8 @@ def claim_points():
             ).execute()
             
             # Log transaction
-            log_transaction(service, os.environ['GOOGLE_SHEET_ID'], user_id, points)
+            if not log_transaction(service, os.environ['GOOGLE_SHEET_ID'], user_id, points):
+                logger.error("Échec de l'enregistrement de la transaction mais le claim a réussi")
 
         logger.info(f"Claim réussi pour {user_id}: +{points} points")
         return jsonify({
@@ -226,74 +141,6 @@ def claim_points():
     except Exception as e:
         logger.error(f"Erreur claim: {str(e)}", exc_info=True)
         return jsonify({"error": "Erreur lors de la réclamation", "details": str(e)}), 500
-
-@app.route('/get-tasks', methods=['GET'])
-def get_tasks():
-    try:
-        logger.info("Requête get-tasks reçue")
-        tasks = [
-            {
-                "task_name": "Rejoindre Telegram",
-                "description": "Rejoignez notre groupe Telegram",
-                "points": 50,
-                "url": "https://t.me/CRYPTORATS_bot"
-            },
-            {
-                "task_name": "Suivre Twitter",
-                "description": "Suivez-nous sur Twitter",
-                "points": 30,
-                "url": "https://twitter.com/CRYPTORATS_bot"
-            }
-        ]
-        return jsonify({"tasks": tasks})
-    except Exception as e:
-        logger.error(f"Erreur get-tasks: {str(e)}", exc_info=True)
-        return jsonify({"error": "Erreur serveur"}), 500
-
-@app.route('/get-friends', methods=['GET'])
-def get_friends():
-    try:
-        user_id = request.args.get('user_id')
-        logger.info(f"Requête get-friends reçue pour user_id: {user_id}")
-        
-        if not user_id:
-            logger.warning("Paramètre user_id manquant")
-            return jsonify({"error": "ID utilisateur manquant"}), 400
-            
-        # Exemple de réponse - À remplacer par votre logique réelle
-        return jsonify({
-            "referrals": [
-                {"username": "user1", "total_points": 100},
-                {"username": "user2", "total_points": 50}
-            ]
-        })
-    except Exception as e:
-        logger.error(f"Erreur get-friends: {str(e)}", exc_info=True)
-        return jsonify({"error": "Erreur serveur"}), 500
-
-@app.route('/complete-task', methods=['POST'])
-@validate_user_data
-def complete_task():
-    try:
-        data = request.json
-        logger.info(f"Requête complete-task reçue: {data}")
-        
-        required = ['user_id', 'task_name', 'points']
-        if not all(k in data for k in required):
-            logger.warning("Données manquantes dans complete-task")
-            return jsonify({"error": "Données manquantes"}), 400
-            
-        # Ici vous devriez enregistrer la tâche complétée
-        # Exemple simplifié:
-        return jsonify({
-            "success": True,
-            "points_added": data['points'],
-            "task": data['task_name']
-        })
-        
-    except Exception as e:
-        logger.error(f"Erreur complete-task: {str(e)}", exc_info=True)
-        return jsonify({"error": "Erreur serveur"}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))

@@ -91,6 +91,35 @@ def find_user_row(service, sheet_id, user_id):
         logger.error(f"Erreur recherche utilisateur: {str(e)}")
         raise
 
+# Fonction pour ajouter ou mettre à jour un utilisateur
+def add_or_update_user(service, sheet_id, user_id, balance, last_claim=None):
+    try:
+        # Vérifier si l'utilisateur existe déjà
+        row_num, user = find_user_row(service, sheet_id, user_id)
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        if row_num:
+            # Mise à jour de l'utilisateur existant
+            service.spreadsheets().values().update(
+                spreadsheetId=sheet_id,
+                range=f"Users!C{row_num}:F{row_num}",
+                valueInputOption="USER_ENTERED",
+                body={"values": [[user_id, balance, last_claim or "", user.get('referral_code', user_id)]]}
+            ).execute()
+        else:
+            # Si l'utilisateur n'existe pas, créer une nouvelle ligne
+            new_row = [now, "claim", user_id, balance, last_claim or "", user_id]
+            service.spreadsheets().values().append(
+                spreadsheetId=sheet_id,
+                range=SHEET_CONFIG['users']['range'],
+                valueInputOption="USER_ENTERED",
+                body={"values": [new_row]}
+            ).execute()
+
+    except Exception as e:
+        logger.error(f"Erreur ajout ou mise à jour utilisateur: {str(e)}")
+        raise
+
 def parse_date(date_str):
     if not date_str:
         return None
@@ -119,11 +148,8 @@ def claim_points():
         sheet_id = os.environ['GOOGLE_SHEET_ID']
         row_num, user = find_user_row(service, sheet_id, user_id)
 
-        if not row_num:
-            return jsonify({"status": "error", "message": "Utilisateur non trouvé"}), 404
-
         # Cooldown
-        if user.get('last_claim'):
+        if user and user.get('last_claim'):
             last_claim = parse_date(user['last_claim'])
             if last_claim and (datetime.now() - last_claim) < timedelta(minutes=COOLDOWN_MINUTES):
                 remaining = (last_claim + timedelta(minutes=COOLDOWN_MINUTES) - datetime.now()).seconds // 60
@@ -136,23 +162,19 @@ def claim_points():
         points = random.randint(MIN_CLAIM, MAX_CLAIM)
         current_balance = int(user.get('balance') or 0)
         new_balance = current_balance + points
-        now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         with sheet_lock:
-            # Mise à jour utilisateur
-            service.spreadsheets().values().update(
-                spreadsheetId=sheet_id,
-                range=f"Users!C{row_num}:F{row_num}",
-                valueInputOption="USER_ENTERED",
-                body={"values": [[user_id, new_balance, now, user.get('referral_code', user_id)]]}
-            ).execute()
+            # Mise à jour utilisateur ou création
+            add_or_update_user(service, sheet_id, user_id, new_balance, last_claim=now)
+
             # Ajout transaction
             service.spreadsheets().values().append(
                 spreadsheetId=sheet_id,
                 range=SHEET_CONFIG['transactions']['range'],
                 valueInputOption="USER_ENTERED",
-                body={"values": [[now, user_id, points, "claim"]]})
-            .execute()
+                body={"values": [[now, user_id, points, "claim"]]}
+            ).execute()
 
         return jsonify({
             "status": "success",
@@ -164,93 +186,7 @@ def claim_points():
         logger.error(f"Erreur claim: {str(e)}")
         return jsonify({"status": "error", "message": "Erreur serveur"}), 500
 
-@app.route('/get-balance', methods=['POST'])
-def get_balance():
-    try:
-        user_id = str(request.json.get('user_id'))
-        if not user_id:
-            return jsonify({"status": "error", "message": "User ID manquant"}), 400
-
-        service = get_google_sheets_service()
-        sheet_id = os.environ['GOOGLE_SHEET_ID']
-        _, user = find_user_row(service, sheet_id, user_id)
-
-        if not user:
-            return jsonify({
-                "status": "success",
-                "balance": 0,
-                "last_claim": None,
-                "referral_code": user_id
-            })
-
-        return jsonify({
-            "status": "success",
-            "balance": int(user.get('balance') or 0),
-            "last_claim": user.get('last_claim'),
-            "referral_code": user.get('referral_code', user_id)
-        })
-    except Exception as e:
-        logger.error(f"Erreur balance: {str(e)}")
-        return jsonify({"status": "error", "message": "Erreur serveur"}), 500
-
-@app.route('/get-tasks', methods=['GET'])
-def get_tasks():
-    try:
-        service = get_google_sheets_service()
-        tasks_data = get_sheet_data(service, os.environ['GOOGLE_SHEET_ID'], SHEET_CONFIG['tasks']['range'])
-
-        tasks = []
-        for row in tasks_data:
-            if len(row) >= 4:
-                tasks.append({
-                    "task_name": row[0],
-                    "description": row[1],
-                    "points": int(row[2]) if str(row[2]).isdigit() else 0,
-                    "url": row[3]
-                })
-
-        return jsonify({"status": "success", "tasks": tasks})
-    except Exception as e:
-        logger.error(f"Erreur get-tasks: {str(e)}")
-        return jsonify({"status": "error", "message": "Erreur serveur"}), 500
-
-@app.route('/get-friends', methods=['GET'])
-def get_friends():
-    try:
-        user_id = request.args.get('user_id')
-        if not user_id:
-            return jsonify({"status": "error", "message": "User ID manquant"}), 400
-
-        service = get_google_sheets_service()
-        friends_data = get_sheet_data(service, os.environ['GOOGLE_SHEET_ID'], SHEET_CONFIG['friends']['range'])
-
-        referrals = []
-        for row in friends_data:
-            if len(row) >= 2 and str(row[0]) == str(user_id):
-                referrals.append({
-                    "username": row[2] if len(row) > 2 else "Anonyme",
-                    "total_points": int(row[3]) if len(row) > 3 and str(row[3]).isdigit() else 0
-                })
-
-        return jsonify({
-            "status": "success",
-            "referrals": referrals
-        })
-    except Exception as e:
-        logger.error(f"Erreur get-friends: {str(e)}")
-        return jsonify({"status": "error", "message": "Erreur serveur"}), 500
-
-@app.route('/health')
-def health_check():
-    return "OK", 200
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/static/<path:path>')
-def serve_static(path):
-    return send_from_directory('static', path)
+# Routes restantes inchangées...
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))

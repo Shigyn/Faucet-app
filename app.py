@@ -24,10 +24,11 @@ logger = logging.getLogger(__name__)
 
 # Constantes
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-COOLDOWN_MINUTES = 5
+COOLDOWN_MINUTES = 5  # Cooldown de 5 minutes pour les tests
 MIN_CLAIM = 10
 MAX_CLAIM = 100
-USER_RANGE = "Users!A2:G"
+USER_RANGE = "Users!A2:C"  # A: user_id, B: amount, C: timestamp
+TRANSACTIONS_RANGE = "Transactions!A2:C"  # A: timestamp, B: user_id, C: amount
 
 # Verrou pour les accès concurrents
 sheet_lock = Lock()
@@ -62,7 +63,7 @@ def validate_user_data(func):
     return wrapper
 
 def find_user_row(service, sheet_id, user_id):
-    """Trouve la ligne d'un utilisateur dans la feuille avec logging"""
+    """Trouve la ligne d'un utilisateur dans la feuille Users"""
     try:
         with sheet_lock:
             result = service.values().get(
@@ -71,7 +72,7 @@ def find_user_row(service, sheet_id, user_id):
             ).execute()
             
         rows = result.get('values', [])
-        logger.info(f"Trouvé {len(rows)} lignes dans la feuille")
+        logger.info(f"Trouvé {len(rows)} lignes dans la feuille Users")
         
         for idx, row in enumerate(rows):
             if row and str(row[0]) == str(user_id):
@@ -83,6 +84,27 @@ def find_user_row(service, sheet_id, user_id):
     except Exception as e:
         logger.error(f"Erreur recherche utilisateur: {str(e)}", exc_info=True)
         raise
+
+def log_transaction(service, sheet_id, user_id, amount):
+    """Log une transaction dans l'onglet Transactions"""
+    try:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        values = [[timestamp, user_id, amount]]
+        
+        with sheet_lock:
+            result = service.values().append(
+                spreadsheetId=sheet_id,
+                range=TRANSACTIONS_RANGE,
+                valueInputOption="USER_ENTERED",
+                insertDataOption="INSERT_ROWS",
+                body={"values": values}
+            ).execute()
+            
+        logger.info(f"Transaction loggée: {result.get('updates').get('updatedCells')} cellules mises à jour")
+        return True
+    except Exception as e:
+        logger.error(f"Erreur lors du log de transaction: {str(e)}", exc_info=True)
+        return False
 
 @app.route('/favicon.ico')
 def favicon():
@@ -121,14 +143,17 @@ def get_balance():
         response = {
             "balance": int(row[1]) if len(row) > 1 and row[1] else 0,
             "last_claim": row[2] if len(row) > 2 else None,
-            "referral_code": row[5] if len(row) > 5 and row[5] else user_id
+            "referral_code": user_id  # Utilise user_id comme code de parrainage par défaut
         }
         
         if response['last_claim']:
             try:
                 last_claim = datetime.strptime(response['last_claim'], "%Y-%m-%d %H:%M:%S")
-                if datetime.now() - last_claim < timedelta(hours=COOLDOWN_HOURS):
+                cooldown_end = last_claim + timedelta(minutes=COOLDOWN_MINUTES)
+                if datetime.now() < cooldown_end:
                     response['cooldown'] = True
+                    remaining = cooldown_end - datetime.now()
+                    response['cooldown_remaining'] = round(remaining.total_seconds() / 60)  # en minutes
                     logger.info(f"Cooldown actif pour user_id: {user_id}")
             except ValueError as e:
                 logger.warning(f"Format de date invalide: {response['last_claim']}")
@@ -146,57 +171,57 @@ def get_balance():
 def claim_points():
     try:
         user_id = str(request.json['user_id'])
+        logger.info(f"Requête claim reçue pour user_id: {user_id}")
+        
         service = get_google_sheets_service()
         row_num, row = find_user_row(service, os.environ['GOOGLE_SHEET_ID'], user_id)
         
         if not row_num:
             return jsonify({"error": "Utilisateur non trouvé"}), 404
 
-        # Debug: Affiche les données actuelles
-        print(f"Données utilisateur avant claim: {row}")
-            
         # Vérification cooldown
-        if len(row) > 2 and row[2]:  # Vérifie si last_claim existe
+        if len(row) > 2 and row[2]:
             try:
                 last_claim = datetime.strptime(row[2], "%Y-%m-%d %H:%M:%S")
-                elapsed_hours = (datetime.now() - last_claim).total_seconds() / 3600
-                print(f"Dernier claim: {last_claim} | Heures écoulées: {elapsed_hours}")
-                
-                if elapsed_hours < COOLDOWN_HOURS:
+                cooldown_end = last_claim + timedelta(minutes=COOLDOWN_MINUTES)
+                if datetime.now() < cooldown_end:
+                    remaining = cooldown_end - datetime.now()
+                    remaining_minutes = round(remaining.total_seconds() / 60)
+                    logger.info(f"Cooldown actif - Temps restant: {remaining_minutes} minutes")
                     return jsonify({
-                        "error": f"Attendez {COOLDOWN_HOURS*60} minutes entre chaque claim",
-                        "cooldown": True
+                        "error": f"Attendez encore {remaining_minutes} minutes",
+                        "cooldown": True,
+                        "cooldown_remaining": remaining_minutes
                     }), 400
             except ValueError as e:
-                print(f"Erreur parsing date: {e}")
+                logger.warning(f"Format de date invalide: {row[2]} - {str(e)}")
 
         # Génération des points
         points = random.randint(MIN_CLAIM, MAX_CLAIM)
         current_balance = int(row[1]) if len(row) > 1 and row[1] else 0
         new_balance = current_balance + points
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # Format explicite
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # Mise à jour Sheets
         with sheet_lock:
-            update_result = service.values().update(
+            # Update user balance and last claim
+            service.values().update(
                 spreadsheetId=os.environ['GOOGLE_SHEET_ID'],
                 range=f"Users!B{row_num}:C{row_num}",
                 valueInputOption="USER_ENTERED",
                 body={"values": [[new_balance, now]]}
             ).execute()
             
-            print(f"Update result: {update_result}")
+            # Log transaction
+            log_transaction(service, os.environ['GOOGLE_SHEET_ID'], user_id, points)
 
+        logger.info(f"Claim réussi pour {user_id}: +{points} points")
         return jsonify({
             "success": True,
             "new_balance": new_balance,
             "points_earned": points,
-            "last_claim": now  # Renvoie la date formatée
+            "last_claim": now
         })
-        
-    except Exception as e:
-        print(f"Erreur claim: {str(e)}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
         
     except Exception as e:
         logger.error(f"Erreur claim: {str(e)}", exc_info=True)

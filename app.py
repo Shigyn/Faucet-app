@@ -30,21 +30,21 @@ COOLDOWN_MINUTES = 5
 MIN_CLAIM = 10
 MAX_CLAIM = 100
 
-# Configuration Sheets (vérifiez les noms exacts de vos feuilles)
+# Configuration Sheets
 SHEET_CONFIG = {
     'users': {
-        'range': "Users!A2:C",  # user_id, balance, last_claim
+        'range': "Users!A2:C",
         'headers': ['user_id', 'balance', 'last_claim']
     },
     'transactions': {
-        'range': "Transactions!A2:C"  # timestamp, user_id, amount
+        'range': "Transactions!A2:C"
     },
     'tasks': {
-        'range': "Tasks!A2:D",  # id, name, reward, completed
+        'range': "Tasks!A2:D",
         'headers': ['id', 'name', 'reward', 'completed']
     },
     'friends': {
-        'range': "Referrals!A2:C",  # Changé de Friends à Referrals (plus standard)
+        'range': "Referrals!A2:C",
         'headers': ['user_id', 'friend_id', 'friend_name']
     }
 }
@@ -97,7 +97,6 @@ def parse_date(date_str):
             continue
     return None
 
-# Routes API
 @app.route('/claim', methods=['POST'])
 def claim_points():
     try:
@@ -108,11 +107,11 @@ def claim_points():
         service = get_google_sheets_service()
         sheet_id = os.environ['GOOGLE_SHEET_ID']
         row_num, user = find_user_row(service, sheet_id, user_id)
-        
+
         if not row_num:
             return jsonify({"status": "error", "message": "Utilisateur non trouvé"}), 404
 
-        # Vérification cooldown
+        # Cooldown
         if user.get('last_claim'):
             last_claim = parse_date(user['last_claim'])
             if last_claim and (datetime.now() - last_claim) < timedelta(minutes=COOLDOWN_MINUTES):
@@ -128,14 +127,13 @@ def claim_points():
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         with sheet_lock:
-            # Mise à jour utilisateur
+            # Mise à jour balance
             service.values().update(
                 spreadsheetId=sheet_id,
                 range=f"Users!B{row_num}:C{row_num}",
                 valueInputOption="USER_ENTERED",
                 body={"values": [[new_balance, now]]}
             ).execute()
-            
             # Ajout transaction
             service.values().append(
                 spreadsheetId=sheet_id,
@@ -163,7 +161,7 @@ def get_balance():
 
         service = get_google_sheets_service()
         _, user = find_user_row(service, os.environ['GOOGLE_SHEET_ID'], user_id)
-        
+
         if not user:
             return jsonify({"status": "error", "message": "Utilisateur non trouvé"}), 404
 
@@ -182,7 +180,7 @@ def get_tasks():
     try:
         service = get_google_sheets_service()
         tasks_data = get_sheet_data(service, os.environ['GOOGLE_SHEET_ID'], SHEET_CONFIG['tasks']['range'])
-        
+
         tasks = []
         for row in tasks_data:
             if len(row) >= 3:
@@ -194,7 +192,7 @@ def get_tasks():
                 if len(row) >= 4:
                     task["completed"] = row[3].lower() in ("true", "vrai", "1", "oui")
                 tasks.append(task)
-        
+
         return jsonify({"status": "success", "tasks": tasks})
     except Exception as e:
         logger.error(f"Erreur get-tasks: {str(e)}")
@@ -206,10 +204,10 @@ def get_friends():
         user_id = request.args.get('user_id')
         if not user_id:
             return jsonify({"status": "error", "message": "User ID manquant"}), 400
-            
+
         service = get_google_sheets_service()
         friends_data = get_sheet_data(service, os.environ['GOOGLE_SHEET_ID'], SHEET_CONFIG['friends']['range'])
-        
+
         friends = []
         for row in friends_data:
             if len(row) >= 2 and str(row[0]) == str(user_id):
@@ -217,11 +215,16 @@ def get_friends():
                     "id": row[1],
                     "name": row[2] if len(row) > 2 else "Ami"
                 })
-        
+
         return jsonify({"status": "success", "friends": friends})
     except Exception as e:
         logger.error(f"Erreur get-friends: {str(e)}")
         return jsonify({"status": "error", "message": "Erreur serveur"}), 500
+
+# Endpoint de santé (utilisé par Render)
+@app.route('/health')
+def health_check():
+    return "OK", 200
 
 # Routes Frontend
 @app.route('/')
@@ -234,4 +237,4 @@ def serve_static(path):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    app.run(host="0.0.0.0", port=port, debug=os.environ.get("FLASK_DEBUG", "false").lower() == "true")

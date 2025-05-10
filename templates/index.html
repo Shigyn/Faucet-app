@@ -524,22 +524,48 @@
                 </div>`).join('');
         }
 
-        function updateClaimButton() {
-            const claimBtn = document.getElementById('claim-btn');
-            if (!claimBtn) return;
+        const COOLDOWN_MINUTES = 5; // 5 minutes de cooldown
 
-            if (lastClaimTime) {
-                const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
-                if (Date.now() < cooldownEnd) {
-                    startCooldownTimer(cooldownEnd);
-                    return;
-                }
-            }
+function updateClaimButton() {
+    const claimBtn = document.getElementById('claim-btn');
+    if (!claimBtn) return;
 
-            claimBtn.disabled = true;
-            claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
+    if (lastClaimTime) {
+        const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
+        if (Date.now() < cooldownEnd) {
+            startCooldownTimer(cooldownEnd); // Démarre le compte à rebours
+            return;
+        }
+    }
+
+    // Réactive le bouton si le cooldown est terminé
+    claimBtn.disabled = false;
+    claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text>Claim Now</span>';
+    claimBtn.style.opacity = 1; // Style "actif"
+}
+
+function startCooldownTimer(cooldownEnd) {
+    const claimBtn = document.getElementById('claim-btn');
+    claimBtn.disabled = true;
+    claimBtn.style.opacity = 0.5; // Style "grisé"
+
+    // Met à jour le texte toutes les secondes
+    const timerInterval = setInterval(() => {
+        const now = Date.now();
+        const remainingTime = cooldownEnd - now;
+
+        if (remainingTime <= 0) {
+            clearInterval(timerInterval);
+            updateClaimButton(); // Réactive le bouton
+            return;
         }
 
+        // Affiche le temps restant (ex: "04:23")
+        const minutes = Math.floor(remainingTime / 60000);
+        const seconds = Math.floor((remainingTime % 60000) / 1000);
+        claimBtn.innerHTML = `<span class="button-icon">⏳</span><span class="button-text>${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}</span>`;
+    }, 1000);
+}
         // Actions utilisateur
         async function claimPoints() {
             if (isClaiming || !currentUserId) return;

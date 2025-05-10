@@ -388,8 +388,6 @@ function updateClaimButton() {
         const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
         if (Date.now() < cooldownEnd) {
             startCooldownTimer(cooldownEnd);
-            claimBtn.disabled = true;
-            claimBtn.innerHTML = `<span class="button-icon">⏳</span><span class="button-text">Attendre ${formatTimeRemaining(cooldownEnd)}</span>`;
             return;
         }
     }
@@ -408,18 +406,23 @@ function startCooldownTimer(cooldownEnd) {
     const claimBtn = document.getElementById('claim-btn');
     if (!claimBtn) return;
 
-    const intervalId = setInterval(() => {
-        const now = new Date();
-        if (now >= cooldownEnd) {
-            clearInterval(intervalId);
+    claimBtn.disabled = true;
+
+    function updateTimer() {
+        const remaining = Math.max(0, cooldownEnd - Date.now());
+        if (remaining <= 0) {
             claimBtn.disabled = false;
             claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
-        } else {
-            const remaining = formatTimeRemaining(cooldownEnd);
-            claimBtn.disabled = true;
-            claimBtn.innerHTML = `<span class="button-icon">⏳</span><span class="button-text">Attendre ${remaining}</span>`;
+            return;
         }
-    }, 1000);
+
+        const minutes = Math.floor(remaining / 60000);
+        const seconds = Math.floor((remaining % 60000) / 1000);
+        claimBtn.innerHTML = `<span class="button-icon">⏳</span><span class="button-text">${minutes}m ${seconds}s</span>`;
+        setTimeout(updateTimer, 1000);
+    }
+
+    updateTimer();
 }
 
 // User Actions
@@ -432,8 +435,7 @@ async function claimPoints() {
         claimBtn.disabled = true;
         claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Processing...</span>';
 
-        // Simulating loading time (simulate update with setTimeout or Promise)
-        await new Promise(resolve => setTimeout(resolve, 3000)); // 3s simulation
+        await new Promise(resolve => setTimeout(resolve, 3000)); // Simulate loading
 
         const response = await fetch(`${API_BASE_URL}/claim`, {
             method: 'POST',
@@ -496,116 +498,94 @@ async function completeTask(taskName, points) {
     }
 }
 
-        // Utilities
-        function startAutoRefresh() {
-            clearInterval(refreshInterval);
-            refreshInterval = setInterval(() => {
-                if (document.visibilityState === 'visible') loadData();
-            }, 30000);
-        }
+// Utilities
+function startAutoRefresh() {
+    clearInterval(refreshInterval);
+    refreshInterval = setInterval(() => {
+        if (document.visibilityState === 'visible') loadData();
+    }, 30000);
+}
 
-        function startCooldownTimer(cooldownEnd) {
-            const claimBtn = document.getElementById('claim-btn');
-            if (!claimBtn) return;
+function showToast(message, duration = 3000, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast-message toast-${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
 
-            claimBtn.disabled = true;
+    setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 500);
+    }, duration);
+}
 
-            function updateTimer() {
-                const remaining = Math.max(0, cooldownEnd - Date.now());
-                if (remaining <= 0) {
-                    claimBtn.disabled = false;
-                    claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
-                    return;
-                }
+function switchPage(pageId) {
+    document.querySelectorAll('.page').forEach(page => {
+        page.classList.add('hidden');
+        page.classList.remove('active-page');
+    });
 
-                const minutes = Math.floor(remaining / 60000);
-                const seconds = Math.floor((remaining % 60000) / 1000);
+    const page = document.getElementById(pageId);
+    if (page) {
+        page.classList.remove('hidden');
+        page.classList.add('active-page');
+    }
 
-                claimBtn.innerHTML = `<span class="button-icon">⏳</span><span class="button-text">${minutes}m ${seconds}s</span>`;
-                setTimeout(updateTimer, 1000);
-            }
-            updateTimer();
-        }
+    document.querySelectorAll('.tab-bar .tab-item').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-page') === pageId);
+    });
+}
 
-        function showToast(message, duration = 3000, type = 'info') {
-            const toast = document.createElement('div');
-            toast.className = `toast-message toast-${type}`;
-            toast.textContent = message;
-            document.body.appendChild(toast);
+function isTaskCompleted(taskName) {
+    const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]');
+    return completedTasks.includes(taskName);
+}
 
-            setTimeout(() => {
-                toast.classList.add('fade-out');
-                setTimeout(() => toast.remove(), 500);
-            }, duration);
-        }
+function escapeHTML(str) {
+    if (!str) return '';
+    return str.toString()
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 
-        function switchPage(pageId) {
-            document.querySelectorAll('.page').forEach(page => {
-                page.classList.add('hidden');
-                page.classList.remove('active-page');
-            });
+function escapeString(str) {
+    if (!str) return '';
+    return str.toString()
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '\\"');
+}
 
-            const page = document.getElementById(pageId);
-            if (page) {
-                page.classList.remove('hidden');
-                page.classList.add('active-page');
-            }
+function handleError(error) {
+    console.error(error);
+    showToast("Erreur", 3000, 'error');
+}
 
-            document.querySelectorAll('.tab-bar .tab-item').forEach(btn => {
-                btn.classList.toggle('active', btn.getAttribute('data-page') === pageId);
-            });
-        }
+// Event Listeners
+function setupEventListeners() {
+    document.getElementById('claim-btn')?.addEventListener('click', claimPoints);
+    
+    document.getElementById('copy-btn')?.addEventListener('click', () => {
+        const link = document.getElementById('referral-link');
+        link.select();
+        document.execCommand('copy');
+        showToast('Lien copié !', 2000, 'info');
+    });
+    
+    document.querySelectorAll('.tab-bar .tab-item').forEach(btn => {
+        btn.addEventListener('click', () => switchPage(btn.getAttribute('data-page')));
+    });
+    
+    document.getElementById('watch-ads-btn')?.addEventListener('click', () => {
+        showToast("Fonctionnalité à venir!", 2000, 'info');
+    });
+}
 
-        function isTaskCompleted(taskName) {
-            const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]');
-            return completedTasks.includes(taskName);
-        }
+// Start App
+document.addEventListener('DOMContentLoaded', initApp);
 
-        function escapeHTML(str) {
-            if (!str) return '';
-            return str.toString()
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
-        }
-
-        function escapeString(str) {
-            if (!str) return '';
-            return str.toString()
-                .replace(/\\/g, '\\\\')
-                .replace(/'/g, "\\'")
-                .replace(/"/g, '\\"');
-        }
-
-        function handleError(error) {
-            console.error(error);
-            showToast("Erreur", 3000, 'error');
-        }
-
-        // Event Listeners
-        function setupEventListeners() {
-            document.getElementById('claim-btn')?.addEventListener('click', claimPoints);
-            
-            document.getElementById('copy-btn')?.addEventListener('click', () => {
-                const link = document.getElementById('referral-link');
-                link.select();
-                document.execCommand('copy');
-                showToast('Lien copié !', 2000, 'info');
-            });
-            
-            document.querySelectorAll('.tab-bar .tab-item').forEach(btn => {
-                btn.addEventListener('click', () => switchPage(btn.getAttribute('data-page')));
-            });
-            
-            document.getElementById('watch-ads-btn')?.addEventListener('click', () => {
-                showToast("Fonctionnalité à venir!", 2000, 'info');
-            });
-        }
-
-        // Start App
-        document.addEventListener('DOMContentLoaded', initApp);
     </script>
 </body>
 </html>

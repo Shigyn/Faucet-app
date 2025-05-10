@@ -289,181 +289,194 @@
         }
 
         // Data Fetching
-        async function fetchBalance() {
-            const response = await fetch(`${API_BASE_URL}/get-balance`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    user_id: currentUserId,
-                    initData: window.Telegram?.WebApp?.initData
-                })
-            });
-            if (!response.ok) throw new Error("Erreur API");
-            return await response.json();
+async function fetchBalance() {
+    const response = await fetch(`${API_BASE_URL}/get-balance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            user_id: currentUserId,
+            initData: window.Telegram?.WebApp?.initData
+        })
+    });
+    if (!response.ok) throw new Error("Erreur API");
+    return await response.json();
+}
+
+async function fetchTasks() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/get-tasks`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                user_id: currentUserId,
+                initData: window.Telegram?.WebApp?.initData
+            })
+        });
+        return response.ok ? await response.json() : { tasks: [] };
+    } catch { return { tasks: [] }; }
+}
+
+async function fetchReferrals() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/get-referrals`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                user_id: currentUserId,
+                initData: window.Telegram?.WebApp?.initData
+            })
+        });
+        return response.ok ? await response.json() : { referrals: [] };
+    } catch { return { referrals: [] }; }
+}
+
+// UI Updates
+function updateUI({ balance, tasks, referrals }) {
+    if (balance) {
+        currentBalance = balance.balance || 0;
+        document.getElementById('balance-value').textContent = currentBalance;
+        
+        const lastClaimElement = document.getElementById('last-claim-value');
+        if (balance.last_claim) {
+            lastClaimTime = new Date(balance.last_claim);
+            lastClaimElement.textContent = lastClaimTime.toLocaleTimeString();
+        } else {
+            lastClaimElement.textContent = 'Jamais';
+        }
+        
+        document.getElementById('level-badge').textContent = `Niveau ${Math.floor(currentBalance / 100) + 1}`;
+        
+        if (balance.referral_code) {
+            document.getElementById('referral-link').value = 
+                `https://t.me/CRYPTORATS_bot?start=${balance.referral_code}`;
+        }
+        updateClaimButton();
+    }
+    
+    if (tasks) updateTasksList(tasks);
+    if (referrals) updateReferralsList(referrals);
+}
+
+function updateTasksList(tasks) {
+    const container = document.getElementById('tasks-list');
+    container.innerHTML = tasks?.tasks?.length ? tasks.tasks.map(task => `
+        <div class="task-card">
+            <h3>${escapeHTML(task.name)}</h3>
+            <p>${escapeHTML(task.description || 'Description non disponible')}</p>
+            <span class="points-badge">${task.reward || 0} pts</span>
+            <button class="task-btn" onclick="completeTask('${escapeString(task.name)}', ${task.reward || 0})">
+                ${isTaskCompleted(task.name) ? '✅ Terminé' : 'Commencer'}
+            </button>
+        </div>`).join('') : "<p>Aucune tâche disponible</p>";
+}
+
+function updateReferralsList(referrals) {
+    const container = document.getElementById('referrals-container');
+    container.innerHTML = referrals?.referrals?.length ? referrals.referrals.map(ref => `
+        <div class="referral-item">
+            <span class="referral-id">${ref.user_id.substring(0, 8)}...</span>
+            <span class="referral-points">+${ref.points_earned || 0} pts</span>
+            <span class="referral-date">${ref.timestamp ? new Date(ref.timestamp).toLocaleDateString() : ''}</span>
+        </div>`).join('') : "<p>Aucun membre pour le moment</p>";
+}
+
+function updateClaimButton() {
+    const claimBtn = document.getElementById('claim-btn');
+    if (!claimBtn) return;
+
+    if (lastClaimTime) {
+        const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
+        if (Date.now() < cooldownEnd) {
+            startCooldownTimer(cooldownEnd);
+            claimBtn.disabled = true;
+            claimBtn.innerHTML = `<span class="button-icon">⏳</span><span class="button-text">Attendre ${formatTimeRemaining(cooldownEnd)}</span>`;
+            return;
+        }
+    }
+    claimBtn.disabled = false;
+    claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
+}
+
+function formatTimeRemaining(cooldownEnd) {
+    const remainingTime = Math.max(0, cooldownEnd - Date.now());
+    const minutes = Math.floor(remainingTime / 60000);
+    const seconds = Math.floor((remainingTime % 60000) / 1000);
+    return `${minutes}m ${seconds}s`;
+}
+
+// User Actions
+async function claimPoints() {
+    if (isClaiming || !currentUserId) return;
+
+    const claimBtn = document.getElementById('claim-btn');
+    try {
+        isClaiming = true;
+        claimBtn.disabled = true;
+        claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Processing...</span>';
+
+        // Simulating loading time (simulate update with setTimeout or Promise)
+        await new Promise(resolve => setTimeout(resolve, 3000)); // 3s simulation
+
+        const response = await fetch(`${API_BASE_URL}/claim`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                user_id: currentUserId,
+                initData: window.Telegram?.WebApp?.initData
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || "Erreur serveur");
         }
 
-        async function fetchTasks() {
-            try {
-                const response = await fetch(`${API_BASE_URL}/get-tasks`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        user_id: currentUserId,
-                        initData: window.Telegram?.WebApp?.initData
-                    })
-                });
-                return response.ok ? await response.json() : { tasks: [] };
-            } catch { return { tasks: [] }; }
+        const result = await response.json();
+        showToast(`+${result.points_earned || 10} points !`, 3000, 'success');
+        await loadData();
+
+        if (result.last_claim) {
+            lastClaimTime = new Date(result.last_claim);
+            const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
+            startCooldownTimer(cooldownEnd);
+        }
+    } catch (error) {
+        showToast(error.message || "Erreur", 3000, 'error');
+        claimBtn.disabled = false;
+        claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
+    } finally {
+        isClaiming = false;
+    }
+}
+
+async function completeTask(taskName, points) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/complete-task`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: currentUserId,
+                task_name: taskName,
+                points: points,
+                initData: window.Telegram?.WebApp?.initData
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || "Erreur serveur");
         }
 
-        async function fetchReferrals() {
-            try {
-                const response = await fetch(`${API_BASE_URL}/get-referrals`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        user_id: currentUserId,
-                        initData: window.Telegram?.WebApp?.initData
-                    })
-                });
-                return response.ok ? await response.json() : { referrals: [] };
-            } catch { return { referrals: [] }; }
-        }
-
-        // UI Updates
-        function updateUI({ balance, tasks, referrals }) {
-            if (balance) {
-                currentBalance = balance.balance || 0;
-                document.getElementById('balance-value').textContent = currentBalance;
-                
-                const lastClaimElement = document.getElementById('last-claim-value');
-                if (balance.last_claim) {
-                    lastClaimTime = new Date(balance.last_claim);
-                    lastClaimElement.textContent = lastClaimTime.toLocaleTimeString();
-                } else {
-                    lastClaimElement.textContent = 'Jamais';
-                }
-                
-                document.getElementById('level-badge').textContent = `Niveau ${Math.floor(currentBalance / 100) + 1}`;
-                
-                if (balance.referral_code) {
-                    document.getElementById('referral-link').value = 
-                        `https://t.me/CRYPTORATS_bot?start=${balance.referral_code}`;
-                }
-                updateClaimButton();
-            }
-            
-            if (tasks) updateTasksList(tasks);
-            if (referrals) updateReferralsList(referrals);
-        }
-
-        function updateTasksList(tasks) {
-            const container = document.getElementById('tasks-list');
-            container.innerHTML = tasks?.tasks?.length ? tasks.tasks.map(task => `
-                <div class="task-card">
-                    <h3>${escapeHTML(task.name)}</h3>
-                    <p>${escapeHTML(task.description || 'Description non disponible')}</p>
-                    <span class="points-badge">${task.reward || 0} pts</span>
-                    <button class="task-btn" onclick="completeTask('${escapeString(task.name)}', ${task.reward || 0})">
-                        ${isTaskCompleted(task.name) ? '✅ Terminé' : 'Commencer'}
-                    </button>
-                </div>`).join('') : "<p>Aucune tâche disponible</p>";
-        }
-
-        function updateReferralsList(referrals) {
-            const container = document.getElementById('referrals-container');
-            container.innerHTML = referrals?.referrals?.length ? referrals.referrals.map(ref => `
-                <div class="referral-item">
-                    <span class="referral-id">${ref.user_id.substring(0, 8)}...</span>
-                    <span class="referral-points">+${ref.points_earned || 0} pts</span>
-                    <span class="referral-date">${ref.timestamp ? new Date(ref.timestamp).toLocaleDateString() : ''}</span>
-                </div>`).join('') : "<p>Aucun membre pour le moment</p>";
-        }
-
-        function updateClaimButton() {
-            const claimBtn = document.getElementById('claim-btn');
-            if (!claimBtn) return;
-
-            if (lastClaimTime) {
-                const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
-                if (Date.now() < cooldownEnd) {
-                    startCooldownTimer(cooldownEnd);
-                    return;
-                }
-            }
-            claimBtn.disabled = false;
-            claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
-        }
-
-        // User Actions
-        async function claimPoints() {
-            if (isClaiming || !currentUserId) return;
-
-            const claimBtn = document.getElementById('claim-btn');
-            try {
-                isClaiming = true;
-                claimBtn.disabled = true;
-                claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Processing...</span>';
-
-                const response = await fetch(`${API_BASE_URL}/claim`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        user_id: currentUserId,
-                        initData: window.Telegram?.WebApp?.initData
-                    })
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.message || "Erreur serveur");
-                }
-
-                const result = await response.json();
-                showToast(`+${result.points_earned || 10} points !`, 3000, 'success');
-                await loadData();
-
-                if (result.last_claim) {
-                    lastClaimTime = new Date(result.last_claim);
-                    const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
-                    startCooldownTimer(cooldownEnd);
-                }
-            } catch (error) {
-                showToast(error.message || "Erreur", 3000, 'error');
-                claimBtn.disabled = false;
-            } finally {
-                isClaiming = false;
-            }
-        }
-
-        async function completeTask(taskName, points) {
-            try {
-                const response = await fetch(`${API_BASE_URL}/complete-task`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: currentUserId,
-                        task_name: taskName,
-                        points: points,
-                        initData: window.Telegram?.WebApp?.initData
-                    })
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.message || "Erreur serveur");
-                }
-
-                const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]');
-                completedTasks.push(taskName);
-                localStorage.setItem('completedTasks', JSON.stringify(completedTasks));
-                
-                showToast(`Tâche complétée ! +${points} points`, 3000, 'success');
-                await loadData();
-            } catch (error) {
-                showToast(error.message || "Erreur", 3000, 'error');
-            }
-        }
+        const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]');
+        completedTasks.push(taskName);
+        localStorage.setItem('completedTasks', JSON.stringify(completedTasks));
+        
+        showToast(`Tâche complétée ! +${points} points`, 3000, 'success');
+        await loadData();
+    } catch (error) {
+        showToast(error.message || "Erreur", 3000, 'error');
+    }
+}
 
         // Utilities
         function startAutoRefresh() {

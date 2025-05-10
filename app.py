@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SPREADSHEET_ID = os.getenv('GOOGLE_SHEET_ID')
+COOLDOWN_MINUTES = 5
 
 RANGES = {
     'users': 'Users!A2:F',

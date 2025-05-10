@@ -335,7 +335,7 @@ function updateUI({ balance, tasks, referrals }) {
     if (balance) {
         currentBalance = balance.balance || 0;
         document.getElementById('balance-value').textContent = currentBalance;
-        
+
         const lastClaimElement = document.getElementById('last-claim-value');
         if (balance.last_claim) {
             lastClaimTime = new Date(balance.last_claim);
@@ -343,16 +343,16 @@ function updateUI({ balance, tasks, referrals }) {
         } else {
             lastClaimElement.textContent = 'Jamais';
         }
-        
+
         document.getElementById('level-badge').textContent = `Niveau ${Math.floor(currentBalance / 100) + 1}`;
-        
+
         if (balance.referral_code) {
-            document.getElementById('referral-link').value = 
+            document.getElementById('referral-link').value =
                 `https://t.me/CRYPTORATS_bot?start=${balance.referral_code}`;
         }
         updateClaimButton();
     }
-    
+
     if (tasks) updateTasksList(tasks);
     if (referrals) updateReferralsList(referrals);
 }
@@ -440,7 +440,7 @@ async function claimPoints() {
         const response = await fetch(`${API_BASE_URL}/claim`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 user_id: currentUserId,
                 initData: window.Telegram?.WebApp?.initData
             })
@@ -458,7 +458,7 @@ async function claimPoints() {
         if (result.last_claim) {
             lastClaimTime = new Date(result.last_claim);
             const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
-            startCooldownTimer(cooldownEnd);
+            startCooldownTimer(cooldownEnd); // ← Ajout ici
         }
     } catch (error) {
         showToast(error.message || "Erreur", 3000, 'error');

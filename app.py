@@ -215,8 +215,12 @@ def claim():
                 if last_claim:
                     last_claim_time = datetime.strptime(last_claim, '%Y-%m-%d %H:%M:%S')
                     if now - last_claim_time < timedelta(minutes=5):
-                        return jsonify({'status': 'error', 'message': 'You can only claim once every 5 minutes.'}), 400
-                
+                        remaining_time = timedelta(minutes=5) - (now - last_claim_time)
+                        return jsonify({
+                            'status': 'error', 
+                            'message': f'You can only claim once every 5 minutes. Please wait {int(remaining_time.total_seconds() // 60)} minute(s) and {int(remaining_time.total_seconds() % 60)} second(s).'
+                        }), 400
+
                 new_balance = current_balance + points
                 service.spreadsheets().values().update(
                     spreadsheetId=SPREADSHEET_ID,

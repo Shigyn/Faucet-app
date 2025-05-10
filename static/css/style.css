@@ -90,6 +90,11 @@ body {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  
+  #claim-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
 }
 
 .app-button.secondary {

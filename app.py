@@ -10,6 +10,7 @@ from threading import Lock
 import hashlib
 import hmac
 from flask_cors import CORS
+from telegram_webapp import verify_telegram_webapp_data
 
 app = Flask(__name__)
 CORS(app)
@@ -58,7 +59,7 @@ def start():
         'message': 'Welcome to TronQuest Airdrop! Collect tokens every day. You will get a bonus every 3 months that will be swapped to TRX. Use your referral code to invite others!',
         'buttons': [{
             'text': 'Open',
-            'url': 'https://yourapp.com'  # Remplace par ton lien réel ou l'URL du bot
+            'url': 'https://t.me/CRYPTORATS_bot'  # Remplace par ton lien réel ou l'URL du bot
         }]
     })
 
@@ -184,6 +185,11 @@ def get_balance():
 @app.route('/claim', methods=['POST'])
 def claim():
     try:
+        # Vérification des données Telegram
+        init_data = request.json.get('initData')
+        if not verify_telegram_webapp_data(init_data):
+            return jsonify({'status': 'error', 'message': 'Please open via Telegram'}), 403
+
         data = request.json
         user_id = str(data.get('user_id'))
         now = datetime.now()

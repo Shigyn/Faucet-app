@@ -185,7 +185,7 @@ def claim():
     try:
         data = request.json
         user_id = str(data.get('user_id'))
-        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        now = datetime.now()
         points = random.randint(10, 100)
         
         service = get_sheets_service()
@@ -209,21 +209,27 @@ def claim():
             if user_index is not None:
                 row_num = user_index + 2
                 current_balance = int(rows[user_index][3]) if len(rows[user_index]) > 3 else 0
-                new_balance = current_balance + points
+                last_claim = rows[user_index][4] if len(rows[user_index]) > 4 else None
+                # Vérification du délai de 5 minutes
+                if last_claim:
+                    last_claim_time = datetime.strptime(last_claim, '%Y-%m-%d %H:%M:%S')
+                    if now - last_claim_time < timedelta(minutes=5):
+                        return jsonify({'status': 'error', 'message': 'You can only claim once every 5 minutes.'}), 400
                 
+                new_balance = current_balance + points
                 service.spreadsheets().values().update(
                     spreadsheetId=SPREADSHEET_ID,
                     range=f'Users!D{row_num}:E{row_num}',
                     valueInputOption='USER_ENTERED',
-                    body={'values': [[str(new_balance), now]]}
+                    body={'values': [[str(new_balance), now.strftime('%Y-%m-%d %H:%M:%S')]]}
                 ).execute()
             else:
                 new_user = [
-                    now,
+                    now.strftime('%Y-%m-%d %H:%M:%S'),
                     data.get('username', f'User{user_id[:5]}'),
                     user_id,
                     str(points),
-                    now,
+                    now.strftime('%Y-%m-%d %H:%M:%S'),
                     user_id  # Code complet de parrainage
                 ]
                 service.spreadsheets().values().append(
@@ -239,13 +245,13 @@ def claim():
                 spreadsheetId=SPREADSHEET_ID,
                 range=RANGES['transactions'],
                 valueInputOption='USER_ENTERED',
-                body={'values': [[user_id, str(points), 'claim', now]]}
+                body={'values': [[user_id, str(points), 'claim', now.strftime('%Y-%m-%d %H:%M:%S')]]}
             ).execute()
         
         return jsonify({
             'status': 'success',
             'new_balance': new_balance,
-            'last_claim': now,
+            'last_claim': now.strftime('%Y-%m-%d %H:%M:%S'),
             'points_earned': points
         })
     except Exception as e:

@@ -77,6 +77,135 @@
             from { opacity: 1; }
             to { opacity: 0; }
         }
+        
+        /* Nouveau style pour le design demandé */
+        .app-header {
+            text-align: center;
+            padding: 20px 0;
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            color: white;
+            margin-bottom: 15px;
+            border-radius: 0 0 15px 15px;
+        }
+        
+        .app-header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+        }
+        
+        .user-card {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 0 15px 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            position: relative;
+        }
+        
+        .user-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .user-details {
+            flex: 1;
+        }
+        
+        .username {
+            font-weight: 600;
+            font-size: 18px;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        
+        .user-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .level-badge {
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 14px;
+            margin-left: 15px;
+        }
+        
+        .claim-section {
+            margin: 15px;
+        }
+        
+        .claim-title {
+            text-align: center;
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        
+        .claim-button {
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 12px;
+            width: 100%;
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .claim-button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        
+        .claim-button .button-icon {
+            font-size: 20px;
+        }
+        
+        .ads-section {
+            margin: 15px;
+        }
+        
+        .ads-title {
+            text-align: center;
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        
+        .ads-button {
+            background: linear-gradient(135deg, #4CAF50, #8BC34A);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 12px;
+            width: 100%;
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
     </style>
 </head>
 <body>
@@ -87,26 +216,42 @@
     <div id="app-container">
         <!-- Page Dashboard/Claim -->
         <div id="dashboard-page" class="page active-page">
-            <div class="app-card profile-card">
-                <div class="card-header">
-                    <h1 id="username-display">Chargement...</h1>
-                    <div class="card-badge" id="level-badge">Niveau 1</div>
-                </div>
-                
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <span class="stat-label">Points :</span>
-                        <span class="stat-value" id="balance-value">0</span>
+            <div class="app-header">
+                <h1>CRYPTORATS Faucet</h1>
+            </div>
+            
+            <div class="user-card">
+                <div class="user-info">
+                    <div class="user-details">
+                        <div class="username" id="username-display">Chargement...</div>
+                        <div class="user-stats">
+                            <div class="stat-row">
+                                <span>Balance:</span>
+                                <span class="stat-value" id="balance-value">0</span>
+                            </div>
+                            <div class="stat-row">
+                                <span>Dernier claim:</span>
+                                <span class="stat-value" id="last-claim-value">-</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Dernier claim :</span>
-                        <span class="stat-value" id="last-claim-value">-</span>
-                    </div>
+                    <div class="level-badge" id="level-badge">Niveau 1</div>
                 </div>
-                
-                <button id="claim-btn" class="app-button primary-btn">
+            </div>
+            
+            <div class="claim-section">
+                <div class="claim-title">Claim now to get between 10-100 coins</div>
+                <button id="claim-btn" class="claim-button">
                     <span class="button-icon">🎁</span>
-                    <span class="button-text">Réclamer des Points</span>
+                    <span class="button-text">Claim Now</span>
+                </button>
+            </div>
+            
+            <div class="ads-section">
+                <div class="ads-title">Watch an ad to get between 20-200 coins</div>
+                <button id="watch-ads-btn" class="ads-button">
+                    <span class="button-icon">📺</span>
+                    <span class="button-text">Watch Ads</span>
                 </button>
             </div>
         </div>
@@ -114,7 +259,7 @@
         <!-- Page Parrainage -->
         <div id="referral-page" class="page hidden">
             <div class="app-card">
-                <h2 class="card-title">Parrainage</h2>
+                <h2 class="card-title">Team</h2>
                 <p class="card-subtitle">Gagnez 5% des points de vos filleuls</p>
                 
                 <div class="input-group">
@@ -126,9 +271,9 @@
                 </div>
                 
                 <div class="referrals-list" id="referrals-list">
-                    <h3>Vos filleuls</h3>
+                    <h3>Vos Team</h3>
                     <div id="referrals-container" class="referrals-container">
-                        <p>Chargement des filleuls...</p>
+                        <p>Chargement des membres...</p>
                     </div>
                 </div>
             </div>
@@ -157,7 +302,7 @@
         </div>
         <div class="tab-item" data-page="referral-page">
             <span class="tab-icon">👥</span>
-            <span class="tab-label">Filleuls</span>
+            <span class="tab-label">Team</span>
         </div>
     </div>
 
@@ -332,7 +477,7 @@
             const lastClaimElement = document.getElementById('last-claim-value');
             if (data.last_claim) {
                 lastClaimTime = new Date(data.last_claim);
-                lastClaimElement.textContent = lastClaimTime.toLocaleString();
+                lastClaimElement.textContent = lastClaimTime.toLocaleTimeString();
             } else {
                 lastClaimElement.textContent = 'Jamais';
             }
@@ -367,7 +512,7 @@
         function updateReferralsList(referrals) {
             const container = document.getElementById('referrals-container');
             if (!referrals?.referrals?.length) {
-                container.innerHTML = "<p>Aucun filleul pour le moment</p>";
+                container.innerHTML = "<p>Aucun membre pour le moment</p>";
                 return;
             }
 
@@ -392,7 +537,7 @@
             }
 
             claimBtn.disabled = false;
-            claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Réclamer des Points</span>';
+            claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
         }
 
         // Actions utilisateur
@@ -403,7 +548,7 @@
             try {
                 isClaiming = true;
                 claimBtn.disabled = true;
-                claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Traitement...</span>';
+                claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Processing...</span>';
 
                 const response = await fetch(`${API_BASE_URL}/claim`, {
                     method: 'POST',
@@ -491,7 +636,7 @@
                 const remaining = Math.max(0, cooldownEnd - Date.now());
                 if (remaining <= 0) {
                     claimBtn.disabled = false;
-                    claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Réclamer</span>';
+                    claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
                     return;
                 }
 
@@ -575,6 +720,11 @@
                 btn.addEventListener('click', () => {
                     switchPage(btn.getAttribute('data-page'));
                 });
+            });
+            
+            // Bouton Watch Ads (pour l'instant juste un placeholder)
+            document.getElementById('watch-ads-btn')?.addEventListener('click', () => {
+                showToast("Fonctionnalité à venir!", 2000, 'info');
             });
         }
 

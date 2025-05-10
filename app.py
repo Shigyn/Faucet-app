@@ -72,7 +72,7 @@ def update_user():
                 user_id,
                 '0',
                 '',
-                user_id[:8]  # Code de parrainage
+                user_id[:10]  # Code de parrainage
             ]
             service.spreadsheets().values().append(
                 spreadsheetId=SPREADSHEET_ID,

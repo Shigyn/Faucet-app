@@ -10,7 +10,6 @@ from threading import Lock
 import hashlib
 import hmac
 from flask_cors import CORS
-from telegram_webapp import verify_telegram_webapp_data
 
 app = Flask(__name__)
 CORS(app)
@@ -22,7 +21,6 @@ logger = logging.getLogger(__name__)
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SPREADSHEET_ID = os.getenv('GOOGLE_SHEET_ID')
-COOLDOWN_MINUTES = 5
 
 RANGES = {
     'users': 'Users!A2:F',
@@ -59,7 +57,7 @@ def start():
         'message': 'Welcome to TronQuest Airdrop! Collect tokens every day. You will get a bonus every 3 months that will be swapped to TRX. Use your referral code to invite others!',
         'buttons': [{
             'text': 'Open',
-            'url': 'https://t.me/CRYPTORATS_bot'  # Remplace par ton lien réel ou l'URL du bot
+            'url': 'https://yourapp.com'  # Remplace par ton lien réel ou l'URL du bot
         }]
     })
 
@@ -185,14 +183,9 @@ def get_balance():
 @app.route('/claim', methods=['POST'])
 def claim():
     try:
-        # Vérification des données Telegram
-        init_data = request.json.get('initData')
-        if not verify_telegram_webapp_data(init_data):
-            return jsonify({'status': 'error', 'message': 'Please open via Telegram'}), 403
-
         data = request.json
         user_id = str(data.get('user_id'))
-        now = datetime.now()
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         points = random.randint(10, 100)
         
         service = get_sheets_service()
@@ -216,31 +209,21 @@ def claim():
             if user_index is not None:
                 row_num = user_index + 2
                 current_balance = int(rows[user_index][3]) if len(rows[user_index]) > 3 else 0
-                last_claim = rows[user_index][4] if len(rows[user_index]) > 4 else None
-                # Vérification du délai de 5 minutes
-                if last_claim:
-                    last_claim_time = datetime.strptime(last_claim, '%Y-%m-%d %H:%M:%S')
-                    if now - last_claim_time < timedelta(minutes=5):
-                        remaining_time = timedelta(minutes=5) - (now - last_claim_time)
-                        return jsonify({
-                            'status': 'error', 
-                            'message': f'You can only claim once every 5 minutes. Please wait {int(remaining_time.total_seconds() // 60)} minute(s) and {int(remaining_time.total_seconds() % 60)} second(s).'
-                        }), 400
-
                 new_balance = current_balance + points
+                
                 service.spreadsheets().values().update(
                     spreadsheetId=SPREADSHEET_ID,
                     range=f'Users!D{row_num}:E{row_num}',
                     valueInputOption='USER_ENTERED',
-                    body={'values': [[str(new_balance), now.strftime('%Y-%m-%d %H:%M:%S')]]}
+                    body={'values': [[str(new_balance), now]]}
                 ).execute()
             else:
                 new_user = [
-                    now.strftime('%Y-%m-%d %H:%M:%S'),
+                    now,
                     data.get('username', f'User{user_id[:5]}'),
                     user_id,
                     str(points),
-                    now.strftime('%Y-%m-%d %H:%M:%S'),
+                    now,
                     user_id  # Code complet de parrainage
                 ]
                 service.spreadsheets().values().append(
@@ -256,13 +239,13 @@ def claim():
                 spreadsheetId=SPREADSHEET_ID,
                 range=RANGES['transactions'],
                 valueInputOption='USER_ENTERED',
-                body={'values': [[user_id, str(points), 'claim', now.strftime('%Y-%m-%d %H:%M:%S')]]}
+                body={'values': [[user_id, str(points), 'claim', now]]}
             ).execute()
         
         return jsonify({
             'status': 'success',
             'new_balance': new_balance,
-            'last_claim': now.strftime('%Y-%m-%d %H:%M:%S'),
+            'last_claim': now,
             'points_earned': points
         })
     except Exception as e:

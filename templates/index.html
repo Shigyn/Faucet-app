@@ -31,6 +31,7 @@
             background: #fff;
             box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
             padding: 10px 0;
+            z-index: 1000;
         }
         .tab-item {
             display: flex;
@@ -38,6 +39,7 @@
             align-items: center;
             font-size: 12px;
             color: #666;
+            cursor: pointer;
         }
         .tab-item.active {
             color: #007bff;
@@ -45,6 +47,35 @@
         .tab-icon {
             font-size: 20px;
             margin-bottom: 4px;
+        }
+        
+        .toast-message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            z-index: 1001;
+            animation: slideIn 0.3s ease-out;
+        }
+        .toast-success { background-color: #28a745; }
+        .toast-error { background-color: #dc3545; }
+        .toast-info { background-color: #17a2b8; }
+        
+        @keyframes slideIn {
+            from { top: -50px; opacity: 0; }
+            to { top: 20px; opacity: 1; }
+        }
+        .fade-out {
+            animation: fadeOut 0.5s ease-out;
+            opacity: 0;
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
         }
     </style>
 </head>
@@ -146,12 +177,8 @@
         function initApp() {
             console.log("Initialisation de l'application...");
             
-            // Debug: Vérifier les données Telegram
             if (window.Telegram?.WebApp?.initData) {
-                console.log("Données Telegram détectées:", {
-                    user: window.Telegram.WebApp.initDataUnsafe?.user,
-                    initData: window.Telegram.WebApp.initData.substring(0, 50) + "..."
-                });
+                console.log("Données Telegram détectées");
                 initTelegramWebApp();
             } else {
                 console.warn("Mode debug activé (pas via Telegram)");
@@ -168,12 +195,8 @@
         function initTelegramWebApp() {
             const tg = window.Telegram.WebApp;
             
-            // Validation stricte des données
             if (!tg.initData || !tg.initDataUnsafe?.user?.id) {
-                console.error("Données Telegram incomplètes:", {
-                    initData: tg.initData,
-                    user: tg.initDataUnsafe?.user
-                });
+                console.error("Données Telegram incomplètes");
                 return;
             }
 
@@ -190,7 +213,6 @@
             document.getElementById('username-display').textContent = currentUsername;
             console.log(`Utilisateur initialisé: ${currentUsername} (${currentUserId})`);
 
-            // Création/Mise à jour de l'utilisateur
             fetch(`${API_BASE_URL}/update-user`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -202,10 +224,6 @@
             })
             .then(response => {
                 if (!response.ok) throw new Error("Erreur serveur");
-                return response.json();
-            })
-            .then(data => {
-                console.log("Utilisateur enregistré:", data);
                 startAutoRefresh();
                 loadData();
             })
@@ -217,19 +235,17 @@
 
         // Gestion des données
         async function loadData() {
-            if (!currentUserId) {
-                console.warn("loadData appelé sans currentUserId");
-                return;
-            }
+            if (!currentUserId) return;
 
             try {
                 console.log("Chargement des données...");
-                const [balance, tasks] = await Promise.all([
+                const [balance, tasks, referrals] = await Promise.all([
                     fetchBalance(),
-                    fetchTasks()
+                    fetchTasks(),
+                    fetchReferrals()
                 ]);
                 
-                updateUI({ balance, tasks });
+                updateUI({ balance, tasks, referrals });
             } catch (error) {
                 console.error("Erreur de chargement:", error);
                 showToast("Erreur de chargement", 3000, 'error');
@@ -247,11 +263,7 @@
                     })
                 });
                 
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || "Erreur API");
-                }
-                
+                if (!response.ok) throw new Error("Erreur API");
                 return await response.json();
             } catch (error) {
                 console.error("Erreur fetchBalance:", error);
@@ -278,8 +290,27 @@
             }
         }
 
+        async function fetchReferrals() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/get-referrals`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        user_id: currentUserId,
+                        initData: window.Telegram?.WebApp?.initData
+                    })
+                });
+                
+                if (!response.ok) throw new Error("Erreur API");
+                return await response.json();
+            } catch (error) {
+                console.error("Erreur fetchReferrals:", error);
+                return { referrals: [] };
+            }
+        }
+
         // Mise à jour de l'interface
-        function updateUI({ balance, tasks }) {
+        function updateUI({ balance, tasks, referrals }) {
             if (balance) {
                 updateBalanceDisplay(balance);
                 updateClaimButton(balance);
@@ -287,6 +318,10 @@
             
             if (tasks) {
                 updateTasksList(tasks);
+            }
+            
+            if (referrals) {
+                updateReferralsList(referrals);
             }
         }
 
@@ -303,6 +338,12 @@
             }
             
             document.getElementById('level-badge').textContent = `Niveau ${Math.floor(currentBalance / 100) + 1}`;
+            
+            // Mettre à jour le lien de parrainage
+            if (data.referral_code) {
+                document.getElementById('referral-link').value = 
+                    `https://t.me/CRYPTORATS_bot?start=${data.referral_code}`;
+            }
         }
 
         function updateTasksList(tasks) {
@@ -314,12 +355,27 @@
 
             container.innerHTML = tasks.tasks.map(task => `
                 <div class="task-card">
-                    <h3>${escapeHTML(task[1] || 'Tâche sans nom')}</h3>
-                    <p>${escapeHTML(task[2] || 'Description non disponible')}</p>
-                    <span class="points-badge">${task[3] || '?'} pts</span>
-                    <button class="task-btn" onclick="completeTask('${escapeString(task[1])}', ${task[3] || 0})">
-                        ${isTaskCompleted(task[1]) ? '✅ Terminé' : 'Commencer'}
+                    <h3>${escapeHTML(task.name || 'Tâche sans nom')}</h3>
+                    <p>${escapeHTML(task.description || 'Description non disponible')}</p>
+                    <span class="points-badge">${task.reward || 0} pts</span>
+                    <button class="task-btn" onclick="completeTask('${escapeString(task.name)}', ${task.reward || 0})">
+                        ${isTaskCompleted(task.name) ? '✅ Terminé' : 'Commencer'}
                     </button>
+                </div>`).join('');
+        }
+
+        function updateReferralsList(referrals) {
+            const container = document.getElementById('referrals-container');
+            if (!referrals?.referrals?.length) {
+                container.innerHTML = "<p>Aucun filleul pour le moment</p>";
+                return;
+            }
+
+            container.innerHTML = referrals.referrals.map(ref => `
+                <div class="referral-item">
+                    <span class="referral-id">${ref.user_id.substring(0, 8)}...</span>
+                    <span class="referral-points">+${ref.points_earned || 0} pts</span>
+                    <span class="referral-date">${ref.timestamp ? new Date(ref.timestamp).toLocaleDateString() : ''}</span>
                 </div>`).join('');
         }
 
@@ -349,7 +405,6 @@
                 claimBtn.disabled = true;
                 claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Traitement...</span>';
 
-                console.log("Envoi claim pour:", currentUserId);
                 const response = await fetch(`${API_BASE_URL}/claim`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -361,7 +416,7 @@
 
                 if (!response.ok) {
                     const error = await response.json();
-                    throw new Error(error.error || "Erreur serveur");
+                    throw new Error(error.message || "Erreur serveur");
                 }
 
                 const result = await response.json();
@@ -381,6 +436,38 @@
                 claimBtn.disabled = false;
             } finally {
                 isClaiming = false;
+            }
+        }
+
+        async function completeTask(taskName, points) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/complete-task`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: currentUserId,
+                        task_name: taskName,
+                        points: points,
+                        initData: window.Telegram?.WebApp?.initData
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || "Erreur serveur");
+                }
+
+                const result = await response.json();
+                
+                const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]');
+                completedTasks.push(taskName);
+                localStorage.setItem('completedTasks', JSON.stringify(completedTasks));
+                
+                showToast(`Tâche complétée ! +${points} points`, 3000, 'success');
+                await loadData();
+            } catch (error) {
+                console.error("Erreur completeTask:", error);
+                showToast(error.message || "Erreur", 3000, 'error');
             }
         }
 
@@ -451,7 +538,7 @@
         }
 
         function isTaskCompleted(taskName) {
-            const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]';
+            const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]');
             return completedTasks.includes(taskName);
         }
 

@@ -404,6 +404,24 @@ function formatTimeRemaining(cooldownEnd) {
     return `${minutes}m ${seconds}s`;
 }
 
+function startCooldownTimer(cooldownEnd) {
+    const claimBtn = document.getElementById('claim-btn');
+    if (!claimBtn) return;
+
+    const intervalId = setInterval(() => {
+        const now = new Date();
+        if (now >= cooldownEnd) {
+            clearInterval(intervalId);
+            claimBtn.disabled = false;
+            claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
+        } else {
+            const remaining = formatTimeRemaining(cooldownEnd);
+            claimBtn.disabled = true;
+            claimBtn.innerHTML = `<span class="button-icon">⏳</span><span class="button-text">Attendre ${remaining}</span>`;
+        }
+    }, 1000);
+}
+
 // User Actions
 async function claimPoints() {
     if (isClaiming || !currentUserId) return;

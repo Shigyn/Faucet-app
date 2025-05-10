@@ -50,6 +50,17 @@ def get_sheets_service():
 def home():
     return render_template('index.html')
 
+@app.route('/start', methods=['GET'])
+def start():
+    return jsonify({
+        'status': 'success',
+        'message': 'Welcome to TronQuest Airdrop! Collect tokens every day. You will get a bonus every 3 months that will be swapped to TRX. Use your referral code to invite others!',
+        'buttons': [{
+            'text': 'Open',
+            'url': 'https://yourapp.com'  # Remplace par ton lien réel ou l'URL du bot
+        }]
+    })
+
 @app.route('/update-user', methods=['POST'])
 def update_user():
     try:
@@ -72,7 +83,7 @@ def update_user():
                 user_id,
                 '0',
                 '',
-                user_id[:10]  # Code de parrainage
+                user_id  # Code de parrainage complet
             ]
             service.spreadsheets().values().append(
                 spreadsheetId=SPREADSHEET_ID,
@@ -155,7 +166,7 @@ def get_balance():
                     'balance': int(row[3]) if len(row) > 3 else 0,
                     'last_claim': row[4] if len(row) > 4 else None,
                     'username': row[1] if len(row) > 1 else 'User',
-                    'referral_code': row[5] if len(row) > 5 else user_id[:8]
+                    'referral_code': row[5] if len(row) > 5 else user_id
                 })
         
         return jsonify({
@@ -163,7 +174,7 @@ def get_balance():
             'balance': 0,
             'last_claim': None,
             'username': 'New User',
-            'referral_code': user_id[:8]
+            'referral_code': user_id
         })
     except Exception as e:
         logger.error(f"Erreur get_balance: {str(e)}")
@@ -213,7 +224,7 @@ def claim():
                     user_id,
                     str(points),
                     now,
-                    user_id[:8]
+                    user_id  # Code complet de parrainage
                 ]
                 service.spreadsheets().values().append(
                     spreadsheetId=SPREADSHEET_ID,

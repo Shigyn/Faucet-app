@@ -380,34 +380,32 @@ function updateReferralsList(referrals) {
         </div>`).join('') : "<p>Aucun membre pour le moment</p>";
 }
 
+const COOLDOWN_MINUTES = 5; // 5 minutes de cooldown
+let cooldownTimeout;
+
 function updateClaimButton() {
     const claimBtn = document.getElementById('claim-btn');
     if (!claimBtn) return;
+
+    // Réinitialiser l'état du bouton
+    claimBtn.disabled = false;
+    claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
 
     if (lastClaimTime) {
         const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
         if (Date.now() < cooldownEnd) {
             startCooldownTimer(cooldownEnd);
-            return;
         }
     }
-    claimBtn.disabled = false;
-    claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
-}
-
-function formatTimeRemaining(cooldownEnd) {
-    const remainingTime = Math.max(0, cooldownEnd - Date.now());
-    const minutes = Math.floor(remainingTime / 60000);
-    const seconds = Math.floor((remainingTime % 60000) / 1000);
-    return `${minutes}m ${seconds}s`;
 }
 
 function startCooldownTimer(cooldownEnd) {
     const claimBtn = document.getElementById('claim-btn');
     if (!claimBtn) return;
 
-    claimBtn.disabled = true;
-
+    // Nettoyer tout timer existant
+    clearTimeout(cooldownTimeout);
+    
     function updateTimer() {
         const remaining = Math.max(0, cooldownEnd - Date.now());
         if (remaining <= 0) {
@@ -419,13 +417,18 @@ function startCooldownTimer(cooldownEnd) {
         const minutes = Math.floor(remaining / 60000);
         const seconds = Math.floor((remaining % 60000) / 1000);
         claimBtn.innerHTML = `<span class="button-icon">⏳</span><span class="button-text">${minutes}m ${seconds}s</span>`;
-        setTimeout(updateTimer, 1000);
+        claimBtn.disabled = true;
+        
+        // Mettre à jour toutes les secondes
+        cooldownTimeout = setTimeout(updateTimer, 1000);
     }
 
     updateTimer();
 }
 
 // User Actions
+let isClaiming = false;
+
 async function claimPoints() {
     if (isClaiming || !currentUserId) return;
 
@@ -434,8 +437,6 @@ async function claimPoints() {
         isClaiming = true;
         claimBtn.disabled = true;
         claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Processing...</span>';
-
-        await new Promise(resolve => setTimeout(resolve, 3000)); // Simulate loading
 
         const response = await fetch(`${API_BASE_URL}/claim`, {
             method: 'POST',
@@ -446,19 +447,35 @@ async function claimPoints() {
             })
         });
 
+        const result = await response.json();
+
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || "Erreur serveur");
+            // Gestion spécifique du cooldown
+            if (response.status === 400 && result.message) {
+                showToast(result.message, 3000, 'error');
+                
+                // Extraire le temps restant du message d'erreur
+                const timeParts = result.message.match(/(\d+) minute\(s\) and (\d+) second\(s\)/);
+                if (timeParts) {
+                    const minutes = parseInt(timeParts[1]);
+                    const seconds = parseInt(timeParts[2]);
+                    const cooldownEnd = new Date(Date.now() + (minutes * 60 + seconds) * 1000);
+                    startCooldownTimer(cooldownEnd);
+                }
+            } else {
+                throw new Error(result.message || "Erreur serveur");
+            }
+            return;
         }
 
-        const result = await response.json();
+        // Succès
         showToast(`+${result.points_earned || 10} points !`, 3000, 'success');
         await loadData();
 
         if (result.last_claim) {
             lastClaimTime = new Date(result.last_claim);
             const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
-            startCooldownTimer(cooldownEnd); // ← Ajout ici
+            startCooldownTimer(cooldownEnd);
         }
     } catch (error) {
         showToast(error.message || "Erreur", 3000, 'error');

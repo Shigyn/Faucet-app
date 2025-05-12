@@ -92,15 +92,58 @@ body {
   gap: 8px;
 }
 
+/* Bouton secondaire (style alternatif) */
 .app-button.secondary {
   background-color: white;
   color: var(--primary);
   border: 1px solid #E0E0E0;
 }
 
+/* Effet au survol des boutons */
 .app-button:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 12px rgba(108, 92, 231, 0.15);
+}
+
+/* Gestion du bouton de réclamation */
+.claim-button:disabled {
+  background-color: #cccccc; /* Couleur grisée */
+  color: #666666;            /* Texte grisé */
+  cursor: not-allowed;       /* Empêche le curseur de pointer sur le bouton */
+  pointer-events: none;      /* Empêche l'interaction avec le bouton */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.claim-button .button-text {
+  color: #888888; /* Couleur grisée du texte */
+}
+
+/* Quand le bouton est actif */
+.claim-button {
+  background-color: var(--primary);
+  color: white;
+  border: none;
+  padding: 14px 24px;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  width: 100%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.claim-button .button-icon {
+  font-size: 1.2rem;
+}
+
+.claim-button .button-text {
+  font-size: 1rem;
 }
 
 /* Navigation */

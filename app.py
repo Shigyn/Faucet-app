@@ -249,7 +249,7 @@ def claim():
             'points_earned': points,
             'cooldown_end': (now + timedelta(minutes=5)).timestamp()  # Nouveau champ
         })
-      except Exception as e:
+    except Exception as e:  # <-- Correction de l'indentation ici
         logger.error(f"Erreur claim: {str(e)}")
         return jsonify({'status': 'error'}), 500
 

@@ -558,7 +558,6 @@ async function claimPoints() {
         claimBtn.disabled = true;
         claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Processing...</span>';
 
-        // Envoi de la requête pour réclamer les points
         const response = await fetch(`${API_BASE_URL}/claim`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -574,22 +573,19 @@ async function claimPoints() {
         }
 
         const result = await response.json();
-        console.log("Claim réussi:", result);
-
-        // Affichage du toast de succès
         showToast(`+${result.points_earned || 10} points !`, 3000, 'success');
+        
+        // FORCER le rechargement des données et la mise à jour du bouton
         await loadData();
-
-        // Mise à jour de la dernière réclamation et du cooldown
+        
+        // Démarrer immédiatement le cooldown
         if (result.last_claim) {
-            lastClaimTime = new Date(result.last_claim);
-            const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
+            const cooldownEnd = new Date(new Date(result.last_claim).getTime() + COOLDOWN_MINUTES * 60000);
             startCooldownTimer(cooldownEnd);
         }
     } catch (error) {
         console.error("Erreur claim:", error);
         showToast(error.message || "Erreur", 3000, 'error');
-        claimBtn.disabled = false;
     } finally {
         isClaiming = false;
     }
@@ -641,34 +637,33 @@ function startAutoRefresh() {
 // Fonction qui gère le timer de cooldown
 function startCooldownTimer(cooldownEnd) {
     const claimBtn = document.getElementById('claim-btn');
+    const cooldownMessage = document.getElementById('cooldown-message');
     if (!claimBtn) return;
 
-    claimBtn.disabled = true;  // Désactive le bouton pendant le cooldown
+    claimBtn.disabled = true;
+    cooldownMessage.style.display = 'block';
 
-    // Met à jour le message du bouton avec le temps restant avant le prochain claim
     function updateTimer() {
-        const remaining = Math.max(0, cooldownEnd - Date.now());  // Calcul du temps restant
+        const now = Date.now();
+        const remaining = Math.max(0, cooldownEnd - now);
+        
         if (remaining <= 0) {
-            // Si le cooldown est terminé, réactive le bouton
             claimBtn.disabled = false;
             claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
+            cooldownMessage.style.display = 'none';
             return;
         }
 
-        // Calcul du temps restant en minutes et secondes
         const minutes = Math.floor(remaining / 60000);
         const seconds = Math.floor((remaining % 60000) / 1000);
-
-        // Affiche le message "X minutes X secondes avant le prochain claim" sur le bouton
-        claimBtn.innerHTML = `
-            <span class="button-icon">⏳</span>
-            <span class="button-text">${minutes}m ${seconds}s avant le prochain claim</span>
-        `;
-        setTimeout(updateTimer, 1000);  // Répète la mise à jour du timer toutes les secondes
+        
+        cooldownMessage.textContent = `Prochain claim dans ${minutes}m ${seconds}s`;
+        claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">En cooldown</span>';
+        
+        setTimeout(updateTimer, 1000);
     }
 
-    updateTimer();  // Lance la mise à jour du timer
-}
+    updateTimer();
 
         function showToast(message, duration = 3000, type = 'info') {
             const toast = document.createElement('div');

@@ -164,3 +164,7 @@ body {
 .claim-button:not([disabled]):hover .button-icon {
   transform: scale(1.1);
 }
+.error {
+    color: #ff4444;
+    font-style: italic;
+}

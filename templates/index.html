@@ -385,13 +385,22 @@
         }
 
         // Gestion des données
-        // Gestion des données
-async function loadData() {
+        async function loadData() {
     initClaimButton(); // Désactive immédiatement le bouton
     
     try {
-        const balance = await fetchBalance();
-        if (balance.last_claim) {
+        // Charger toutes les données en parallèle
+        const [balance, tasks, referrals] = await Promise.all([
+            fetchBalance(),
+            fetchTasks(),
+            fetchReferrals()
+        ]);
+
+        // Mettre à jour l'interface avec toutes les données
+        updateUI({ balance, tasks, referrals });
+
+        // Gérer le cooldown après avoir reçu les données
+        if (balance && balance.last_claim) {
             const lastClaim = new Date(balance.last_claim);
             const cooldownEnd = new Date(lastClaim.getTime() + 5*60000);
             
@@ -399,10 +408,17 @@ async function loadData() {
                 cooldownManager.startCooldown(currentUserId, cooldownEnd);
             }
         }
+        
         updateClaimButton();
     } catch (error) { 
         console.error("Erreur de chargement:", error);
         showToast("Erreur de chargement", 3000, 'error');
+        
+        // Afficher les valeurs par défaut en cas d'erreur
+        document.getElementById('balance-value').textContent = 'Erreur';
+        document.getElementById('last-claim-value').textContent = '-';
+        document.getElementById('tasks-list').innerHTML = '<p class="error">Échec du chargement</p>';
+        document.getElementById('referrals-container').innerHTML = '<p class="error">Échec du chargement</p>';
     }
 }
 

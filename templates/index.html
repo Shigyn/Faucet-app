@@ -387,28 +387,20 @@
         // Gestion des données
         // Gestion des données
 async function loadData() {
-    if (!currentUserId) return;
-
+    initClaimButton(); // Désactive immédiatement le bouton
+    
     try {
-        console.log("Chargement des données...");
-        const [balance, tasks, referrals] = await Promise.all([
-            fetchBalance(),
-            fetchTasks(),
-            fetchReferrals()
-        ]);
-        
-        // Initialiser le cooldown si nécessaire
-        if (balance?.last_claim) {
-            const lastClaimTime = new Date(balance.last_claim).getTime();
-            const cooldownEndTime = lastClaimTime + (5 * 60 * 1000); // 5 minutes en ms
+        const balance = await fetchBalance();
+        if (balance.last_claim) {
+            const lastClaim = new Date(balance.last_claim);
+            const cooldownEnd = new Date(lastClaim.getTime() + 5*60000);
             
-            if (Date.now() < cooldownEndTime) {
-                cooldownManager.startCooldown(currentUserId, cooldownEndTime);
+            if (Date.now() < cooldownEnd.getTime()) {
+                cooldownManager.startCooldown(currentUserId, cooldownEnd);
             }
         }
-        
-        updateUI({ balance, tasks, referrals });
-    } catch (error) {
+        updateClaimButton();
+    } catch (error) { 
         console.error("Erreur de chargement:", error);
         showToast("Erreur de chargement", 3000, 'error');
     }
@@ -577,20 +569,24 @@ async function loadData() {
 
 // Actions utilisateur
 async function claimPoints() {
-    // Vérification initiale du cooldown
-    if (cooldownManager.isOnCooldown(currentUserId)) {
-        showToast("Attendez la fin du cooldown", 2000, 'error');
-        return;
-    }
-
     const claimBtn = document.getElementById('claim-btn');
     if (!claimBtn) return;
 
-    try {
-        // Désactiver le bouton pendant le traitement
-        claimBtn.disabled = true;
-        claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Processing...</span>';
+    // Désactiver immédiatement le bouton
+    claimBtn.disabled = true;
+    claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Vérification...</span>';
 
+    try {
+        // Vérification locale du cooldown (optionnel mais améliore l'UX)
+        if (cooldownManager.isOnCooldown(currentUserId)) {
+            const remaining = cooldownManager.getRemainingTime(currentUserId);
+            showToast(`Attendez encore ${cooldownManager.formatTime(remaining)}`, 3000, 'error');
+            return;
+        }
+
+        // Envoi de la requête
+        claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Traitement en cours...</span>';
+        
         const response = await fetch(`${API_BASE_URL}/claim`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -600,24 +596,41 @@ async function claimPoints() {
             })
         });
 
+        const data = await response.json();
+
+        // Gestion de la réponse
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || "Erreur serveur");
+            throw new Error(data.message || "Erreur serveur");
         }
 
-        const result = await response.json();
-        
-        // Démarrer le cooldown avec le timestamp du serveur
-        cooldownManager.startCooldown(currentUserId, result.cooldown_end * 1000);
-        
-        showToast(`+${result.points_earned} points !`, 3000, 'success');
-        await loadData(); // Recharger les données
-        
+        if (data.status === 'cooldown') {
+            cooldownManager.startCooldown(
+                currentUserId, 
+                data.cooldown_end * 1000,  // Conversion en ms
+                data.remaining_seconds
+            );
+            showToast(data.message, 3000, 'error');
+        } 
+        else if (data.status === 'success') {
+            cooldownManager.startCooldown(currentUserId, data.cooldown_end * 1000);
+            showToast(`+${data.points_earned} points obtenus !`, 3000, 'success');
+            
+            // Mise à jour immédiate de l'interface
+            document.getElementById('balance-value').textContent = 
+                parseInt(document.getElementById('balance-value').textContent) + data.points_earned;
+            document.getElementById('last-claim-value').textContent = 
+                new Date().toLocaleTimeString();
+        }
+
     } catch (error) {
-        console.error("Erreur claim:", error);
-        showToast(error.message || "Erreur", 3000, 'error');
+        console.error("Claim error:", error);
+        showToast(error.message || "Échec du claim", 3000, 'error');
     } finally {
-        updateClaimButton(); // Mettre à jour l'état du bouton
+        // Réactiver le bouton si nécessaire
+        updateClaimButton();
+        
+        // Forcer le rafraîchissement des données
+        setTimeout(() => loadData(), 1000);
     }
 }
 

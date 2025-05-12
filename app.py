@@ -186,45 +186,56 @@ def claim():
         data = request.json
         user_id = str(data.get('user_id'))
         now = datetime.now()
-        now_str = now.strftime('%Y-%m-%d %H:%M:%S')  # Format pour Google Sheets
-        points = random.randint(10, 100)
+        now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+        cooldown_minutes = 5  # Durée du cooldown en minutes
         
         service = get_sheets_service()
         
-        # Trouver l'utilisateur
-        result = service.spreadsheets().values().get(
+        # Phase 1: Vérification du cooldown
+        users_data = service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID,
             range=RANGES['users']
-        ).execute()
+        ).execute().get('values', [])
         
-        rows = result.get('values', [])
-        user_index = None
+        user_row = next((row for row in users_data if len(row) > 2 and row[2] == user_id), None)
         
-        for i, row in enumerate(rows):
-            if len(row) > 2 and row[2] == user_id:
-                user_index = i
-                break
+        # Vérification cooldown
+        if user_row and len(user_row) > 4 and user_row[4]:  # Si last_claim existe
+            last_claim = datetime.strptime(user_row[4], '%Y-%m-%d %H:%M:%S')
+            cooldown_end = last_claim + timedelta(minutes=cooldown_minutes)
+            
+            if now < cooldown_end:
+                remaining = cooldown_end - now
+                return jsonify({
+                    'status': 'cooldown',
+                    'message': f'Revenez dans {remaining.seconds//60}m {remaining.seconds%60}s',
+                    'cooldown_end': cooldown_end.timestamp(),
+                    'remaining_seconds': remaining.total_seconds()
+                }), 429  # HTTP 429 = Too Many Requests
+
+        # Phase 2: Traitement du claim
+        points = random.randint(10, 100)
         
-        # Mise à jour ou création
         with sheet_lock:
-            if user_index is not None:
-                row_num = user_index + 2
-                current_balance = int(rows[user_index][3]) if len(rows[user_index]) > 3 else 0
+            # Mise à jour utilisateur
+            if user_row:
+                row_num = users_data.index(user_row) + 2
+                current_balance = int(user_row[3]) if len(user_row) > 3 else 0
                 new_balance = current_balance + points
                 
                 service.spreadsheets().values().update(
                     spreadsheetId=SPREADSHEET_ID,
                     range=f'Users!D{row_num}:E{row_num}',
                     valueInputOption='USER_ENTERED',
-                    body={'values': [[str(new_balance), now_str]]}  # Utiliser now_str
+                    body={'values': [[str(new_balance), now_str]]}
                 ).execute()
             else:
                 new_user = [
-                    now_str,  # Utiliser now_str
+                    now_str,
                     data.get('username', f'User{user_id[:5]}'),
                     user_id,
                     str(points),
-                    now_str,  # Utiliser now_str
+                    now_str,
                     user_id
                 ]
                 service.spreadsheets().values().append(
@@ -235,12 +246,12 @@ def claim():
                 ).execute()
                 new_balance = points
             
-            # Ajouter transaction
+            # Ajout transaction
             service.spreadsheets().values().append(
                 spreadsheetId=SPREADSHEET_ID,
                 range=RANGES['transactions'],
                 valueInputOption='USER_ENTERED',
-                body={'values': [[user_id, str(points), 'claim', now_str]]}  # Utiliser now_str
+                body={'values': [[user_id, str(points), 'claim', now_str]]}
             ).execute()
         
         return jsonify({
@@ -248,11 +259,16 @@ def claim():
             'new_balance': new_balance,
             'last_claim': now_str,
             'points_earned': points,
-            'cooldown_end': (now + timedelta(minutes=5)).timestamp()
+            'cooldown_end': (now + timedelta(minutes=cooldown_minutes)).timestamp()
         })
+        
     except Exception as e:
         logger.error(f"Erreur claim: {str(e)}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'error_type': type(e).__name__
+        }), 500
 
 @app.route('/get-tasks', methods=['POST'])
 def get_tasks():

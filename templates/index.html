@@ -320,40 +320,58 @@
         let refreshInterval;
         let lastClaimTime = null;
 
-        // Initialisation
         function initApp() {
     console.log("Initialisation de l'application...");
     
-    // Vérification renforcée du contexte Telegram
-    const isTelegram = window.Telegram?.WebApp?.initData || 
-                      window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+    // Nouvelle vérification complète de Telegram
+    const tg = window.Telegram?.WebApp;
+    const isTelegram = tg && (tg.initData || tg.initDataUnsafe?.user?.id);
     
     if (isTelegram) {
-        console.log("Mode Telegram détecté");
+        console.log("Mode Telegram confirmé");
+        tg.expand(); // Déploie l'app en plein écran
+        tg.enableClosingConfirmation(); // Empêche la fermeture accidentelle
         document.getElementById('telegram-alert').style.display = 'none';
         initTelegramWebApp();
-    } 
-    // Mode développement/localhost
-    else if (window.location.hostname === "localhost" || 
-             window.location.hostname === "127.0.0.1") {
-        console.warn("Mode debug local activé");
+    } else {
+        console.warn("Mode debug activé");
+        document.getElementById('telegram-alert').style.display = 'block';
         currentUserId = "debug_user_" + Math.floor(Math.random() * 1000);
         currentUsername = "DebugUser";
         startAutoRefresh();
         loadData();
-    }
-    // Accès direct en production
-    else {
-        console.error("Accès non autorisé - pas via Telegram");
-        document.getElementById('telegram-alert').style.display = 'block';
-        document.getElementById('app-container').style.display = 'none';
         
-        // Option: Redirection vers le bot après 3s
-        setTimeout(() => {
-            window.location.href = "https://t.me/CRYPTORATS_bot";
-        }, 3000);
+        // Active tous les boutons en mode debug
+        document.querySelectorAll('button').forEach(btn => {
+            btn.disabled = false;
+        });
     }
 }
+
+function setupEventListeners() {
+    // Bouton Claim
+    document.getElementById('claim-btn')?.addEventListener('click', () => {
+        if (!isClaiming) claimPoints();
+    });
+    
+    // Onglets
+    document.querySelectorAll('.tab-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const pageId = btn.getAttribute('data-page');
+            switchPage(pageId);
+        });
+    });
+    
+    // Copie lien parrainage
+    document.getElementById('copy-btn')?.addEventListener('click', () => {
+        const link = document.getElementById('referral-link');
+        link.select();
+        document.execCommand('copy');
+        showToast('Lien copié !', 2000, 'info');
+    });
+}
+
+// Vérifiez que cette fonction est appelée à la fin de initApp()
 
         function initTelegramWebApp() {
             const tg = window.Telegram.WebApp;

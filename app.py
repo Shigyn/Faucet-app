@@ -67,13 +67,8 @@ def get_sheets_service():
 
 @app.route('/')
 def home():
-    # Vérifie si la requête vient de Telegram WebApp
-    if request.headers.get('Sec-Fetch-Site') == 'none' or \
-       'Telegram-Web-App' in request.headers.get('User-Agent', ''):
-        return render_template('index.html')
-    
-    # Si accès direct via navigateur
-    return "Ouvrez cette application via @CRYPTORATS_bot", 403
+    # Autorise toutes les requêtes - la vérification se fera côté client
+    return render_template('index.html')
 
 @app.route('/start', methods=['GET'])
 def start():

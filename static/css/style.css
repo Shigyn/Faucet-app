@@ -150,3 +150,29 @@ body {
 .dot-primary { background-color: var(--primary); }
 .dot-secondary { background-color: var(--secondary); }
 .dot-accent { background-color: var(--accent); }
+
+/* Assure que les boutons sont interactifs */
+button:not(:disabled) {
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+button:not(:disabled):hover {
+    opacity: 0.9;
+}
+
+/* Style pour le message d'alerte */
+.alert-card {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.8; }
+    50% { opacity: 1; }
+    100% { opacity: 0.8; }
+}

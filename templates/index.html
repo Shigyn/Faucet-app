@@ -385,23 +385,34 @@
         }
 
         // Gestion des données
-        async function loadData() {
-            if (!currentUserId) return;
+        // Gestion des données
+async function loadData() {
+    if (!currentUserId) return;
 
-            try {
-                console.log("Chargement des données...");
-                const [balance, tasks, referrals] = await Promise.all([
-                    fetchBalance(),
-                    fetchTasks(),
-                    fetchReferrals()
-                ]);
-                
-                updateUI({ balance, tasks, referrals });
-            } catch (error) {
-                console.error("Erreur de chargement:", error);
-                showToast("Erreur de chargement", 3000, 'error');
+    try {
+        console.log("Chargement des données...");
+        const [balance, tasks, referrals] = await Promise.all([
+            fetchBalance(),
+            fetchTasks(),
+            fetchReferrals()
+        ]);
+        
+        // Initialiser le cooldown si nécessaire
+        if (balance?.last_claim) {
+            const lastClaimTime = new Date(balance.last_claim).getTime();
+            const cooldownEndTime = lastClaimTime + (5 * 60 * 1000); // 5 minutes en ms
+            
+            if (Date.now() < cooldownEndTime) {
+                cooldownManager.startCooldown(currentUserId, cooldownEndTime);
             }
         }
+        
+        updateUI({ balance, tasks, referrals });
+    } catch (error) {
+        console.error("Erreur de chargement:", error);
+        showToast("Erreur de chargement", 3000, 'error');
+    }
+}
 
         async function fetchBalance() {
             try {
@@ -529,61 +540,86 @@
         }
 
         function updateClaimButton() {
-            const claimBtn = document.getElementById('claim-btn');
-            if (!claimBtn) return;
+    const claimBtn = document.getElementById('claim-btn');
+    if (!claimBtn) return;
 
-            if (cooldownManager.isOnCooldown(currentUserId)) {
-                const remaining = cooldownManager.getRemainingTime(currentUserId);
-                claimBtn.disabled = true;
-                claimBtn.innerHTML = `
-                    <span class="button-icon">⏳</span>
-                    <span class="button-text">${cooldownManager.formatTime(remaining)}</span>
-                `;
+    // Clear any existing interval to avoid duplicates
+    if (claimBtn.cooldownInterval) {
+        clearInterval(claimBtn.cooldownInterval);
+    }
+
+    if (cooldownManager.isOnCooldown(currentUserId)) {
+        const updateCooldownDisplay = () => {
+            const remaining = cooldownManager.getRemainingTime(currentUserId);
+            
+            if (remaining <= 0) {
+                clearInterval(claimBtn.cooldownInterval);
+                claimBtn.disabled = false;
+                claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
                 return;
             }
+            
+            claimBtn.disabled = true;
+            claimBtn.innerHTML = `
+                <span class="button-icon">⏳</span>
+                <span class="button-text">${cooldownManager.formatTime(remaining)}</span>
+            `;
+        };
+        
+        // Update immediately and every second
+        updateCooldownDisplay();
+        claimBtn.cooldownInterval = setInterval(updateCooldownDisplay, 1000);
+    } else {
+        claimBtn.disabled = false;
+        claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
+    }
+}
 
-            claimBtn.disabled = false;
-            claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
-        }
-
-        // Actions utilisateur
-        async function claimPoints() {
-    if (cooldownManager.isOnCooldown(currentUserId)) {  // Parenthèse ajoutée
+// Actions utilisateur
+async function claimPoints() {
+    // Vérification initiale du cooldown
+    if (cooldownManager.isOnCooldown(currentUserId)) {
         showToast("Attendez la fin du cooldown", 2000, 'error');
         return;
-		}
+    }
 
-            const claimBtn = document.getElementById('claim-btn');
-            try {
-                claimBtn.disabled = true;
-                claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Processing...</span>';
+    const claimBtn = document.getElementById('claim-btn');
+    if (!claimBtn) return;
 
-                const response = await fetch(`${API_BASE_URL}/claim`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        user_id: currentUserId,
-                        initData: window.Telegram?.WebApp?.initData
-                    })
-                });
+    try {
+        // Désactiver le bouton pendant le traitement
+        claimBtn.disabled = true;
+        claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Processing...</span>';
 
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.message || "Erreur serveur");
-                }
+        const response = await fetch(`${API_BASE_URL}/claim`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                user_id: currentUserId,
+                initData: window.Telegram?.WebApp?.initData
+            })
+        });
 
-                const result = await response.json();
-                cooldownManager.startCooldown(currentUserId);
-                
-                showToast(`+${result.points_earned || 10} points !`, 3000, 'success');
-                await loadData();
-            } catch (error) {
-                console.error("Erreur claim:", error);
-                showToast(error.message || "Erreur", 3000, 'error');
-            } finally {
-                updateClaimButton();
-            }
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || "Erreur serveur");
         }
+
+        const result = await response.json();
+        
+        // Démarrer le cooldown avec le timestamp du serveur
+        cooldownManager.startCooldown(currentUserId, result.cooldown_end * 1000);
+        
+        showToast(`+${result.points_earned} points !`, 3000, 'success');
+        await loadData(); // Recharger les données
+        
+    } catch (error) {
+        console.error("Erreur claim:", error);
+        showToast(error.message || "Erreur", 3000, 'error');
+    } finally {
+        updateClaimButton(); // Mettre à jour l'état du bouton
+    }
+}
 
         async function completeTask(taskName, points) {
             try {

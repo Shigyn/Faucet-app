@@ -645,7 +645,7 @@ function startCooldownTimer(cooldownEnd) {
 
     claimBtn.disabled = true;  // Désactive le bouton pendant le cooldown
 
-    // Met à jour le timer du cooldown chaque seconde
+    // Met à jour le message du bouton avec le temps restant avant le prochain claim
     function updateTimer() {
         const remaining = Math.max(0, cooldownEnd - Date.now());  // Calcul du temps restant
         if (remaining <= 0) {
@@ -659,10 +659,10 @@ function startCooldownTimer(cooldownEnd) {
         const minutes = Math.floor(remaining / 60000);
         const seconds = Math.floor((remaining % 60000) / 1000);
 
-        // Affiche le temps restant dans le bouton
+        // Affiche le message "X minutes X secondes avant le prochain claim" sur le bouton
         claimBtn.innerHTML = `
             <span class="button-icon">⏳</span>
-            <span class="button-text">${minutes}m ${seconds}s</span>
+            <span class="button-text">${minutes}m ${seconds}s avant le prochain claim</span>
         `;
         setTimeout(updateTimer, 1000);  // Répète la mise à jour du timer toutes les secondes
     }

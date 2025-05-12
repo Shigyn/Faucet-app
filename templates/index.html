@@ -525,16 +525,20 @@
         }
 
         function updateClaimButton() {
-            const claimBtn = document.getElementById('claim-btn');
-            if (!claimBtn) return;
+    const claimBtn = document.getElementById('claim-btn');
+    if (!claimBtn) return;
 
-            if (lastClaimTime) {
-                const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
-                if (Date.now() < cooldownEnd) {
-                    startCooldownTimer(cooldownEnd);
-                    return;
-                }
-            }
+    if (lastClaimTime) {
+        const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
+        if (Date.now() < cooldownEnd) {
+            startCooldownTimer(cooldownEnd);  // S'assurer que le cooldown démarre bien ici
+            return;
+        }
+    }
+
+    claimBtn.disabled = false;
+    claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
+}
 
             claimBtn.disabled = false;
             claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
@@ -627,31 +631,28 @@
         }
 
         function startCooldownTimer(cooldownEnd) {
-            const claimBtn = document.getElementById('claim-btn');
-            if (!claimBtn) return;
+    const claimBtn = document.getElementById('claim-btn');
+    if (!claimBtn) return;
 
-            claimBtn.disabled = true;
+    claimBtn.disabled = true;
 
-            function updateTimer() {
-                const remaining = Math.max(0, cooldownEnd - Date.now());
-                if (remaining <= 0) {
-                    claimBtn.disabled = false;
-                    claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
-                    return;
-                }
-
-                const minutes = Math.floor(remaining / 60000);
-                const seconds = Math.floor((remaining % 60000) / 1000);
-
-                claimBtn.innerHTML = `
-                    <span class="button-icon">⏳</span>
-                    <span class="button-text">${minutes}m ${seconds}s</span>
-                `;
-                setTimeout(updateTimer, 1000);
-            }
-
-            updateTimer();
+    function updateTimer() {
+        const remaining = Math.max(0, cooldownEnd - Date.now());
+        if (remaining <= 0) {
+            claimBtn.disabled = false;
+            claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
+            return;
         }
+
+        const minutes = Math.floor(remaining / 60000);
+        const seconds = Math.floor((remaining % 60000) / 1000);
+
+        claimBtn.innerHTML = `⏳ ${minutes}m ${seconds}s`;
+        setTimeout(updateTimer, 1000);
+    }
+
+    updateTimer();
+}
 
         function showToast(message, duration = 3000, type = 'info') {
             const toast = document.createElement('div');

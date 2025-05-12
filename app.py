@@ -258,15 +258,15 @@ def claim():
             body={'values': [[user_id, str(points), 'claim', now]]}
         ).execute()
 
-        remaining_cooldown = (last_claim_time + cooldown_duration - datetime.now()).total_seconds()
+        remaining_cooldown = (datetime.strptime(now, '%Y-%m-%d %H:%M:%S') + cooldown_duration - datetime.now()).total_seconds()
 
-return jsonify({
-    'status': 'success',
-    'new_balance': new_balance,
-    'last_claim': now,
-    'points_earned': points,
-    'cooldown_remaining': remaining_cooldown  # Ajouté
-})
+        return jsonify({
+            'status': 'success',
+            'new_balance': new_balance,
+            'last_claim': now,
+            'points_earned': points,
+            'cooldown_remaining': remaining_cooldown
+        })
     except Exception as e:
         logger.error(f"Erreur claim: {str(e)}")
         return jsonify({'status': 'error'}), 500

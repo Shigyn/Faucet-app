@@ -186,6 +186,7 @@ def claim():
         data = request.json
         user_id = str(data.get('user_id'))
         now = datetime.now()
+        now_str = now.strftime('%Y-%m-%d %H:%M:%S')  # Format pour Google Sheets
         points = random.randint(10, 100)
         
         service = get_sheets_service()
@@ -215,16 +216,16 @@ def claim():
                     spreadsheetId=SPREADSHEET_ID,
                     range=f'Users!D{row_num}:E{row_num}',
                     valueInputOption='USER_ENTERED',
-                    body={'values': [[str(new_balance), now]]}
+                    body={'values': [[str(new_balance), now_str]]}  # Utiliser now_str
                 ).execute()
             else:
                 new_user = [
-                    now,
+                    now_str,  # Utiliser now_str
                     data.get('username', f'User{user_id[:5]}'),
                     user_id,
                     str(points),
-                    now,
-                    user_id  # Code complet de parrainage
+                    now_str,  # Utiliser now_str
+                    user_id
                 ]
                 service.spreadsheets().values().append(
                     spreadsheetId=SPREADSHEET_ID,
@@ -239,19 +240,19 @@ def claim():
                 spreadsheetId=SPREADSHEET_ID,
                 range=RANGES['transactions'],
                 valueInputOption='USER_ENTERED',
-                body={'values': [[user_id, str(points), 'claim', now]]}
+                body={'values': [[user_id, str(points), 'claim', now_str]]}  # Utiliser now_str
             ).execute()
         
         return jsonify({
             'status': 'success',
             'new_balance': new_balance,
-            'last_claim': now.strftime('%Y-%m-%d %H:%M:%S'),
+            'last_claim': now_str,
             'points_earned': points,
-            'cooldown_end': (now + timedelta(minutes=5)).timestamp()  # Nouveau champ
+            'cooldown_end': (now + timedelta(minutes=5)).timestamp()
         })
-    except Exception as e:  # <-- Correction de l'indentation ici
+    except Exception as e:
         logger.error(f"Erreur claim: {str(e)}")
-        return jsonify({'status': 'error'}), 500
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/get-tasks', methods=['POST'])
 def get_tasks():

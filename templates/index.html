@@ -321,30 +321,36 @@
         let lastClaimTime = null;
 
         function initApp() {
-    console.log("Initialisation de l'application...");
-    
-    // Nouvelle vérification complète de Telegram
+    console.log("Initialisation...");
     const tg = window.Telegram?.WebApp;
-    const isTelegram = tg && (tg.initData || tg.initDataUnsafe?.user?.id);
     
-    if (isTelegram) {
-        console.log("Mode Telegram confirmé");
-        tg.expand(); // Déploie l'app en plein écran
-        tg.enableClosingConfirmation(); // Empêche la fermeture accidentelle
-        document.getElementById('telegram-alert').style.display = 'none';
-        initTelegramWebApp();
-    } else {
-        console.warn("Mode debug activé");
-        document.getElementById('telegram-alert').style.display = 'block';
-        currentUserId = "debug_user_" + Math.floor(Math.random() * 1000);
-        currentUsername = "DebugUser";
-        startAutoRefresh();
-        loadData();
+    // Détection robuste de Telegram
+    if (tg?.initData || tg?.initDataUnsafe?.user?.id || 
+        navigator.userAgent.includes('Telegram') || 
+        document.referrer.includes('telegram')) {
         
-        // Active tous les boutons en mode debug
-        document.querySelectorAll('button').forEach(btn => {
-            btn.disabled = false;
-        });
+        console.log("Mode Telegram confirmé");
+        tg?.expand();
+        document.getElementById('telegram-alert').style.display = 'none';
+        
+        // Initialisation Telegram
+        if (tg?.initData) {
+            initTelegramWebApp();
+        } else {
+            // Fallback pour certaines versions de Telegram
+            setTimeout(() => {
+                if (window.Telegram?.WebApp?.initData) {
+                    initTelegramWebApp();
+                } else {
+                    console.warn("Retry Telegram init...");
+                    location.reload();  # Recharge si échec d'init
+                }
+            }, 1000);
+        }
+    } else {
+        console.warn("Accès non-Telegram");
+        document.getElementById('telegram-alert').style.display = 'block';
+        document.getElementById('app-container').style.opacity = '0.5';
     }
 }
 

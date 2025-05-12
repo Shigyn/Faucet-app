@@ -524,25 +524,26 @@
                 </div>`).join('');
         }
 
-        function updateClaimButton() {
+        function updateClaimButton(balanceData) {
     const claimBtn = document.getElementById('claim-btn');
     if (!claimBtn) return;
+
+    if (balanceData?.last_claim) {
+        lastClaimTime = new Date(balanceData.last_claim);
+    }
 
     if (lastClaimTime) {
         const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
         if (Date.now() < cooldownEnd) {
-            startCooldownTimer(cooldownEnd);  // S'assurer que le cooldown démarre bien ici
+            startCooldownTimer(cooldownEnd);
             return;
         }
     }
 
+    // Si pas de cooldown actif
     claimBtn.disabled = false;
     claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
 }
-
-            claimBtn.disabled = false;
-            claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
-        }
 
         // Actions utilisateur
         async function claimPoints() {

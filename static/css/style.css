@@ -1,152 +1,292 @@
-/* === NOUVEAU STYLE INSPIRÉ DU DESIGN DRIBBBLE === */
-:root {
-  --primary: #6C5CE7;  /* Violet pastel */
-  --secondary: #00CEF5; /* Bleu clair */
-  --accent: #FF7675;   /* Rose corail */
-  --text-dark: #2D3436;
-  --text-light: #636E72;
-  --bg-light: #F5F6FA;
-  --card-shadow: 0 8px 32px rgba(108, 92, 231, 0.12);
-}
+.hidden { display: none !important; }
+.active-page { display: block !important; }
 
-body {
-  background-color: var(--bg-light);
-  color: var(--text-dark);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  line-height: 1.5;
-  padding: 0;
-  margin: 0;
-}
-
-/* Container principal */
-#app-container {
-  max-width: 450px;
-  margin: 20px auto;
-  padding: 16px;
-}
-
-/* Cartes style Dribbble */
-.app-card {
-  background: white;
-  border-radius: 16px;
-  padding: 24px;
-  margin-bottom: 20px;
-  box-shadow: var(--card-shadow);
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.card-title {
-  font-size: 1.4rem;
-  font-weight: 700;
-  margin: 0;
-  color: var(--text-dark);
-}
-
-.card-badge {
-  background-color: var(--primary);
-  color: white;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-/* Éléments de formulaire */
-.app-input {
-  width: 100%;
-  padding: 12px 16px;
-  border: 1px solid #E0E0E0;
-  border-radius: 12px;
-  font-size: 1rem;
-  margin-bottom: 16px;
-  transition: all 0.3s;
-}
-
-.app-input:focus {
-  border-color: var(--primary);
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
-}
-
-/* Boutons */
-.app-button {
-  background-color: var(--primary);
-  color: white;
-  border: none;
-  padding: 14px 24px;
-  border-radius: 12px;
-  font-size: 1rem;
-  font-weight: 600;
-  width: 100%;
-  cursor: pointer;
-  transition: all 0.3s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.app-button.secondary {
-  background-color: white;
-  color: var(--primary);
-  border: 1px solid #E0E0E0;
-}
-
-.app-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(108, 92, 231, 0.15);
-}
-
-/* Navigation */
-.app-tabbar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  background: white;
-  padding: 12px 0;
-  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
+.tab-bar {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    display: flex;
+    justify-content: space-around;
+    background: #fff;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+    padding: 10px 0;
+    z-index: 1000;
 }
 
 .tab-item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  color: var(--text-light);
-  font-size: 0.75rem;
-  text-decoration: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 12px;
+    color: #666;
+    cursor: pointer;
 }
 
 .tab-item.active {
-  color: var(--primary);
+    color: #007bff;
 }
 
 .tab-icon {
-  font-size: 1.4rem;
-  margin-bottom: 4px;
+    font-size: 20px;
+    margin-bottom: 4px;
 }
 
-/* Pastilles de couleur comme sur le design */
-.color-dots {
-  display: flex;
-  gap: 8px;
-  margin: 16px 0;
+.toast-message {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 24px;
+    border-radius: 8px;
+    color: white;
+    font-weight: bold;
+    z-index: 1001;
+    animation: slideIn 0.3s ease-out;
 }
 
-.color-dot {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
+.toast-success { background-color: #28a745; }
+.toast-error { background-color: #dc3545; }
+.toast-info { background-color: #17a2b8; }
+
+@keyframes slideIn {
+    from { top: -50px; opacity: 0; }
+    to { top: 20px; opacity: 1; }
 }
 
-.dot-primary { background-color: var(--primary); }
-.dot-secondary { background-color: var(--secondary); }
-.dot-accent { background-color: var(--accent); }
+.fade-out {
+    animation: fadeOut 0.5s ease-out;
+    opacity: 0;
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+.app-header {
+    text-align: center;
+    padding: 20px 0;
+    background: linear-gradient(135deg, #6e8efb, #a777e3);
+    color: white;
+    margin-bottom: 15px;
+    border-radius: 0 0 15px 15px;
+}
+
+.app-header h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.user-card {
+    background: white;
+    border-radius: 12px;
+    padding: 15px;
+    margin: 0 15px 15px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    position: relative;
+}
+
+.user-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.user-details {
+    flex: 1;
+}
+
+.username {
+    font-weight: 600;
+    font-size: 18px;
+    margin-bottom: 5px;
+    color: #333;
+}
+
+.user-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    color: #666;
+}
+
+.level-badge {
+    background: linear-gradient(135deg, #6e8efb, #a777e3);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 14px;
+    margin-left: 15px;
+}
+
+.claim-section {
+    margin: 15px;
+}
+
+.claim-title {
+    text-align: center;
+    color: #666;
+    font-size: 16px;
+    margin-bottom: 10px;
+}
+
+.claim-button {
+    background: linear-gradient(135deg, #6e8efb, #a777e3);
+    color: white;
+    border: none;
+    padding: 15px;
+    border-radius: 12px;
+    width: 100%;
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 20px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+.claim-button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.claim-button .button-icon {
+    font-size: 20px;
+}
+
+.ads-section {
+    margin: 15px;
+}
+
+.ads-title {
+    text-align: center;
+    color: #666;
+    font-size: 16px;
+    margin-bottom: 10px;
+}
+
+.ads-button {
+    background: linear-gradient(135deg, #4CAF50, #8BC34A);
+    color: white;
+    border: none;
+    padding: 15px;
+    border-radius: 12px;
+    width: 100%;
+    font-weight: 600;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Styles supplémentaires pour les autres pages */
+.app-card {
+    background: white;
+    border-radius: 12px;
+    padding: 15px;
+    margin: 15px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.card-title {
+    font-size: 20px;
+    margin: 0 0 10px 0;
+    color: #333;
+}
+
+.card-subtitle {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 15px;
+}
+
+.input-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.app-input {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.app-button {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.app-button.secondary {
+    background: #f0f0f0;
+    color: #333;
+}
+
+.referrals-container, .tasks-container {
+    margin-top: 15px;
+}
+
+.referral-item, .task-card {
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.task-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.task-btn {
+    align-self: flex-end;
+    padding: 6px 12px;
+    background: #6e8efb;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.points-badge {
+    background: #a777e3;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.alert-card {
+    background: #ffcc00;
+    color: #333;
+    padding: 15px;
+    text-align: center;
+    font-weight: bold;
+    margin: 15px;
+    border-radius: 8px;
+    display: none;
+}

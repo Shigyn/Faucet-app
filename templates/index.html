@@ -647,7 +647,10 @@
         const minutes = Math.floor(remaining / 60000);
         const seconds = Math.floor((remaining % 60000) / 1000);
 
-        claimBtn.innerHTML = `⏳ ${minutes}m ${seconds}s`;
+        claimBtn.innerHTML = `
+            <span class="button-icon">⏳</span>
+            <span class="button-text">${minutes}m ${seconds}s</span>
+        `;
         setTimeout(updateTimer, 1000);
     }
 

@@ -185,7 +185,7 @@ def claim():
     try:
         data = request.json
         user_id = str(data.get('user_id'))
-        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        now = datetime.now()
         points = random.randint(10, 100)
         
         service = get_sheets_service()
@@ -245,10 +245,11 @@ def claim():
         return jsonify({
             'status': 'success',
             'new_balance': new_balance,
-            'last_claim': now,
-            'points_earned': points
+            'last_claim': now.strftime('%Y-%m-%d %H:%M:%S'),
+            'points_earned': points,
+            'cooldown_end': (now + timedelta(minutes=5)).timestamp()  # Nouveau champ
         })
-    except Exception as e:
+      except Exception as e:
         logger.error(f"Erreur claim: {str(e)}")
         return jsonify({'status': 'error'}), 500
 

@@ -150,3 +150,17 @@ body {
 .dot-primary { background-color: var(--primary); }
 .dot-secondary { background-color: var(--secondary); }
 .dot-accent { background-color: var(--accent); }
+
+.claim-button[disabled] {
+  opacity: 0.7;
+  cursor: not-allowed;
+  background: linear-gradient(135deg, #a5a5a5, #7a7a7a) !important;
+}
+
+.button-icon {
+  transition: transform 0.3s ease;
+}
+
+.claim-button:not([disabled]):hover .button-icon {
+  transform: scale(1.1);
+}

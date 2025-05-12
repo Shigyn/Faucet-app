@@ -9,6 +9,7 @@
     <meta http-equiv="Expires" content="0">
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="/static/js/cooldown.js" type="module"></script>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -78,7 +79,6 @@
             to { opacity: 0; }
         }
         
-        /* Nouveau style pour le design demandé */
         .app-header {
             text-align: center;
             padding: 20px 0;
@@ -169,15 +169,22 @@
             justify-content: center;
             align-items: center;
             gap: 10px;
+            transition: all 0.3s;
         }
         
         .claim-button:disabled {
             opacity: 0.7;
             cursor: not-allowed;
+            background: linear-gradient(135deg, #a5a5a5, #7a7a7a);
         }
         
         .claim-button .button-icon {
             font-size: 20px;
+            transition: transform 0.3s;
+        }
+        
+        .claim-button:not(:disabled):hover .button-icon {
+            transform: scale(1.1);
         }
         
         .ads-section {
@@ -306,17 +313,16 @@
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        import { cooldownManager } from '/static/js/cooldown.js';
+        
         // Configuration
         const API_BASE_URL = "https://faucet-app.onrender.com";
-        const COOLDOWN_MINUTES = 5;
         
         let currentUserId = null;
         let currentUsername = "Utilisateur";
         let currentBalance = 0;
-        let isClaiming = false;
         let refreshInterval;
-        let lastClaimTime = null;
 
         // Initialisation
         function initApp() {
@@ -458,7 +464,7 @@
         function updateUI({ balance, tasks, referrals }) {
             if (balance) {
                 updateBalanceDisplay(balance);
-                updateClaimButton(balance);
+                updateClaimButton();
             }
             
             if (tasks) {
@@ -476,15 +482,13 @@
             
             const lastClaimElement = document.getElementById('last-claim-value');
             if (data.last_claim) {
-                lastClaimTime = new Date(data.last_claim);
-                lastClaimElement.textContent = lastClaimTime.toLocaleTimeString();
+                lastClaimElement.textContent = new Date(data.last_claim).toLocaleTimeString();
             } else {
                 lastClaimElement.textContent = 'Jamais';
             }
             
             document.getElementById('level-badge').textContent = `Niveau ${Math.floor(currentBalance / 100) + 1}`;
             
-            // Mettre à jour le lien de parrainage
             if (data.referral_code) {
                 document.getElementById('referral-link').value = 
                     `https://t.me/CRYPTORATS_bot?start=${data.referral_code}`;
@@ -528,12 +532,14 @@
             const claimBtn = document.getElementById('claim-btn');
             if (!claimBtn) return;
 
-            if (lastClaimTime) {
-                const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
-                if (Date.now() < cooldownEnd) {
-                    startCooldownTimer(cooldownEnd);
-                    return;
-                }
+            if (cooldownManager.isOnCooldown(currentUserId)) {
+                const remaining = cooldownManager.getRemainingTime(currentUserId);
+                claimBtn.disabled = true;
+                claimBtn.innerHTML = `
+                    <span class="button-icon">⏳</span>
+                    <span class="button-text">${cooldownManager.formatTime(remaining)}</span>
+                `;
+                return;
             }
 
             claimBtn.disabled = false;
@@ -542,11 +548,13 @@
 
         // Actions utilisateur
         async function claimPoints() {
-            if (isClaiming || !currentUserId) return;
+            if (cooldownManager.isOnCooldown(currentUserId) {
+                showToast("Attendez la fin du cooldown", 2000, 'error');
+                return;
+            }
 
             const claimBtn = document.getElementById('claim-btn');
             try {
-                isClaiming = true;
                 claimBtn.disabled = true;
                 claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Processing...</span>';
 
@@ -565,22 +573,15 @@
                 }
 
                 const result = await response.json();
-                console.log("Claim réussi:", result);
+                cooldownManager.startCooldown(currentUserId);
                 
                 showToast(`+${result.points_earned || 10} points !`, 3000, 'success');
                 await loadData();
-
-                if (result.last_claim) {
-                    lastClaimTime = new Date(result.last_claim);
-                    const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
-                    startCooldownTimer(cooldownEnd);
-                }
             } catch (error) {
                 console.error("Erreur claim:", error);
                 showToast(error.message || "Erreur", 3000, 'error');
-                claimBtn.disabled = false;
             } finally {
-                isClaiming = false;
+                updateClaimButton();
             }
         }
 
@@ -624,33 +625,6 @@
                     loadData();
                 }
             }, 30000);
-        }
-
-        function startCooldownTimer(cooldownEnd) {
-            const claimBtn = document.getElementById('claim-btn');
-            if (!claimBtn) return;
-
-            claimBtn.disabled = true;
-
-            function updateTimer() {
-                const remaining = Math.max(0, cooldownEnd - Date.now());
-                if (remaining <= 0) {
-                    claimBtn.disabled = false;
-                    claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
-                    return;
-                }
-
-                const minutes = Math.floor(remaining / 60000);
-                const seconds = Math.floor((remaining % 60000) / 1000);
-
-                claimBtn.innerHTML = `
-                    <span class="button-icon">⏳</span>
-                    <span class="button-text">${minutes}m ${seconds}s</span>
-                `;
-                setTimeout(updateTimer, 1000);
-            }
-
-            updateTimer();
         }
 
         function showToast(message, duration = 3000, type = 'info') {
@@ -722,7 +696,6 @@
                 });
             });
             
-            // Bouton Watch Ads (pour l'instant juste un placeholder)
             document.getElementById('watch-ads-btn')?.addEventListener('click', () => {
                 showToast("Fonctionnalité à venir!", 2000, 'info');
             });

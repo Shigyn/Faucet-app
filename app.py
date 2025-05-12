@@ -187,15 +187,18 @@ def claim():
         user_id = str(data.get('user_id'))
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         points = random.randint(10, 100)
-        
+
+        # Temps de cooldown en minutes (par exemple, 24 heures)
+        cooldown_duration = timedelta(minutes=5)
+
         service = get_sheets_service()
         
-        # Trouver l'utilisateur
+        # Récupérer l'utilisateur et vérifier le dernier claim
         result = service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID,
             range=RANGES['users']
         ).execute()
-        
+
         rows = result.get('values', [])
         user_index = None
         
@@ -204,44 +207,57 @@ def claim():
                 user_index = i
                 break
         
-        # Mise à jour ou création
-        with sheet_lock:
-            if user_index is not None:
-                row_num = user_index + 2
-                current_balance = int(rows[user_index][3]) if len(rows[user_index]) > 3 else 0
-                new_balance = current_balance + points
-                
-                service.spreadsheets().values().update(
-                    spreadsheetId=SPREADSHEET_ID,
-                    range=f'Users!D{row_num}:E{row_num}',
-                    valueInputOption='USER_ENTERED',
-                    body={'values': [[str(new_balance), now]]}
-                ).execute()
-            else:
-                new_user = [
-                    now,
-                    data.get('username', f'User{user_id[:5]}'),
-                    user_id,
-                    str(points),
-                    now,
-                    user_id  # Code complet de parrainage
-                ]
-                service.spreadsheets().values().append(
-                    spreadsheetId=SPREADSHEET_ID,
-                    range=RANGES['users'],
-                    valueInputOption='USER_ENTERED',
-                    body={'values': [new_user]}
-                ).execute()
-                new_balance = points
+        # Si l'utilisateur existe, vérifier si le cooldown est terminé
+        if user_index is not None:
+            last_claim = rows[user_index][4] if len(rows[user_index]) > 4 else None
             
-            # Ajouter transaction
+            if last_claim:
+                last_claim_time = datetime.strptime(last_claim, '%Y-%m-%d %H:%M:%S')
+                if datetime.now() < last_claim_time + cooldown_duration:
+                    remaining_time = (last_claim_time + cooldown_duration - datetime.now()).seconds
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Cooldown en cours',
+                        'remaining_time': remaining_time
+                    }), 400
+
+            # Mise à jour de la balance
+            row_num = user_index + 2
+            current_balance = int(rows[user_index][3]) if len(rows[user_index]) > 3 else 0
+            new_balance = current_balance + points
+
+            service.spreadsheets().values().update(
+                spreadsheetId=SPREADSHEET_ID,
+                range=f'Users!D{row_num}:E{row_num}',
+                valueInputOption='USER_ENTERED',
+                body={'values': [[str(new_balance), now]]}
+            ).execute()
+        else:
+            # Si l'utilisateur n'existe pas, on le crée avec un claim initial
+            new_user = [
+                now,
+                data.get('username', f'User{user_id[:5]}'),
+                user_id,
+                str(points),
+                now,
+                user_id  # Code complet de parrainage
+            ]
             service.spreadsheets().values().append(
                 spreadsheetId=SPREADSHEET_ID,
-                range=RANGES['transactions'],
+                range=RANGES['users'],
                 valueInputOption='USER_ENTERED',
-                body={'values': [[user_id, str(points), 'claim', now]]}
+                body={'values': [new_user]}
             ).execute()
-        
+            new_balance = points
+
+        # Ajouter transaction
+        service.spreadsheets().values().append(
+            spreadsheetId=SPREADSHEET_ID,
+            range=RANGES['transactions'],
+            valueInputOption='USER_ENTERED',
+            body={'values': [[user_id, str(points), 'claim', now]]}
+        ).execute()
+
         return jsonify({
             'status': 'success',
             'new_balance': new_balance,
@@ -251,6 +267,7 @@ def claim():
     except Exception as e:
         logger.error(f"Erreur claim: {str(e)}")
         return jsonify({'status': 'error'}), 500
+
 
 @app.route('/get-tasks', methods=['POST'])
 def get_tasks():

@@ -240,21 +240,23 @@
             </div>
             
             <div class="claim-section">
-                <div class="claim-title">Claim now to get between 10-100 coins</div>
-                <button id="claim-btn" class="claim-button">
-                    <span class="button-icon">🎁</span>
-                    <span class="button-text">Claim Now</span>
-                </button>
-            </div>
-            
-            <div class="ads-section">
-                <div class="ads-title">Watch an ad to get between 20-200 coins</div>
-                <button id="watch-ads-btn" class="ads-button">
-                    <span class="button-icon">📺</span>
-                    <span class="button-text">Watch Ads</span>
-                </button>
-            </div>
-        </div>
+    <div class="claim-title">Claim now to get between 10-100 coins</div>
+    <button id="claim-btn" class="claim-button">
+        <span class="button-icon">🎁</span>
+        <span class="button-text">Claim Now</span>
+    </button>
+    <p id="cooldown-message" style="display:none; color: red;"></p> <!-- Message de cooldown -->
+</div>
+
+<div class="ads-section">
+    <div class="ads-title">Watch an ad to get between 20-200 coins</div>
+    <button id="watch-ads-btn" class="ads-button">
+        <span class="button-icon">📺</span>
+        <span class="button-text">Watch Ads</span>
+    </button>
+	<p id="cooldown-message" style="display:none; color: red;"></p> <!-- Message de cooldown -->
+</div>
+
 
         <!-- Page Parrainage -->
         <div id="referral-page" class="page hidden">
@@ -524,7 +526,8 @@
                 </div>`).join('');
         }
 
-        function updateClaimButton(balanceData) {
+        // Met à jour le bouton de réclamation en fonction du dernier claim et du cooldown
+function updateClaimButton(balanceData) {
     const claimBtn = document.getElementById('claim-btn');
     if (!claimBtn) return;
 
@@ -540,122 +543,131 @@
         }
     }
 
-    // Si pas de cooldown actif
+    // Si pas de cooldown actif, réactive le bouton
     claimBtn.disabled = false;
     claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
 }
 
-        // Actions utilisateur
-        async function claimPoints() {
-            if (isClaiming || !currentUserId) return;
+// Actions utilisateur pour réclamer des points
+async function claimPoints() {
+    if (isClaiming || !currentUserId) return;
 
-            const claimBtn = document.getElementById('claim-btn');
-            try {
-                isClaiming = true;
-                claimBtn.disabled = true;
-                claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Processing...</span>';
+    const claimBtn = document.getElementById('claim-btn');
+    try {
+        isClaiming = true;
+        claimBtn.disabled = true;
+        claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Processing...</span>';
 
-                const response = await fetch(`${API_BASE_URL}/claim`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        user_id: currentUserId,
-                        initData: window.Telegram?.WebApp?.initData
-                    })
-                });
+        // Envoi de la requête pour réclamer les points
+        const response = await fetch(`${API_BASE_URL}/claim`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                user_id: currentUserId,
+                initData: window.Telegram?.WebApp?.initData
+            })
+        });
 
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.message || "Erreur serveur");
-                }
-
-                const result = await response.json();
-                console.log("Claim réussi:", result);
-                
-                showToast(`+${result.points_earned || 10} points !`, 3000, 'success');
-                await loadData();
-
-                if (result.last_claim) {
-                    lastClaimTime = new Date(result.last_claim);
-                    const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
-                    startCooldownTimer(cooldownEnd);
-                }
-            } catch (error) {
-                console.error("Erreur claim:", error);
-                showToast(error.message || "Erreur", 3000, 'error');
-                claimBtn.disabled = false;
-            } finally {
-                isClaiming = false;
-            }
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || "Erreur serveur");
         }
 
-        async function completeTask(taskName, points) {
-            try {
-                const response = await fetch(`${API_BASE_URL}/complete-task`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: currentUserId,
-                        task_name: taskName,
-                        points: points,
-                        initData: window.Telegram?.WebApp?.initData
-                    })
-                });
+        const result = await response.json();
+        console.log("Claim réussi:", result);
 
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.message || "Erreur serveur");
-                }
+        // Affichage du toast de succès
+        showToast(`+${result.points_earned || 10} points !`, 3000, 'success');
+        await loadData();
 
-                const result = await response.json();
-                
-                const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]');
-                completedTasks.push(taskName);
-                localStorage.setItem('completedTasks', JSON.stringify(completedTasks));
-                
-                showToast(`Tâche complétée ! +${points} points`, 3000, 'success');
-                await loadData();
-            } catch (error) {
-                console.error("Erreur completeTask:", error);
-                showToast(error.message || "Erreur", 3000, 'error');
-            }
+        // Mise à jour de la dernière réclamation et du cooldown
+        if (result.last_claim) {
+            lastClaimTime = new Date(result.last_claim);
+            const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
+            startCooldownTimer(cooldownEnd);
+        }
+    } catch (error) {
+        console.error("Erreur claim:", error);
+        showToast(error.message || "Erreur", 3000, 'error');
+        claimBtn.disabled = false;
+    } finally {
+        isClaiming = false;
+    }
+}
+
+// Complète une tâche et donne des points
+async function completeTask(taskName, points) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/complete-task`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: currentUserId,
+                task_name: taskName,
+                points: points,
+                initData: window.Telegram?.WebApp?.initData
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || "Erreur serveur");
         }
 
-        // Utilitaires
-        function startAutoRefresh() {
-            clearInterval(refreshInterval);
-            refreshInterval = setInterval(() => {
-                if (document.visibilityState === 'visible') {
-                    loadData();
-                }
-            }, 30000);
-        }
+        const result = await response.json();
+        
+        const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]');
+        completedTasks.push(taskName);
+        localStorage.setItem('completedTasks', JSON.stringify(completedTasks));
+        
+        showToast(`Tâche complétée ! +${points} points`, 3000, 'success');
+        await loadData();
+    } catch (error) {
+        console.error("Erreur completeTask:", error);
+        showToast(error.message || "Erreur", 3000, 'error');
+    }
+}
 
-        function startCooldownTimer(cooldownEnd) {
+// Fonction de rafraîchissement automatique des données
+function startAutoRefresh() {
+    clearInterval(refreshInterval);
+    refreshInterval = setInterval(() => {
+        if (document.visibilityState === 'visible') {
+            loadData();
+        }
+    }, 30000);
+}
+
+// Fonction qui gère le timer de cooldown
+function startCooldownTimer(cooldownEnd) {
     const claimBtn = document.getElementById('claim-btn');
     if (!claimBtn) return;
 
-    claimBtn.disabled = true;
+    claimBtn.disabled = true;  // Désactive le bouton pendant le cooldown
 
+    // Met à jour le timer du cooldown chaque seconde
     function updateTimer() {
-        const remaining = Math.max(0, cooldownEnd - Date.now());
+        const remaining = Math.max(0, cooldownEnd - Date.now());  // Calcul du temps restant
         if (remaining <= 0) {
+            // Si le cooldown est terminé, réactive le bouton
             claimBtn.disabled = false;
             claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
             return;
         }
 
+        // Calcul du temps restant en minutes et secondes
         const minutes = Math.floor(remaining / 60000);
         const seconds = Math.floor((remaining % 60000) / 1000);
 
+        // Affiche le temps restant dans le bouton
         claimBtn.innerHTML = `
             <span class="button-icon">⏳</span>
             <span class="button-text">${minutes}m ${seconds}s</span>
         `;
-        setTimeout(updateTimer, 1000);
+        setTimeout(updateTimer, 1000);  // Répète la mise à jour du timer toutes les secondes
     }
 
-    updateTimer();
+    updateTimer();  // Lance la mise à jour du timer
 }
 
         function showToast(message, duration = 3000, type = 'info') {

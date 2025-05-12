@@ -326,22 +326,22 @@
 
         // Initialisation
         function initApp() {
-            console.log("Initialisation de l'application...");
-            
-            if (window.Telegram?.WebApp?.initData) {
-                console.log("Données Telegram détectées");
-                initTelegramWebApp();
-            } else {
-                console.warn("Mode debug activé (pas via Telegram)");
-                document.getElementById('telegram-alert').style.display = 'block';
-                currentUserId = "debug_user_" + Math.floor(Math.random() * 1000);
-                currentUsername = "DebugUser";
-                startAutoRefresh();
-                loadData();
-            }
-            
-            setupEventListeners();
-        }
+    console.log("Initialisation de l'application...");
+    
+    if (window.Telegram?.WebApp?.initData) {  // Ancienne vérification
+        console.log("Données Telegram détectées");
+        initTelegramWebApp();
+    } else {
+        console.warn("Mode navigateur standard");
+        document.getElementById('telegram-alert').style.display = 'block';
+        currentUserId = "debug_user_" + Math.floor(Math.random() * 1000);
+        currentUsername = "DebugUser";
+        startAutoRefresh();
+        loadData();
+    }
+    
+    setupEventListeners();
+}
 
         function initTelegramWebApp() {
             const tg = window.Telegram.WebApp;
@@ -548,10 +548,10 @@
 
         // Actions utilisateur
         async function claimPoints() {
-            if (cooldownManager.isOnCooldown(currentUserId) {
-                showToast("Attendez la fin du cooldown", 2000, 'error');
-                return;
-            }
+    if (cooldownManager.isOnCooldown(currentUserId)) {  // Parenthèse ajoutée
+        showToast("Attendez la fin du cooldown", 2000, 'error');
+        return;
+		}
 
             const claimBtn = document.getElementById('claim-btn');
             try {

@@ -322,22 +322,38 @@
 
         // Initialisation
         function initApp() {
-            console.log("Initialisation de l'application...");
-            
-            if (window.Telegram?.WebApp?.initData) {
-                console.log("Données Telegram détectées");
-                initTelegramWebApp();
-            } else {
-                console.warn("Mode debug activé (pas via Telegram)");
-                document.getElementById('telegram-alert').style.display = 'block';
-                currentUserId = "debug_user_" + Math.floor(Math.random() * 1000);
-                currentUsername = "DebugUser";
-                startAutoRefresh();
-                loadData();
-            }
-            
-            setupEventListeners();
-        }
+    console.log("Initialisation de l'application...");
+    
+    // Vérification renforcée du contexte Telegram
+    const isTelegram = window.Telegram?.WebApp?.initData || 
+                      window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+    
+    if (isTelegram) {
+        console.log("Mode Telegram détecté");
+        document.getElementById('telegram-alert').style.display = 'none';
+        initTelegramWebApp();
+    } 
+    // Mode développement/localhost
+    else if (window.location.hostname === "localhost" || 
+             window.location.hostname === "127.0.0.1") {
+        console.warn("Mode debug local activé");
+        currentUserId = "debug_user_" + Math.floor(Math.random() * 1000);
+        currentUsername = "DebugUser";
+        startAutoRefresh();
+        loadData();
+    }
+    // Accès direct en production
+    else {
+        console.error("Accès non autorisé - pas via Telegram");
+        document.getElementById('telegram-alert').style.display = 'block';
+        document.getElementById('app-container').style.display = 'none';
+        
+        // Option: Redirection vers le bot après 3s
+        setTimeout(() => {
+            window.location.href = "https://t.me/CRYPTORATS_bot";
+        }, 3000);
+    }
+}
 
         function initTelegramWebApp() {
             const tg = window.Telegram.WebApp;

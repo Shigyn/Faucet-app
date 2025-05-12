@@ -45,9 +45,15 @@ RANGES = {
 sheet_lock = Lock()
 
 def validate_telegram_webapp(data):
-    if not data or not TELEGRAM_BOT_TOKEN:
+    if not data:
         return False
-    return True  # À renforcer en production
+        
+    # Vérification plus robuste des données Telegram
+    init_data = data.get('initData') or data.get('init_data')
+    if not init_data:
+        return False
+        
+    return True
 
 def get_sheets_service():
     try:
@@ -61,7 +67,13 @@ def get_sheets_service():
 
 @app.route('/')
 def home():
-    return render_template('index.html')
+    # Vérifie si la requête vient de Telegram WebApp
+    if request.headers.get('Sec-Fetch-Site') == 'none' or \
+       'Telegram-Web-App' in request.headers.get('User-Agent', ''):
+        return render_template('index.html')
+    
+    # Si accès direct via navigateur
+    return "Ouvrez cette application via @CRYPTORATS_bot", 403
 
 @app.route('/start', methods=['GET'])
 def start():

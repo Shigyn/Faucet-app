@@ -10,6 +10,19 @@ from threading import Lock
 import hashlib
 import hmac
 from flask_cors import CORS
+import google.api_core.client_options
+from googleapiclient.discovery_cache.base import Cache
+
+class MemoryCache(Cache):
+    _CACHE = {}
+
+    def get(self, url):
+        return MemoryCache._CACHE.get(url)
+
+    def set(self, url, content):
+        MemoryCache._CACHE[url] = content
+
+google.api_core.client_options.ClientOptions.cache = MemoryCache()
 
 app = Flask(__name__)
 CORS(app)

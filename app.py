@@ -6,10 +6,12 @@ from flask import Flask, request, jsonify, render_template
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
 from datetime import datetime, timedelta
-from threading import Lock
+from threading import Lock, Thread
 import hashlib
 import hmac
 from flask_cors import CORS
+from telegram import Update, Bot
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 app = Flask(__name__)
 CORS(app)
@@ -31,6 +33,9 @@ RANGES = {
 
 sheet_lock = Lock()
 
+# Initialisation du bot Telegram
+telegram_app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+
 def validate_telegram_webapp(data):
     if not data or not TELEGRAM_BOT_TOKEN:
         return False
@@ -46,6 +51,62 @@ def get_sheets_service():
         logger.error(f"Erreur Google Sheets: {str(e)}")
         raise
 
+async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        user_id = str(update.effective_user.id)
+        username = update.effective_user.username or f"User{user_id[:5]}"
+        referral_id = context.args[0] if context.args else None
+        
+        logger.info(f"Nouvel utilisateur: {user_id}, parrain: {referral_id}")
+        
+        service = get_sheets_service()
+        
+        # Vérifier si l'utilisateur existe déjà
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=RANGES['users']
+        ).execute()
+        
+        user_exists = any(row[2] == user_id for row in result.get('values', []) if len(row) > 2)
+        
+        if not user_exists:
+            new_user = [
+                datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                username,
+                user_id,
+                '0',  # Balance
+                '',   # Last claim
+                referral_id if referral_id else ''  # Referral ID
+            ]
+            
+            service.spreadsheets().values().append(
+                spreadsheetId=SPREADSHEET_ID,
+                range=RANGES['users'],
+                valueInputOption='USER_ENTERED',
+                body={'values': [new_user]}
+            ).execute()
+            
+            if referral_id:
+                # Enregistrer le parrainage
+                service.spreadsheets().values().append(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range=RANGES['referrals'],
+                    valueInputOption='USER_ENTERED',
+                    body={'values': [[referral_id, user_id, '0', datetime.now().strftime('%Y-%m-%d %H:%M:%S')]]}
+                ).execute()
+        
+        await update.message.reply_text(
+            "🎉 Bienvenue dans TronQuest Airdrop!\n"
+            f"Ton ID: {user_id}\n"
+            f"Parrain: {referral_id if referral_id else 'Aucun'}\n\n"
+            "Clique ici pour commencer: https://ton-lien-webapp.com"
+        )
+        
+    except Exception as e:
+        logger.error(f"Erreur dans handle_start: {str(e)}")
+        await update.message.reply_text("❌ Une erreur est survenue. Contacte le support.")
+
+# Routes Flask existantes (conservées sans modification)
 @app.route('/')
 def home():
     return render_template('index.html')
@@ -54,11 +115,8 @@ def home():
 def start():
     return jsonify({
         'status': 'success',
-        'message': 'Welcome to TronQuest Airdrop! Collect tokens every day. You will get a bonus every 3 months that will be swapped to TRX. Use your referral code to invite others!',
-        'buttons': [{
-            'text': 'Open',
-            'url': 'https://t.me/CRYPTORATS_bot'  # Remplace par ton lien réel ou l'URL du bot
-        }]
+        'message': 'Welcome to TronQuest Airdrop!',
+        'buttons': [{'text': 'Open', 'url': 'https://t.me/CRYPTORATS_bot'}]
     })
 
 @app.route('/update-user', methods=['POST'])
@@ -416,5 +474,15 @@ def add_referral():
         logger.error(f"Erreur add_referral: {str(e)}")
         return jsonify({'status': 'error'}), 500
 
+def run_bot():
+    """Fonction pour lancer le bot Telegram en parallèle"""
+    telegram_app.add_handler(CommandHandler("start", handle_start))
+    telegram_app.run_polling()
+
 if __name__ == '__main__':
+    # Démarrer le bot Telegram dans un thread séparé
+    bot_thread = Thread(target=run_bot)
+    bot_thread.start()
+    
+    # Démarrer le serveur Flask
     app.run(host='0.0.0.0', port=10000)

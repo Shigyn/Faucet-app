@@ -650,9 +650,7 @@
                 const seconds = Math.floor((remaining % 60000) / 1000);
 
                 claimBtn.innerHTML = 
-                    <span class="button-icon">⏳</span>
-                    <span class="button-text">${minutes}m ${seconds}s</span>
-                ;
+                    `<span class="button-icon">⏳</span><span class="button-text">${minutes}m ${seconds}s</span>`;
                 setTimeout(updateTimer, 1000);
             }
 
@@ -661,7 +659,7 @@
 
         function showToast(message, duration = 3000, type = 'info') {
             const toast = document.createElement('div');
-            toast.className = toast-message toast-${type};
+            toast.className = `toast-message toast-${type}`;
             toast.textContent = message;
             document.body.appendChild(toast);
 
@@ -736,6 +734,50 @@
 
         // Démarrer l'application
         document.addEventListener('DOMContentLoaded', initApp);
+
+        // Code Telegram WebApp
+        if (window.Telegram && window.Telegram.WebApp) {
+            // L'application est ouverte dans Telegram WebApp
+            const tg = window.Telegram.WebApp;
+
+            // Initialiser l'API Telegram
+            tg.expand();
+            tg.ready();
+            document.getElementById('telegram-alert').style.display = 'none';
+
+            // Récupérer les informations de l'utilisateur Telegram
+            const user = tg.initDataUnsafe.user;
+            currentUserId = user.id.toString();
+            currentUsername = user.username || user.first_name || "Joueur";
+
+            // Paramètre referral_code si envoyé via Telegram
+            const urlParams = new URLSearchParams(window.location.search);
+            const referralCode = urlParams.get('start');
+            console.log(`Referral Code récupéré: ${referralCode}`);
+
+            // Envoi des données à ton API / Google Sheets
+            fetch('https://script.google.com/macros/s/AKfycbxJP1UsHbLWiaS1aYpTaBl8YCCaqFzazKjPBt0mOObG/dev', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: currentUserId,
+                    username: currentUsername,
+                    referral_code: referralCode
+                })
+            })
+            .then(response => {
+                if (!response.ok) throw new Error("Erreur serveur");
+                console.log("Données envoyées avec succès.");
+            })
+            .catch(error => {
+                console.error("Erreur d'enregistrement:", error);
+            });
+
+        } else {
+            // Si l'application n'est pas lancée via Telegram
+            alert("⚠️ Ouvrez cette application via @CRYPTORATS_bot !");
+        }
     </script>
+
 </body>
 </html>

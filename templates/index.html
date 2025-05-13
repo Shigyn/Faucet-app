@@ -2,14 +2,13 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>TRONQUEST</title>
+    <title>CRYPTORATS_bot - RPG Faucet</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="/static/js/cooldown.js" type="module"></script>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,7 +16,197 @@
     
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon">
+    
     <meta name="theme-color" content="#F5F6FA">
+    <style>
+        .hidden { display: none !important; }
+        .active-page { display: block !important; }
+        
+        .tab-bar {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            background: #fff;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            padding: 10px 0;
+            z-index: 1000;
+        }
+        .tab-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 12px;
+            color: #666;
+            cursor: pointer;
+        }
+        .tab-item.active {
+            color: #007bff;
+        }
+        .tab-icon {
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+        
+        .toast-message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            z-index: 1001;
+            animation: slideIn 0.3s ease-out;
+        }
+        .toast-success { background-color: #28a745; }
+        .toast-error { background-color: #dc3545; }
+        .toast-info { background-color: #17a2b8; }
+        
+        @keyframes slideIn {
+            from { top: -50px; opacity: 0; }
+            to { top: 20px; opacity: 1; }
+        }
+        .fade-out {
+            animation: fadeOut 0.5s ease-out;
+            opacity: 0;
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+        
+        /* Nouveau style pour le design demandé */
+        .app-header {
+            text-align: center;
+            padding: 20px 0;
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            color: white;
+            margin-bottom: 15px;
+            border-radius: 0 0 15px 15px;
+        }
+        
+        .app-header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+        }
+        
+        .user-card {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 0 15px 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            position: relative;
+        }
+        
+        .user-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .user-details {
+            flex: 1;
+        }
+        
+        .username {
+            font-weight: 600;
+            font-size: 18px;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        
+        .user-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .level-badge {
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 14px;
+            margin-left: 15px;
+        }
+        
+        .claim-section {
+            margin: 15px;
+        }
+        
+        .claim-title {
+            text-align: center;
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        
+        .claim-button {
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 12px;
+            width: 100%;
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .claim-button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        
+        .claim-button .button-icon {
+            font-size: 20px;
+        }
+        
+        .ads-section {
+            margin: 15px;
+        }
+        
+        .ads-title {
+            text-align: center;
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        
+        .ads-button {
+            background: linear-gradient(135deg, #4CAF50, #8BC34A);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 12px;
+            width: 100%;
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+    </style>
 </head>
 <body>
     <div id="telegram-alert" class="app-card alert-card">
@@ -28,7 +217,7 @@
         <!-- Page Dashboard/Claim -->
         <div id="dashboard-page" class="page active-page">
             <div class="app-header">
-                <h1>TRONQUEST</h1>
+                <h1>CRYPTORATS Faucet</h1>
             </div>
             
             <div class="user-card">
@@ -41,17 +230,17 @@
                                 <span class="stat-value" id="balance-value">0</span>
                             </div>
                             <div class="stat-row">
-                                <span>Last claim:</span>
+                                <span>Dernier claim:</span>
                                 <span class="stat-value" id="last-claim-value">-</span>
                             </div>
                         </div>
                     </div>
-                    <div class="level-badge" id="level-badge">Level 1</div>
+                    <div class="level-badge" id="level-badge">Niveau 1</div>
                 </div>
             </div>
             
             <div class="claim-section">
-                <div class="claim-title">Claim hourly between 10-100 coins !</div>
+                <div class="claim-title">Claim now to get between 10-100 coins</div>
                 <button id="claim-btn" class="claim-button">
                     <span class="button-icon">🎁</span>
                     <span class="button-text">Claim Now</span>
@@ -71,20 +260,20 @@
         <div id="referral-page" class="page hidden">
             <div class="app-card">
                 <h2 class="card-title">Team</h2>
-                <p class="card-subtitle">Get 5% of your referral earnings !</p>
+                <p class="card-subtitle">Gagnez 5% des points de vos filleuls</p>
                 
                 <div class="input-group">
                     <input type="text" id="referral-link" class="app-input" readonly>
                     <button id="copy-btn" class="app-button secondary">
                         <span class="button-icon">📋</span>
-                        <span class="button-text">Copy</span>
+                        <span class="button-text">Copier</span>
                     </button>
                 </div>
                 
                 <div class="referrals-list" id="referrals-list">
-                    <h3>Your Team</h3>
+                    <h3>Vos Team</h3>
                     <div id="referrals-container" class="referrals-container">
-                        <p>Loading members...</p>
+                        <p>Chargement des membres...</p>
                     </div>
                 </div>
             </div>
@@ -93,9 +282,9 @@
         <!-- Page Tâches -->
         <div id="tasks-page" class="page hidden">
             <div class="app-card">
-                <h2 class="card-title">Tasks available:</h2>
+                <h2 class="card-title">Tâches Disponibles</h2>
                 <div id="tasks-list" class="tasks-container">
-                    <p>Loading tasks...</p>
+                    <p>Chargement des tâches...</p>
                 </div>
             </div>
         </div>
@@ -109,7 +298,7 @@
         </div>
         <div class="tab-item" data-page="tasks-page">
             <span class="tab-icon">✅</span>
-            <span class="tab-label">Tasks</span>
+            <span class="tab-label">Tâches</span>
         </div>
         <div class="tab-item" data-page="referral-page">
             <span class="tab-icon">👥</span>
@@ -117,6 +306,430 @@
         </div>
     </div>
 
-    <script src="/static/js/main.js" type="module"></script>
+    <script>
+        // Configuration
+        const API_BASE_URL = "https://faucet-app.onrender.com";
+        const COOLDOWN_MINUTES = 5;
+        
+        let currentUserId = null;
+        let currentUsername = "Utilisateur";
+        let currentBalance = 0;
+        let isClaiming = false;
+        let refreshInterval;
+        let lastClaimTime = null;
+
+        // Initialisation
+        function initApp() {
+            console.log("Initialisation de l'application...");
+            
+            if (window.Telegram?.WebApp?.initData) {
+                console.log("Données Telegram détectées");
+                initTelegramWebApp();
+            } else {
+                console.warn("Mode debug activé (pas via Telegram)");
+                document.getElementById('telegram-alert').style.display = 'block';
+                currentUserId = "debug_user_" + Math.floor(Math.random() * 1000);
+                currentUsername = "DebugUser";
+                startAutoRefresh();
+                loadData();
+            }
+            
+            setupEventListeners();
+        }
+
+        function initTelegramWebApp() {
+            const tg = window.Telegram.WebApp;
+            
+            if (!tg.initData || !tg.initDataUnsafe?.user?.id) {
+                console.error("Données Telegram incomplètes");
+                return;
+            }
+
+            tg.expand();
+            tg.ready();
+            document.getElementById('telegram-alert').style.display = 'none';
+            
+            const user = tg.initDataUnsafe.user;
+            currentUserId = user.id.toString();
+            currentUsername = user.username || 
+                           [user.first_name, user.last_name].filter(Boolean).join(' ') || 
+                           "Joueur";
+            
+            document.getElementById('username-display').textContent = currentUsername;
+            console.log(`Utilisateur initialisé: ${currentUsername} (${currentUserId})`);
+
+            fetch(`${API_BASE_URL}/update-user`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: currentUserId,
+                    username: currentUsername,
+                    initData: tg.initData
+                })
+            })
+            .then(response => {
+                if (!response.ok) throw new Error("Erreur serveur");
+                startAutoRefresh();
+                loadData();
+            })
+            .catch(error => {
+                console.error("Erreur d'enregistrement:", error);
+                showToast("Erreur de connexion", 3000, 'error');
+            });
+        }
+
+        // Gestion des données
+        async function loadData() {
+            if (!currentUserId) return;
+
+            try {
+                console.log("Chargement des données...");
+                const [balance, tasks, referrals] = await Promise.all([
+                    fetchBalance(),
+                    fetchTasks(),
+                    fetchReferrals()
+                ]);
+                
+                updateUI({ balance, tasks, referrals });
+            } catch (error) {
+                console.error("Erreur de chargement:", error);
+                showToast("Erreur de chargement", 3000, 'error');
+            }
+        }
+
+        async function fetchBalance() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/get-balance`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        user_id: currentUserId,
+                        initData: window.Telegram?.WebApp?.initData
+                    })
+                });
+                
+                if (!response.ok) throw new Error("Erreur API");
+                return await response.json();
+            } catch (error) {
+                console.error("Erreur fetchBalance:", error);
+                throw error;
+            }
+        }
+
+        async function fetchTasks() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/get-tasks`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        user_id: currentUserId,
+                        initData: window.Telegram?.WebApp?.initData
+                    })
+                });
+                
+                if (!response.ok) throw new Error("Erreur API");
+                return await response.json();
+            } catch (error) {
+                console.error("Erreur fetchTasks:", error);
+                return { tasks: [] };
+            }
+        }
+
+        async function fetchReferrals() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/get-referrals`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        user_id: currentUserId,
+                        initData: window.Telegram?.WebApp?.initData
+                    })
+                });
+                
+                if (!response.ok) throw new Error("Erreur API");
+                return await response.json();
+            } catch (error) {
+                console.error("Erreur fetchReferrals:", error);
+                return { referrals: [] };
+            }
+        }
+
+        // Mise à jour de l'interface
+        function updateUI({ balance, tasks, referrals }) {
+            if (balance) {
+                updateBalanceDisplay(balance);
+                updateClaimButton(balance);
+            }
+            
+            if (tasks) {
+                updateTasksList(tasks);
+            }
+            
+            if (referrals) {
+                updateReferralsList(referrals);
+            }
+        }
+
+        function updateBalanceDisplay(data) {
+            currentBalance = data.balance || 0;
+            document.getElementById('balance-value').textContent = currentBalance;
+            
+            const lastClaimElement = document.getElementById('last-claim-value');
+            if (data.last_claim) {
+                lastClaimTime = new Date(data.last_claim);
+                lastClaimElement.textContent = lastClaimTime.toLocaleTimeString();
+            } else {
+                lastClaimElement.textContent = 'Jamais';
+            }
+            
+            document.getElementById('level-badge').textContent = `Niveau ${Math.floor(currentBalance / 100) + 1}`;
+            
+            // Mettre à jour le lien de parrainage
+            if (data.referral_code) {
+                document.getElementById('referral-link').value = 
+                    `https://t.me/CRYPTORATS_bot?start=${data.referral_code}`;
+            }
+        }
+
+        function updateTasksList(tasks) {
+            const container = document.getElementById('tasks-list');
+            if (!tasks?.tasks?.length) {
+                container.innerHTML = "<p>Aucune tâche disponible</p>";
+                return;
+            }
+
+            container.innerHTML = tasks.tasks.map(task => `
+                <div class="task-card">
+                    <h3>${escapeHTML(task.name || 'Tâche sans nom')}</h3>
+                    <p>${escapeHTML(task.description || 'Description non disponible')}</p>
+                    <span class="points-badge">${task.reward || 0} pts</span>
+                    <button class="task-btn" onclick="completeTask('${escapeString(task.name)}', ${task.reward || 0})">
+                        ${isTaskCompleted(task.name) ? '✅ Terminé' : 'Commencer'}
+                    </button>
+                </div>`).join('');
+        }
+
+        function updateReferralsList(referrals) {
+            const container = document.getElementById('referrals-container');
+            if (!referrals?.referrals?.length) {
+                container.innerHTML = "<p>Aucun membre pour le moment</p>";
+                return;
+            }
+
+            container.innerHTML = referrals.referrals.map(ref => `
+                <div class="referral-item">
+                    <span class="referral-id">${ref.user_id.substring(0, 8)}...</span>
+                    <span class="referral-points">+${ref.points_earned || 0} pts</span>
+                    <span class="referral-date">${ref.timestamp ? new Date(ref.timestamp).toLocaleDateString() : ''}</span>
+                </div>`).join('');
+        }
+
+        function updateClaimButton() {
+            const claimBtn = document.getElementById('claim-btn');
+            if (!claimBtn) return;
+
+            if (lastClaimTime) {
+                const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
+                if (Date.now() < cooldownEnd) {
+                    startCooldownTimer(cooldownEnd);
+                    return;
+                }
+            }
+
+            claimBtn.disabled = false;
+            claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
+        }
+
+        // Actions utilisateur
+        async function claimPoints() {
+            if (isClaiming || !currentUserId) return;
+
+            const claimBtn = document.getElementById('claim-btn');
+            try {
+                isClaiming = true;
+                claimBtn.disabled = true;
+                claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Processing...</span>';
+
+                const response = await fetch(`${API_BASE_URL}/claim`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        user_id: currentUserId,
+                        initData: window.Telegram?.WebApp?.initData
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || "Erreur serveur");
+                }
+
+                const result = await response.json();
+                console.log("Claim réussi:", result);
+                
+                showToast(`+${result.points_earned || 10} points !`, 3000, 'success');
+                await loadData();
+
+                if (result.last_claim) {
+                    lastClaimTime = new Date(result.last_claim);
+                    const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
+                    startCooldownTimer(cooldownEnd);
+                }
+            } catch (error) {
+                console.error("Erreur claim:", error);
+                showToast(error.message || "Erreur", 3000, 'error');
+                claimBtn.disabled = false;
+            } finally {
+                isClaiming = false;
+            }
+        }
+
+        async function completeTask(taskName, points) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/complete-task`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: currentUserId,
+                        task_name: taskName,
+                        points: points,
+                        initData: window.Telegram?.WebApp?.initData
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || "Erreur serveur");
+                }
+
+                const result = await response.json();
+                
+                const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]');
+                completedTasks.push(taskName);
+                localStorage.setItem('completedTasks', JSON.stringify(completedTasks));
+                
+                showToast(`Tâche complétée ! +${points} points`, 3000, 'success');
+                await loadData();
+            } catch (error) {
+                console.error("Erreur completeTask:", error);
+                showToast(error.message || "Erreur", 3000, 'error');
+            }
+        }
+
+        // Utilitaires
+        function startAutoRefresh() {
+            clearInterval(refreshInterval);
+            refreshInterval = setInterval(() => {
+                if (document.visibilityState === 'visible') {
+                    loadData();
+                }
+            }, 30000);
+        }
+
+        function startCooldownTimer(cooldownEnd) {
+            const claimBtn = document.getElementById('claim-btn');
+            if (!claimBtn) return;
+
+            claimBtn.disabled = true;
+
+            function updateTimer() {
+                const remaining = Math.max(0, cooldownEnd - Date.now());
+                if (remaining <= 0) {
+                    claimBtn.disabled = false;
+                    claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
+                    return;
+                }
+
+                const minutes = Math.floor(remaining / 60000);
+                const seconds = Math.floor((remaining % 60000) / 1000);
+
+                claimBtn.innerHTML = `
+                    <span class="button-icon">⏳</span>
+                    <span class="button-text">${minutes}m ${seconds}s</span>
+                `;
+                setTimeout(updateTimer, 1000);
+            }
+
+            updateTimer();
+        }
+
+        function showToast(message, duration = 3000, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast-message toast-${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('fade-out');
+                setTimeout(() => toast.remove(), 500);
+            }, duration);
+        }
+
+        function switchPage(pageId) {
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.add('hidden');
+                page.classList.remove('active-page');
+            });
+
+            const page = document.getElementById(pageId);
+            if (page) {
+                page.classList.remove('hidden');
+                page.classList.add('active-page');
+            }
+
+            document.querySelectorAll('.tab-bar .tab-item').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-page') === pageId);
+            });
+        }
+
+        function isTaskCompleted(taskName) {
+            const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]');
+            return completedTasks.includes(taskName);
+        }
+
+        function escapeHTML(str) {
+            if (!str) return '';
+            return str.toString()
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function escapeString(str) {
+            if (!str) return '';
+            return str.toString()
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/"/g, '\\"');
+        }
+
+        // Configuration des événements
+        function setupEventListeners() {
+            document.getElementById('claim-btn')?.addEventListener('click', claimPoints);
+            
+            document.getElementById('copy-btn')?.addEventListener('click', () => {
+                const link = document.getElementById('referral-link');
+                link.select();
+                document.execCommand('copy');
+                showToast('Lien copié !', 2000, 'info');
+            });
+            
+            document.querySelectorAll('.tab-bar .tab-item').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    switchPage(btn.getAttribute('data-page'));
+                });
+            });
+            
+            // Bouton Watch Ads (pour l'instant juste un placeholder)
+            document.getElementById('watch-ads-btn')?.addEventListener('click', () => {
+                showToast("Fonctionnalité à venir!", 2000, 'info');
+            });
+        }
+
+        // Démarrer l'application
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
 </body>
 </html>

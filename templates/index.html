@@ -2,315 +2,60 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>CRYPTORATS_bot - RPG Faucet</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
-    
-    <link rel="stylesheet" href="/static/css/style.css">
-    <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon">
-    
-    <meta name="theme-color" content="#F5F6FA">
+    <title>CryptoRats Faucet</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        .hidden { display: none !important; }
-        .active-page { display: block !important; }
-        
-        .tab-bar {
-            position: fixed;
-            bottom: 0;
-            width: 100%;
-            display: flex;
-            justify-content: space-around;
-            background: #fff;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-            padding: 10px 0;
-            z-index: 1000;
-        }
-        .tab-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            font-size: 12px;
-            color: #666;
-            cursor: pointer;
-        }
-        .tab-item.active {
-            color: #007bff;
-        }
-        .tab-icon {
-            font-size: 20px;
-            margin-bottom: 4px;
-        }
-        
-        .toast-message {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 12px 24px;
-            border-radius: 8px;
-            color: white;
-            font-weight: bold;
-            z-index: 1001;
-            animation: slideIn 0.3s ease-out;
-        }
-        .toast-success { background-color: #28a745; }
-        .toast-error { background-color: #dc3545; }
-        .toast-info { background-color: #17a2b8; }
-        
-        @keyframes slideIn {
-            from { top: -50px; opacity: 0; }
-            to { top: 20px; opacity: 1; }
-        }
-        .fade-out {
-            animation: fadeOut 0.5s ease-out;
-            opacity: 0;
-        }
-        @keyframes fadeOut {
-            from { opacity: 1; }
-            to { opacity: 0; }
-        }
-        
-        /* Nouveau style pour le design demandé */
-        .app-header {
-            text-align: center;
-            padding: 20px 0;
-            background: linear-gradient(135deg, #6e8efb, #a777e3);
-            color: white;
-            margin-bottom: 15px;
-            border-radius: 0 0 15px 15px;
-        }
-        
-        .app-header h1 {
-            margin: 0;
-            font-size: 24px;
-            font-weight: 700;
-        }
-        
-        .user-card {
-            background: white;
-            border-radius: 12px;
-            padding: 15px;
-            margin: 0 15px 15px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            position: relative;
-        }
-        
-        .user-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .user-details {
-            flex: 1;
-        }
-        
-        .username {
-            font-weight: 600;
-            font-size: 18px;
-            margin-bottom: 5px;
-            color: #333;
-        }
-        
-        .user-stats {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-        
-        .stat-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 14px;
-            color: #666;
-        }
-        
-        .level-badge {
-            background: linear-gradient(135deg, #6e8efb, #a777e3);
-            color: white;
-            padding: 8px 12px;
-            border-radius: 20px;
-            font-weight: 700;
-            font-size: 14px;
-            margin-left: 15px;
-        }
-        
-        .claim-section {
-            margin: 15px;
-        }
-        
-        .claim-title {
-            text-align: center;
-            color: #666;
-            font-size: 16px;
-            margin-bottom: 10px;
-        }
-        
-        .claim-button {
-            background: linear-gradient(135deg, #6e8efb, #a777e3);
-            color: white;
-            border: none;
-            padding: 15px;
-            border-radius: 12px;
-            width: 100%;
-            font-weight: 600;
-            font-size: 16px;
-            margin-bottom: 20px;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .claim-button:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-        }
-        
-        .claim-button .button-icon {
-            font-size: 20px;
-        }
-        
-        .ads-section {
-            margin: 15px;
-        }
-        
-        .ads-title {
-            text-align: center;
-            color: #666;
-            font-size: 16px;
-            margin-bottom: 10px;
-        }
-        
-        .ads-button {
-            background: linear-gradient(135deg, #4CAF50, #8BC34A);
-            color: white;
-            border: none;
-            padding: 15px;
-            border-radius: 12px;
-            width: 100%;
-            font-weight: 600;
-            font-size: 16px;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-        }
+        /* Ajoute ici ton CSS habituel */
     </style>
 </head>
 <body>
-    <div id="telegram-alert" class="app-card alert-card">
-        ⚠️ Ouvrez cette application via @CRYPTORATS_bot !
+    <div id="telegram-alert" style="display: none;">⚠️ L'application est en mode test local (hors Telegram)</div>
+
+    <div id="app">
+        <!-- Balance & Claim -->
+        <div>
+            <h2>Balance: <span id="balance-value">0</span> pts</h2>
+            <p>Dernier claim: <span id="last-claim-value">Jamais</span></p>
+            <button id="claim-btn">
+                <span class="button-icon">🎁</span>
+                <span class="button-text">Claim Now</span>
+            </button>
+            <div id="level-badge">Niveau 1</div>
+        </div>
+
+        <!-- Parrainage -->
+        <div>
+            <input id="referral-link" readonly value="https://t.me/CRYPTORATS_bot?start=XXXXXX" />
+            <button id="copy-btn">Copier</button>
+        </div>
+
+        <!-- Tâches -->
+        <div id="tasks-list">Chargement des tâches...</div>
+
+        <!-- Référés -->
+        <div id="referrals-container">Chargement des referrals...</div>
+
+        <!-- Tabs -->
+        <div class="tab-bar">
+            <button class="tab-item active" data-page="main">Accueil</button>
+            <button class="tab-item" data-page="tasks">Tâches</button>
+            <button class="tab-item" data-page="referrals">Parrainage</button>
+        </div>
+
+        <!-- Pages -->
+        <div id="main" class="page active-page">Page principale</div>
+        <div id="tasks" class="page hidden">Page des tâches</div>
+        <div id="referrals" class="page hidden">Page de parrainage</div>
     </div>
 
-    <div id="app-container">
-        <!-- Page Dashboard/Claim -->
-        <div id="dashboard-page" class="page active-page">
-            <div class="app-header">
-                <h1>CRYPTORATS Faucet</h1>
-            </div>
-            
-            <div class="user-card">
-                <div class="user-info">
-                    <div class="user-details">
-                        <div class="username" id="username-display">Chargement...</div>
-                        <div class="user-stats">
-                            <div class="stat-row">
-                                <span>Balance:</span>
-                                <span class="stat-value" id="balance-value">0</span>
-                            </div>
-                            <div class="stat-row">
-                                <span>Dernier claim:</span>
-                                <span class="stat-value" id="last-claim-value">-</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="level-badge" id="level-badge">Niveau 1</div>
-                </div>
-            </div>
-            
-            <div class="claim-section">
-                <div class="claim-title">Claim now to get between 10-100 coins</div>
-                <button id="claim-btn" class="claim-button">
-                    <span class="button-icon">🎁</span>
-                    <span class="button-text">Claim Now</span>
-                </button>
-            </div>
-            
-            <div class="ads-section">
-                <div class="ads-title">Watch an ad to get between 20-200 coins</div>
-                <button id="watch-ads-btn" class="ads-button">
-                    <span class="button-icon">📺</span>
-                    <span class="button-text">Watch Ads</span>
-                </button>
-            </div>
-        </div>
-
-        <!-- Page Parrainage -->
-        <div id="referral-page" class="page hidden">
-            <div class="app-card">
-                <h2 class="card-title">Team</h2>
-                <p class="card-subtitle">Gagnez 5% des points de vos filleuls</p>
-                
-                <div class="input-group">
-                    <input type="text" id="referral-link" class="app-input" readonly>
-                    <button id="copy-btn" class="app-button secondary">
-                        <span class="button-icon">📋</span>
-                        <span class="button-text">Copier</span>
-                    </button>
-                </div>
-                
-                <div class="referrals-list" id="referrals-list">
-                    <h3>Vos Team</h3>
-                    <div id="referrals-container" class="referrals-container">
-                        <p>Chargement des membres...</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Page Tâches -->
-        <div id="tasks-page" class="page hidden">
-            <div class="app-card">
-                <h2 class="card-title">Tâches Disponibles</h2>
-                <div id="tasks-list" class="tasks-container">
-                    <p>Chargement des tâches...</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Barre de navigation en bas -->
-    <div class="tab-bar">
-        <div class="tab-item active" data-page="dashboard-page">
-            <span class="tab-icon">💰</span>
-            <span class="tab-label">Claim</span>
-        </div>
-        <div class="tab-item" data-page="tasks-page">
-            <span class="tab-icon">✅</span>
-            <span class="tab-label">Tâches</span>
-        </div>
-        <div class="tab-item" data-page="referral-page">
-            <span class="tab-icon">👥</span>
-            <span class="tab-label">Team</span>
-        </div>
-    </div>
+    <!-- Toasts -->
+    <div id="toast-container"></div>
 
     <script>
         // Configuration
         const API_BASE_URL = "https://faucet-app.onrender.com";
         const COOLDOWN_MINUTES = 5;
-        
+
         let currentUserId = null;
         let currentUsername = "Utilisateur";
         let currentBalance = 0;
@@ -321,7 +66,7 @@
         // Initialisation
         function initApp() {
             console.log("Initialisation de l'application...");
-            
+
             if (window.Telegram?.WebApp?.initData) {
                 console.log("Données Telegram détectées");
                 initTelegramWebApp();
@@ -333,57 +78,57 @@
                 startAutoRefresh();
                 loadData();
             }
-            
+
             setupEventListeners();
         }
 
         function initTelegramWebApp() {
-    const tg = window.Telegram.WebApp;
+            const tg = window.Telegram.WebApp;
 
-    // Si les données Telegram sont présentes
-    if (!tg.initData || !tg.initDataUnsafe?.user?.id) {
-        console.error("Données Telegram incomplètes");
-        return;
-    }
+            // Si les données Telegram sont présentes
+            if (!tg.initData || !tg.initDataUnsafe?.user?.id) {
+                console.error("Données Telegram incomplètes");
+                return;
+            }
 
-    tg.expand();
-    tg.ready();
-    document.getElementById('telegram-alert').style.display = 'none';
+            tg.expand();
+            tg.ready();
+            document.getElementById('telegram-alert').style.display = 'none';
 
-    // Récupérer l'utilisateur Telegram
-    const user = tg.initDataUnsafe.user;
-    currentUserId = user.id.toString();
-    currentUsername = user.username || 
-                       [user.first_name, user.last_name].filter(Boolean).join(' ') || 
-                       "Joueur";
+            // Récupérer l'utilisateur Telegram
+            const user = tg.initDataUnsafe.user;
+            currentUserId = user.id.toString();
+            currentUsername = user.username || 
+                               [user.first_name, user.last_name].filter(Boolean).join(' ') || 
+                               "Joueur";
 
-    // Extraire le ReferralCode (paramètre 'start' de l'URL)
-    const urlParams = new URLSearchParams(window.location.search);
-    const referralCode = urlParams.get('start') || null;  // Récupère le paramètre 'start' de l'URL
+            // Extraire le ReferralCode (paramètre 'start' de l'URL)
+            const urlParams = new URLSearchParams(window.location.search);
+            const referralCode = urlParams.get('start') || null;  // Récupère le paramètre 'start' de l'URL
 
-    console.log(`Utilisateur initialisé: ${currentUsername} (${currentUserId}), ReferralCode: ${referralCode}`);
+            console.log(`Utilisateur initialisé: ${currentUsername} (${currentUserId}), ReferralCode: ${referralCode}`);
 
-    // Envoyer les données à l'API
-    fetch('https://script.google.com/macros/s/AKfycbzprODTEql_p-A4WczXqJWOUyZUmsx1QiXwo7nbdPaP6De_CU1XU7KDJ_sUpcK2hfRULA/exec', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-        user_id: currentUserId,
-        username: currentUsername,
-        referral_code: referralCode,  // Passer le code de parrainage
-        initData: tg.initData
-    })
-})
-.then(response => {
-    if (!response.ok) throw new Error("Erreur serveur");
-    startAutoRefresh();  // Par exemple, pour actualiser l'interface
-    loadData();           // Pour recharger des données si nécessaire
-})
-.catch(error => {
-    console.error("Erreur d'enregistrement:", error);
-    showToast("Erreur de connexion", 3000, 'error');
-});
-}
+            // Envoyer les données à l'API
+            fetch('https://script.google.com/macros/s/AKfycbzprODTEql_p-A4WczXqJWOUyZUmsx1QiXwo7nbdPaP6De_CU1XU7KDJ_sUpcK2hfRULA/exec', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: currentUserId,
+                    username: currentUsername,
+                    referral_code: referralCode,  // Passer le code de parrainage
+                    initData: tg.initData
+                })
+            })
+            .then(response => {
+                if (!response.ok) throw new Error("Erreur serveur");
+                startAutoRefresh();  // Par exemple, pour actualiser l'interface
+                loadData();           // Pour recharger des données si nécessaire
+            })
+            .catch(error => {
+                console.error("Erreur d'enregistrement:", error);
+                showToast("Erreur de connexion", 3000, 'error');
+            });
+        }
 
         // Gestion des données
         async function loadData() {
@@ -510,7 +255,7 @@
                     <h3>${escapeHTML(task.name || 'Tâche sans nom')}</h3>
                     <p>${escapeHTML(task.description || 'Description non disponible')}</p>
                     <span class="points-badge">${task.reward || 0} pts</span>
-                    <button class="task-btn" onclick="completeTask('${escapeString(task.name)}', ${task.reward || 0})">
+                    <button class="task-btn" data-name="${escapeString(task.name)}" data-reward="${task.reward || 0}">
                         ${isTaskCompleted(task.name) ? '✅ Terminé' : 'Commencer'}
                     </button>
                 </div>`).join('');
@@ -525,218 +270,128 @@
 
             container.innerHTML = referrals.referrals.map(ref => `
                 <div class="referral-item">
-                    <span class="referral-id">${ref.user_id.substring(0, 8)}...</span>
-                    <span class="referral-points">+${ref.points_earned || 0} pts</span>
-                    <span class="referral-date">${ref.timestamp ? new Date(ref.timestamp).toLocaleDateString() : ''}</span>
-                </div>`).join('');
+                                     <span class="referral-id">${ref.user_id.substring(0, 8)}...</span>
+                    <span class="referral-name">${ref.username || 'Utilisateur inconnu'}</span>
+                    <span class="referral-balance">${ref.balance || 0} pts</span>
+                </div>
+            `).join('');
         }
 
-        function updateClaimButton() {
-            const claimBtn = document.getElementById('claim-btn');
-            if (!claimBtn) return;
+        // Fonction pour échapper des caractères HTML
+        function escapeHTML(str) {
+            return str.replace(/[&<>"']/g, function (char) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                }[char];
+            });
+        }
 
-            if (lastClaimTime) {
-                const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
-                if (Date.now() < cooldownEnd) {
-                    startCooldownTimer(cooldownEnd);
-                    return;
-                }
+        // Fonction pour échapper des caractères pour les données internes
+        function escapeString(str) {
+            return str.replace(/["']/g, '\\$&');
+        }
+
+        // Boutons
+        function setupEventListeners() {
+            // Réinitialisation des événements des boutons
+            document.getElementById('claim-btn').addEventListener('click', handleClaim);
+            document.getElementById('copy-btn').addEventListener('click', handleCopyReferral);
+
+            document.querySelectorAll('.tab-item').forEach(tab => {
+                tab.addEventListener('click', (e) => handleTabSwitch(e));
+            });
+        }
+
+        // Gestion du bouton "Claim"
+        async function handleClaim() {
+            if (isClaiming) return;
+            const cooldown = calculateCooldown();
+            if (cooldown > 0) {
+                showToast(`Veuillez attendre ${cooldown} minutes avant de réclamer à nouveau.`, 3000, 'error');
+                return;
             }
 
-            claimBtn.disabled = false;
-            claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
+            isClaiming = true;
+            const claimResponse = await claimReward();
+            isClaiming = false;
+
+            if (claimResponse.success) {
+                showToast("Récompense reçue avec succès !", 3000, 'success');
+                loadData();
+            } else {
+                showToast("Échec de la réclamation. Essayez encore.", 3000, 'error');
+            }
         }
 
-        // Actions utilisateur
-        async function claimPoints() {
-            if (isClaiming || !currentUserId) return;
-
-            const claimBtn = document.getElementById('claim-btn');
+        // Fonction pour simuler la réclamation d'une récompense
+        async function claimReward() {
             try {
-                isClaiming = true;
-                claimBtn.disabled = true;
-                claimBtn.innerHTML = '<span class="button-icon">⏳</span><span class="button-text">Processing...</span>';
-
                 const response = await fetch(`${API_BASE_URL}/claim`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        user_id: currentUserId,
-                        initData: window.Telegram?.WebApp?.initData
-                    })
+                    body: JSON.stringify({ user_id: currentUserId })
                 });
 
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.message || "Erreur serveur");
-                }
-
-                const result = await response.json();
-                console.log("Claim réussi:", result);
-                
-                showToast(`+${result.points_earned || 10} points !`, 3000, 'success');
-                await loadData();
-
-                if (result.last_claim) {
-                    lastClaimTime = new Date(result.last_claim);
-                    const cooldownEnd = new Date(lastClaimTime.getTime() + COOLDOWN_MINUTES * 60000);
-                    startCooldownTimer(cooldownEnd);
-                }
+                if (!response.ok) throw new Error("Erreur API");
+                return await response.json();
             } catch (error) {
-                console.error("Erreur claim:", error);
-                showToast(error.message || "Erreur", 3000, 'error');
-                claimBtn.disabled = false;
-            } finally {
-                isClaiming = false;
+                console.error("Erreur de réclamation:", error);
+                return { success: false };
             }
         }
 
-        async function completeTask(taskName, points) {
-            try {
-                const response = await fetch(`${API_BASE_URL}/complete-task`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: currentUserId,
-                        task_name: taskName,
-                        points: points,
-                        initData: window.Telegram?.WebApp?.initData
-                    })
-                });
+        // Calcul du cooldown
+        function calculateCooldown() {
+            if (!lastClaimTime) return 0;
 
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.message || "Erreur serveur");
-                }
-
-                const result = await response.json();
-                
-                const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]');
-                completedTasks.push(taskName);
-                localStorage.setItem('completedTasks', JSON.stringify(completedTasks));
-                
-                showToast(`Tâche complétée ! +${points} points`, 3000, 'success');
-                await loadData();
-            } catch (error) {
-                console.error("Erreur completeTask:", error);
-                showToast(error.message || "Erreur", 3000, 'error');
-            }
+            const now = new Date();
+            const diffMinutes = Math.floor((now - lastClaimTime) / (1000 * 60));
+            return Math.max(0, COOLDOWN_MINUTES - diffMinutes);
         }
 
-        // Utilitaires
-        function startAutoRefresh() {
-            clearInterval(refreshInterval);
-            refreshInterval = setInterval(() => {
-                if (document.visibilityState === 'visible') {
-                    loadData();
-                }
-            }, 30000);
+        // Gestion du bouton "Copier"
+        function handleCopyReferral() {
+            const referralLink = document.getElementById('referral-link');
+            referralLink.select();
+            document.execCommand('copy');
+            showToast("Lien copié dans le presse-papiers !", 2000, 'success');
         }
 
-        function startCooldownTimer(cooldownEnd) {
-            const claimBtn = document.getElementById('claim-btn');
-            if (!claimBtn) return;
+        // Changement d'onglet
+        function handleTabSwitch(event) {
+            const selectedPage = event.target.dataset.page;
+            document.querySelectorAll('.tab-item').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.page === selectedPage);
+            });
 
-            claimBtn.disabled = true;
-
-            function updateTimer() {
-                const remaining = Math.max(0, cooldownEnd - Date.now());
-                if (remaining <= 0) {
-                    claimBtn.disabled = false;
-                    claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
-                    return;
-                }
-
-                const minutes = Math.floor(remaining / 60000);
-                const seconds = Math.floor((remaining % 60000) / 1000);
-
-                claimBtn.innerHTML = `
-                    <span class="button-icon">⏳</span>
-                    <span class="button-text">${minutes}m ${seconds}s</span>
-                `;
-                setTimeout(updateTimer, 1000);
-            }
-
-            updateTimer();
-        }
-
-        function showToast(message, duration = 3000, type = 'info') {
-            const toast = document.createElement('div');
-            toast.className = `toast-message toast-${type}`;
-            toast.textContent = message;
-            document.body.appendChild(toast);
-
-            setTimeout(() => {
-                toast.classList.add('fade-out');
-                setTimeout(() => toast.remove(), 500);
-            }, duration);
-        }
-
-        function switchPage(pageId) {
             document.querySelectorAll('.page').forEach(page => {
-                page.classList.add('hidden');
-                page.classList.remove('active-page');
-            });
-
-            const page = document.getElementById(pageId);
-            if (page) {
-                page.classList.remove('hidden');
-                page.classList.add('active-page');
-            }
-
-            document.querySelectorAll('.tab-bar .tab-item').forEach(btn => {
-                btn.classList.toggle('active', btn.getAttribute('data-page') === pageId);
+                page.classList.toggle('active-page', page.id === selectedPage);
+                page.classList.toggle('hidden', page.id !== selectedPage);
             });
         }
 
-        function isTaskCompleted(taskName) {
-            const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]');
-            return completedTasks.includes(taskName);
+        // Affichage des toast
+        function showToast(message, duration = 3000, type = 'info') {
+            const toastContainer = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.classList.add('toast', type);
+            toast.textContent = message;
+
+            toastContainer.appendChild(toast);
+            setTimeout(() => toast.remove(), duration);
         }
 
-        function escapeHTML(str) {
-            if (!str) return '';
-            return str.toString()
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
+        // Auto-refresh des données
+        function startAutoRefresh() {
+            refreshInterval = setInterval(loadData, 60000);  // Rafraîchit toutes les 60 secondes
         }
 
-        function escapeString(str) {
-            if (!str) return '';
-            return str.toString()
-                .replace(/\\/g, '\\\\')
-                .replace(/'/g, "\\'")
-                .replace(/"/g, '\\"');
-        }
-
-        // Configuration des événements
-        function setupEventListeners() {
-            document.getElementById('claim-btn')?.addEventListener('click', claimPoints);
-            
-            document.getElementById('copy-btn')?.addEventListener('click', () => {
-                const link = document.getElementById('referral-link');
-                link.select();
-                document.execCommand('copy');
-                showToast('Lien copié !', 2000, 'info');
-            });
-            
-            document.querySelectorAll('.tab-bar .tab-item').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    switchPage(btn.getAttribute('data-page'));
-                });
-            });
-            
-            // Bouton Watch Ads (pour l'instant juste un placeholder)
-            document.getElementById('watch-ads-btn')?.addEventListener('click', () => {
-                showToast("Fonctionnalité à venir!", 2000, 'info');
-            });
-        }
-
-        // Démarrer l'application
-        document.addEventListener('DOMContentLoaded', initApp);
+        // Initialisation
+        window.onload = initApp;
     </script>
 </body>
 </html>

@@ -318,25 +318,25 @@
         let lastClaimTime = null;
 
         // Initialisation
-        function initApp() {
-            console.log("Initialisation de l'application...");
-            
-            if (window.Telegram?.WebApp?.initData) {
-                console.log("Données Telegram détectées");
-                initTelegramWebApp();
-            } else {
-                console.warn("Mode debug activé (pas via Telegram)");
-                document.getElementById('telegram-alert').style.display = 'block';
-                currentUserId = "debug_user_" + Math.floor(Math.random() * 1000);
-                currentUsername = "DebugUser";
-                startAutoRefresh();
-                loadData();
-            }
-            
-            setupEventListeners();
-        }
+function initApp() {
+    console.log("Initialisation de l'application...");
+    
+    if (window.Telegram?.WebApp?.initData) {
+        console.log("Données Telegram détectées");
+        initTelegramWebApp();
+    } else {
+        console.warn("Mode debug activé (pas via Telegram)");
+        document.getElementById('telegram-alert').style.display = 'block';
+        currentUserId = "debug_user_" + Math.floor(Math.random() * 1000);
+        currentUsername = "DebugUser";
+        startAutoRefresh();
+        loadData();
+    }
+    
+    setupEventListeners();
+}
 
-        function initTelegramWebApp() {
+function initTelegramWebApp() {
     const tg = window.Telegram.WebApp;
 
     // Si les données Telegram sont présentes
@@ -360,105 +360,105 @@
     const urlParams = new URLSearchParams(window.location.search);
     const referralCode = urlParams.get('start') || null;  // Récupère le paramètre 'start' de l'URL
 
-    console.log(Utilisateur initialisé: ${currentUsername} (${currentUserId}), ReferralCode: ${referralCode});
+    console.log(`Utilisateur initialisé: ${currentUsername} (${currentUserId}), ReferralCode: ${referralCode}`);
 
     // Envoyer les données à l'API
     fetch('https://script.google.com/macros/s/AKfycbzprODTEql_p-A4WczXqJWOUyZUmsx1QiXwo7nbdPaP6De_CU1XU7KDJ_sUpcK2hfRULA/exec', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-        user_id: currentUserId,
-        username: currentUsername,
-        referral_code: referralCode,  // Passer le code de parrainage
-        initData: tg.initData
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            user_id: currentUserId,
+            username: currentUsername,
+            referral_code: referralCode,  // Passer le code de parrainage
+            initData: tg.initData
+        })
     })
-})
-.then(response => {
-    if (!response.ok) throw new Error("Erreur serveur");
-    startAutoRefresh();  // Par exemple, pour actualiser l'interface
-    loadData();           // Pour recharger des données si nécessaire
-})
-.catch(error => {
-    console.error("Erreur d'enregistrement:", error);
-    showToast("Erreur de connexion", 3000, 'error');
-});
+    .then(response => {
+        if (!response.ok) throw new Error("Erreur serveur");
+        startAutoRefresh();  // Par exemple, pour actualiser l'interface
+        loadData();           // Pour recharger des données si nécessaire
+    })
+    .catch(error => {
+        console.error("Erreur d'enregistrement:", error);
+        showToast("Erreur de connexion", 3000, 'error');
+    });
 }
 
-        // Gestion des données
-        async function loadData() {
-            if (!currentUserId) return;
+// Gestion des données
+async function loadData() {
+    if (!currentUserId) return;
 
-            try {
-                console.log("Chargement des données...");
-                const [balance, tasks, referrals] = await Promise.all([
-                    fetchBalance(),
-                    fetchTasks(),
-                    fetchReferrals()
-                ]);
-                
-                updateUI({ balance, tasks, referrals });
-            } catch (error) {
-                console.error("Erreur de chargement:", error);
-                showToast("Erreur de chargement", 3000, 'error');
-            }
-        }
+    try {
+        console.log("Chargement des données...");
+        const [balance, tasks, referrals] = await Promise.all([
+            fetchBalance(),
+            fetchTasks(),
+            fetchReferrals()
+        ]);
+        
+        updateUI({ balance, tasks, referrals });
+    } catch (error) {
+        console.error("Erreur de chargement:", error);
+        showToast("Erreur de chargement", 3000, 'error');
+    }
+}
 
-        async function fetchBalance() {
-            try {
-                const response = await fetch(${API_BASE_URL}/get-balance, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        user_id: currentUserId,
-                        initData: window.Telegram?.WebApp?.initData
-                    })
-                });
-                
-                if (!response.ok) throw new Error("Erreur API");
-                return await response.json();
-            } catch (error) {
-                console.error("Erreur fetchBalance:", error);
-                throw error;
-            }
-        }
+async function fetchBalance() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/get-balance`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                user_id: currentUserId,
+                initData: window.Telegram?.WebApp?.initData
+            })
+        });
+        
+        if (!response.ok) throw new Error("Erreur API");
+        return await response.json();
+    } catch (error) {
+        console.error("Erreur fetchBalance:", error);
+        throw error;
+    }
+}
 
-        async function fetchTasks() {
-            try {
-                const response = await fetch(${API_BASE_URL}/get-tasks, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        user_id: currentUserId,
-                        initData: window.Telegram?.WebApp?.initData
-                    })
-                });
-                
-                if (!response.ok) throw new Error("Erreur API");
-                return await response.json();
-            } catch (error) {
-                console.error("Erreur fetchTasks:", error);
-                return { tasks: [] };
-            }
-        }
+async function fetchTasks() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/get-tasks`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                user_id: currentUserId,
+                initData: window.Telegram?.WebApp?.initData
+            })
+        });
+        
+        if (!response.ok) throw new Error("Erreur API");
+        return await response.json();
+    } catch (error) {
+        console.error("Erreur fetchTasks:", error);
+        return { tasks: [] };
+    }
+}
 
-        async function fetchReferrals() {
-            try {
-                const response = await fetch(${API_BASE_URL}/get-referrals, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        user_id: currentUserId,
-                        initData: window.Telegram?.WebApp?.initData
-                    })
-                });
-                
-                if (!response.ok) throw new Error("Erreur API");
-                return await response.json();
-            } catch (error) {
-                console.error("Erreur fetchReferrals:", error);
-                return { referrals: [] };
-            }
-        }
+async function fetchReferrals() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/get-referrals`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                user_id: currentUserId,
+                initData: window.Telegram?.WebApp?.initData
+            })
+        });
+        
+        if (!response.ok) throw new Error("Erreur API");
+        return await response.json();
+    } catch (error) {
+        console.error("Erreur fetchReferrals:", error);
+        return { referrals: [] };
+    }
+}
 
         // Mise à jour de l'interface
         function updateUI({ balance, tasks, referrals }) {

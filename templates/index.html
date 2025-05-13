@@ -214,6 +214,54 @@
             gap: 10px;
         }
     </style>
+	 <script>
+        // Fonction pour obtenir les paramètres d'URL
+        function getReferrerIdFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('ref'); // Retourne la valeur de "ref" ou null si inexistant
+        }
+
+        // Fonction d'initialisation de l'application
+        function initApp() {
+            console.log("Initialisation de l'application...");
+            
+            const referrerId = getReferrerIdFromURL(); // Récupère le referrer_id depuis l'URL
+            console.log("Referral ID:", referrerId); // Vérifie dans la console si tu récupères bien l'ID
+            
+            if (window.Telegram?.WebApp?.initData) {
+                console.log("Données Telegram détectées");
+                initTelegramWebApp();
+            } else {
+                console.warn("Mode navigateur standard");
+                document.getElementById('telegram-alert').style.display = 'block';
+                currentUserId = "debug_user_" + Math.floor(Math.random() * 1000);
+                currentUsername = "DebugUser";
+                startAutoRefresh();
+                loadData();
+            }
+            
+            // Envoie les données avec le referrer_id si présent
+            fetch(`${API_BASE_URL}/claim`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: currentUserId,
+                    username: currentUsername,
+                    referrer_id: referrerId // Inclure referrer_id dans la requête
+                })
+            })
+            .then(response => response.json())
+            .then(data => console.log(data))
+            .catch(error => console.error('Erreur de requête:', error));
+            
+            setupEventListeners();
+        }
+
+        // Initialisation de l'application au chargement de la page
+        window.onload = function() {
+            initApp();
+        };
+    </script>
 </head>
 <body>
     <div id="telegram-alert" class="app-card alert-card">

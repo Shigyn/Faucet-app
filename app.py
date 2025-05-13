@@ -195,6 +195,8 @@ def claim():
     try:
         data = request.json
         user_id = str(data.get('user_id'))
+        referrer_id = data.get('referrer_id')  # Récupérer le referrer_id depuis la requête
+        
         now = datetime.now()
         now_str = now.strftime('%Y-%m-%d %H:%M:%S')
         cooldown_minutes = 5
@@ -207,11 +209,13 @@ def claim():
             range=RANGES['referrals']
         ).execute().get('values', [])
 
-        referrer_id = None
-        for row in referrals_data:
-            if len(row) >= 2 and row[1] == user_id:  # row[1] = referred_id
-                referrer_id = row[0]  # row[0] = referrer_id
-                break
+        # Logique pour vérifier le parrain (ancien utilisateur)
+        if referrer_id:
+            # Si referrer_id est présent, vérifie et enregistre
+            for row in referrals_data:
+                if len(row) >= 2 and row[1] == user_id:  # row[1] = referred_id
+                    referrer_id = row[0]  # row[0] = referrer_id
+                    break
 
         # 2. Générer les points
         points = random.randint(10, 100)
@@ -239,8 +243,6 @@ def claim():
                 ).execute()
             else:
                 # Nouvel utilisateur : créer une entrée
-                referrer_id = data.get('referrer_id')  # Ajoutez ceci
-
                 new_user = [
                     now_str,
                     data.get('username', f'User{user_id[:5]}'),

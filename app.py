@@ -330,7 +330,7 @@ def get_tasks():
         logger.error(f"Erreur get_tasks: {str(e)}")
         return jsonify({'status': 'error'}), 500
 
-@@app.route('/get-referrals', methods=['POST'])
+@app.route('/get-referrals', methods=['POST'])
 def get_referrals():
     try:
         user_id = str(request.json.get('user_id'))

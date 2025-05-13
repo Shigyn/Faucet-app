@@ -254,6 +254,51 @@ def claim():
                 body={'values': [[user_id, str(points), 'claim', now_str]]}
             ).execute()
         
+        # Après avoir donné les points au user (dans /claim):
+points_for_referrer = int(points * 0.1)  # 10% pour le parrain
+
+# Trouve le parrain du user actuel
+referrals_data = service.spreadsheets().values().get(
+    spreadsheetId=SPREADSHEET_ID,
+    range=RANGES['referrals']
+).execute().get('values', [])
+
+for row in referrals_data:
+    if len(row) > 1 and row[1] == user_id:  # row[1] = referred_id
+        referrer_id = row[0]  # row[0] = referrer_id
+        
+        # Donne les points au parrain
+        users_data = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=RANGES['users']
+        ).execute().get('values', [])
+        
+        for i, user_row in enumerate(users_data):
+            if len(user_row) > 2 and user_row[2] == referrer_id:
+                row_num = i + 2
+                current_balance = int(user_row[3]) if len(user_row) > 3 else 0
+                new_balance = current_balance + points_for_referrer
+                
+                service.spreadsheets().values().update(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range=f'Users!D{row_num}',
+                    valueInputOption='USER_ENTERED',
+                    body={'values': [[str(new_balance)]]}
+                ).execute()
+                
+                # Enregistre la transaction pour le parrain
+                service.spreadsheets().values().append(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range=RANGES['transactions'],
+                    valueInputOption='USER_ENTERED',
+                    body={'values': [[referrer_id, str(points_for_referrer), 'referral_bonus', now_str]]}
+                ).execute()
+                
+                # Met à jour le total dans Referrals (optionnel)
+                # (À implémenter si tu veux tracker combien le parrain a gagné total)
+                break
+        break
+        
         return jsonify({
             'status': 'success',
             'new_balance': new_balance,
@@ -316,6 +361,29 @@ def get_referrals():
         return jsonify({'status': 'success', 'referrals': referrals})
     except Exception as e:
         logger.error(f"Erreur get_referrals: {str(e)}")
+        return jsonify({'status': 'error'}), 500
+        
+        @app.route('/add-referral', methods=['POST'])
+def add_referral():
+    try:
+        data = request.json
+        referrer_id = str(data.get('referrer_id'))  # Celui qui a partagé le lien
+        referred_id = str(data.get('referred_id'))  # Le nouveau user
+
+        service = get_sheets_service()
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        # 1. Enregistre le lien parrain-filleul
+        service.spreadsheets().values().append(
+            spreadsheetId=SPREADSHEET_ID,
+            range=RANGES['referrals'],
+            valueInputOption='USER_ENTERED',
+            body={'values': [[referrer_id, referred_id, '0', now]]}  # 0 points initiaux
+        ).execute()
+
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        logger.error(f"Erreur add_referral: {str(e)}")
         return jsonify({'status': 'error'}), 500
 
 if __name__ == '__main__':

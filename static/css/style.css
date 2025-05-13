@@ -168,3 +168,36 @@ body {
     color: #ff4444;
     font-style: italic;
 }
+.referral-header {
+    display: flex;
+    justify-content: flex-end;
+    padding: 8px;
+    margin-bottom: 10px;
+    font-weight: bold;
+    color: #6e8efb;
+}
+
+.referral-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.referral-id {
+    color: #666;
+    width: 40%;
+}
+
+.referral-points {
+    color: #4CAF50;
+    width: 30%;
+    text-align: right;
+}
+
+.referral-date {
+    color: #999;
+    width: 30%;
+    text-align: right;
+    font-size: 0.9em;
+}

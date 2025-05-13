@@ -187,37 +187,35 @@ def claim():
         user_id = str(data.get('user_id'))
         now = datetime.now()
         now_str = now.strftime('%Y-%m-%d %H:%M:%S')
-        cooldown_minutes = 5  # Durée du cooldown en minutes
+        cooldown_minutes = 5
         
         service = get_sheets_service()
         
-        # Phase 1: Vérification du cooldown
-        users_data = service.spreadsheets().values().get(
+        # 1. Vérifier si l'utilisateur a un parrain
+        referrals_data = service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID,
-            range=RANGES['users']
+            range=RANGES['referrals']
         ).execute().get('values', [])
         
-        user_row = next((row for row in users_data if len(row) > 2 and row[2] == user_id), None)
-        
-        # Vérification cooldown
-        if user_row and len(user_row) > 4 and user_row[4]:  # Si last_claim existe
-            last_claim = datetime.strptime(user_row[4], '%Y-%m-%d %H:%M:%S')
-            cooldown_end = last_claim + timedelta(minutes=cooldown_minutes)
-            
-            if now < cooldown_end:
-                remaining = cooldown_end - now
-                return jsonify({
-                    'status': 'cooldown',
-                    'message': f'Revenez dans {remaining.seconds//60}m {remaining.seconds%60}s',
-                    'cooldown_end': cooldown_end.timestamp(),
-                    'remaining_seconds': remaining.total_seconds()
-                }), 429  # HTTP 429 = Too Many Requests
+        referrer_id = None
+        for row in referrals_data:
+            if len(row) >= 2 and row[1] == user_id:  # row[1] = referred_id
+                referrer_id = row[0]  # row[0] = referrer_id
+                break
 
-        # Phase 2: Traitement du claim
+        # 2. Générer les points
         points = random.randint(10, 100)
+        referrer_bonus = int(points * 0.1) if referrer_id else 0  # 10% pour le parrain
         
         with sheet_lock:
-            # Mise à jour utilisateur
+            # 3. Mise à jour de l'utilisateur (comme avant)
+            users_data = service.spreadsheets().values().get(
+                spreadsheetId=SPREADSHEET_ID,
+                range=RANGES['users']
+            ).execute().get('values', [])
+            
+            user_row = next((row for row in users_data if len(row) > 2 and row[2] == user_id), None)
+            
             if user_row:
                 row_num = users_data.index(user_row) + 2
                 current_balance = int(user_row[3]) if len(user_row) > 3 else 0
@@ -244,21 +242,59 @@ def claim():
                     valueInputOption='USER_ENTERED',
                     body={'values': [new_user]}
                 ).execute()
-                new_balance = points
             
-            # Ajout transaction
+            # 4. Mise à jour du parrain si existe
+            if referrer_id:
+                referrer_row = next((row for row in users_data if len(row) > 2 and row[2] == referrer_id), None)
+                if referrer_row:
+                    ref_row_num = users_data.index(referrer_row) + 2
+                    ref_current_balance = int(referrer_row[3]) if len(referrer_row) > 3 else 0
+                    ref_new_balance = ref_current_balance + referrer_bonus
+                    
+                    service.spreadsheets().values().update(
+                        spreadsheetId=SPREADSHEET_ID,
+                        range=f'Users!D{ref_row_num}',
+                        valueInputOption='USER_ENTERED',
+                        body={'values': [[str(ref_new_balance)]]}
+                    ).execute()
+                    
+                    # Mettre à jour le bonus dans la table Referrals
+                    for i, row in enumerate(referrals_data):
+                        if len(row) >= 2 and row[0] == referrer_id and row[1] == user_id:
+                            referral_row_num = i + 2
+                            current_bonus = int(row[2]) if len(row) > 2 and row[2].isdigit() else 0
+                            new_bonus = current_bonus + referrer_bonus
+                            
+                            service.spreadsheets().values().update(
+                                spreadsheetId=SPREADSHEET_ID,
+                                range=f'Referrals!C{referral_row_num}',
+                                valueInputOption='USER_ENTERED',
+                                body={'values': [[str(new_bonus)]]}
+                            ).execute()
+                            break
+            
+            # 5. Enregistrer la transaction
             service.spreadsheets().values().append(
                 spreadsheetId=SPREADSHEET_ID,
                 range=RANGES['transactions'],
                 valueInputOption='USER_ENTERED',
                 body={'values': [[user_id, str(points), 'claim', now_str]]}
             ).execute()
+            
+            if referrer_id:
+                service.spreadsheets().values().append(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range=RANGES['transactions'],
+                    valueInputOption='USER_ENTERED',
+                    body={'values': [[referrer_id, str(referrer_bonus), 'referral_bonus', now_str]]}
+                ).execute()
         
         return jsonify({
             'status': 'success',
             'new_balance': new_balance,
             'last_claim': now_str,
             'points_earned': points,
+            'referrer_bonus': referrer_bonus if referrer_id else 0,
             'cooldown_end': (now + timedelta(minutes=cooldown_minutes)).timestamp()
         })
         
@@ -294,7 +330,7 @@ def get_tasks():
         logger.error(f"Erreur get_tasks: {str(e)}")
         return jsonify({'status': 'error'}), 500
 
-@app.route('/get-referrals', methods=['POST'])
+@@app.route('/get-referrals', methods=['POST'])
 def get_referrals():
     try:
         user_id = str(request.json.get('user_id'))
@@ -305,15 +341,22 @@ def get_referrals():
         ).execute()
         
         referrals = []
+        total_bonus = 0
         for row in result.get('values', []):
             if len(row) >= 3 and row[0] == user_id:
+                bonus = int(row[2]) if row[2].isdigit() else 0
+                total_bonus += bonus
                 referrals.append({
                     'user_id': row[1],
-                    'points_earned': int(row[2]) if row[2].isdigit() else 0,
+                    'points_earned': bonus,
                     'timestamp': row[3] if len(row) > 3 else None
                 })
         
-        return jsonify({'status': 'success', 'referrals': referrals})
+        return jsonify({
+            'status': 'success', 
+            'referrals': referrals,
+            'total_bonus': total_bonus
+        })
     except Exception as e:
         logger.error(f"Erreur get_referrals: {str(e)}")
         return jsonify({'status': 'error'}), 500

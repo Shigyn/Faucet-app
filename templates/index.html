@@ -548,24 +548,28 @@
         }
     }
 
-    function updateTasksList(tasks) {
-        const container = document.getElementById('tasks-list');
-        
-        if (!tasks?.tasks?.length) {
-            container.innerHTML = "<p>Aucune tâche disponible</p>";
-            return;
-        }
-
-        container.innerHTML = tasks.tasks.map(task => `
-            <div class="task-card">
-                <h3>${escapeHTML(task.name || 'Tâche sans nom')}</h3>
-                <p>${escapeHTML(task.description || 'Description non disponible')}</p>
-                <span class="points-badge">${task.reward || 0} pts</span>
-                <button class="task-btn" onclick="completeTask('${escapeString(task.name)}', ${task.reward || 0})">
-                    ${isTaskCompleted(task.name) ? '✅ Terminé' : 'Commencer'}
-                </button>
-            </div>`).join('');
+    function updateReferralsList(referrals) {
+    const container = document.getElementById('referrals-container');
+    
+    if (!referrals?.referrals?.length) {
+        container.innerHTML = "<p>Aucun membre pour le moment</p>";
+        return;
     }
+
+    let html = `
+        <div class="referral-header">
+            <span>Total bonus: ${referrals.total_bonus || 0} pts</span>
+        </div>`;
+    
+    html += referrals.referrals.map(ref => `
+        <div class="referral-item">
+            <span class="referral-id">${ref.user_id?.substring(0, 8) || 'N/A'}...</span>
+            <span class="referral-points">+${ref.points_earned || 0} pts (10%)</span>
+            <span class="referral-date">${ref.timestamp ? new Date(ref.timestamp).toLocaleDateString() : ''}</span>
+        </div>`).join('');
+    
+    container.innerHTML = html;
+}
 
     function updateReferralsList(referrals) {
         const container = document.getElementById('referrals-container');

@@ -13,7 +13,10 @@
     // Initialisation
     function initApp() {
         console.log("Initialisation de l'application...");
-        
+        console.log("Telegram WebApp:", window.Telegram?.WebApp);
+		console.log("initData:", window.Telegram?.WebApp?.initData);
+		console.log("initDataUnsafe:", window.Telegram?.WebApp?.initDataUnsafe);
+
         if (window.Telegram?.WebApp?.initData) {
             console.log("Données Telegram détectées");
             initTelegramWebApp();

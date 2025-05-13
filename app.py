@@ -319,6 +319,7 @@ def get_referrals():
         return jsonify({'status': 'error'}), 500
         
         @app.route('/add-referral', methods=['POST'])
+        
 def add_referral():
     try:
         data = request.json

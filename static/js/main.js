@@ -30,45 +30,45 @@
     }
 
     function initTelegramWebApp() {
-        const tg = window.Telegram.WebApp;
-        
-        if (!tg.initData || !tg.initDataUnsafe?.user?.id) {
-            console.error("Données Telegram incomplètes");
-            return;
-        }
+    const tg = window.Telegram.WebApp;
 
-        tg.expand();
-        tg.ready();
-        document.getElementById('telegram-alert').style.display = 'none';
-        
-        const user = tg.initDataUnsafe.user;
-        currentUserId = user.id.toString();
-        currentUsername = user.username || 
-                           [user.first_name, user.last_name].filter(Boolean).join(' ') || 
-                           "Joueur";
-        
-        document.getElementById('username-display').textContent = currentUsername;
-        console.log(`Utilisateur initialisé: ${currentUsername} (${currentUserId})`);
-
-        fetch(`${API_BASE_URL}/update-user`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                user_id: currentUserId,
-                username: currentUsername,
-                initData: tg.initData
-            })
-        })
-        .then(response => {
-            if (!response.ok) throw new Error("Erreur serveur");
-            startAutoRefresh();
-            loadData();
-        })
-        .catch(error => {
-            console.error("Erreur d'enregistrement:", error);
-            showToast("Erreur de connexion", 3000, 'error');
-        });
+    if (!tg.initData || !tg.initDataUnsafe?.user?.id) {
+        console.error("Données Telegram incomplètes");
+        return;
     }
+
+    tg.expand();
+    tg.ready();
+    document.getElementById('telegram-alert').style.display = 'none';
+
+    const user = tg.initDataUnsafe.user;
+    currentUserId = user.id.toString();
+    currentUsername = user.username || 
+                       [user.first_name, user.last_name].filter(Boolean).join(' ') || 
+                       "Joueur";
+
+    document.getElementById('username-display').textContent = currentUsername;
+    console.log(`Utilisateur initialisé: ${currentUsername} (${currentUserId})`);
+
+    fetch(`${API_BASE_URL}/update-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            user_id: currentUserId,
+            username: currentUsername,
+            initData: tg.initData
+        })
+    })
+    .then(response => {
+        if (!response.ok) throw new Error("Erreur serveur");
+        startAutoRefresh();
+        loadData();
+    })
+    .catch(error => {
+        console.error("Erreur d'enregistrement:", error);
+        showToast("Erreur de connexion", 3000, 'error');
+    });
+}
 
     // Gestion des données
     async function loadData() {
@@ -319,22 +319,64 @@
     }
 
     function startCooldownTimer(cooldownEnd) {
+    const claimBtn = document.getElementById('claim-btn');
+    if (!claimBtn) return;
+
+    claimBtn.disabled = true;
+
+    function updateTimer() {
+        const remaining = Math.max(0, cooldownEnd - Date.now());
+
+        if (remaining <= 0) {
+            claimBtn.disabled = false;
+            claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
+            return;
+        }
+
+        const minutes = Math.floor(remaining / 60000);
+        const seconds = Math.floor((remaining % 60000) / 1000);
+
+        claimBtn.innerHTML = `
+            <span class="button-icon">⏳</span>
+            <span class="button-text">${minutes}m ${seconds}s</span>`;
+
+        setTimeout(updateTimer, 1000);
+    }
+
+    updateTimer();
+}
+
+// Gestion des événements
+    function setupEventListeners() {
+        // Navigation par onglets
+        document.querySelectorAll('.tab-item').forEach(item => {
+            item.addEventListener('click', function () {
+                // Retire la classe active de tous les onglets
+                document.querySelectorAll('.tab-item').forEach(tab => tab.classList.remove('active'));
+                // Ajoute la classe active à l'onglet cliqué
+                this.classList.add('active');
+
+                // Masque toutes les pages
+                document.querySelectorAll('.page').forEach(page => {
+                    page.style.display = 'none';
+                });
+
+                // Affiche la page sélectionnée
+                const targetPageId = this.getAttribute('data-page');
+                const targetPage = document.getElementById(targetPageId);
+                if (targetPage) {
+                    targetPage.style.display = 'block';
+                }
+            });
+        });
+
+        // Bouton de claim
         const claimBtn = document.getElementById('claim-btn');
-        if (!claimBtn) return;
+        if (claimBtn) {
+            claimBtn.addEventListener('click', claimPoints);
+        }
+    }
 
-        claimBtn.disabled = true;
-
-        function updateTimer() {
-            const remaining = Math.max(0, cooldownEnd - Date.now());
-            if (remaining <= 0) {
-                claimBtn.disabled = false;
-                claimBtn.innerHTML = '<span class="button-icon">🎁</span><span class="button-text">Claim Now</span>';
-                return;
-            }
-
-            const minutes = Math.floor(remaining / 60000);
-            const seconds = Math.floor((remaining % 60000) / 1000);
-
-            claimBtn.innerHTML = `
-                <span class="button-icon">⏳</span>
-                <span class="button-text">${minutes}m ${seconds}s</span
+    // Lancement de l'app
+    window.addEventListener('DOMContentLoaded', initApp);
+</script>

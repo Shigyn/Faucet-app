@@ -571,22 +571,6 @@
     container.innerHTML = html;
 }
 
-    function updateReferralsList(referrals) {
-        const container = document.getElementById('referrals-container');
-        
-        if (!referrals?.referrals?.length) {
-            container.innerHTML = "<p>Aucun membre pour le moment</p>";
-            return;
-        }
-
-        container.innerHTML = referrals.referrals.map(ref => `
-            <div class="referral-item">
-                <span class="referral-id">${ref.user_id?.substring(0, 8) || 'N/A'}...</span>
-                <span class="referral-points">+${ref.points_earned || 0} pts</span>
-                <span class="referral-date">${ref.timestamp ? new Date(ref.timestamp).toLocaleDateString() : ''}</span>
-            </div>`).join('');
-    }
-
     function updateClaimButton() {
         const claimBtn = document.getElementById('claim-btn');
         if (!claimBtn) return;

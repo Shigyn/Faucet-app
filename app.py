@@ -57,7 +57,7 @@ def start():
         'message': 'Welcome to TronQuest Airdrop! Collect tokens every day. You will get a bonus every 3 months that will be swapped to TRX. Use your referral code to invite others!',
         'buttons': [{
             'text': 'Open',
-            'url': 'https://yourapp.com'  # Remplace par ton lien réel ou l'URL du bot
+            'url': 'https://t.me/CRYPTORATS_bot'  # Remplace par ton lien réel ou l'URL du bot
         }]
     })
 

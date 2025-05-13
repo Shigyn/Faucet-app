@@ -317,10 +317,9 @@ def get_referrals():
     except Exception as e:
         logger.error(f"Erreur get_referrals: {str(e)}")
         return jsonify({'status': 'error'}), 500
-        
-        @app.route('/add-referral', methods=['POST'])
-        
-def add_referral():
+
+@app.route('/add-referral', methods=['POST'])  # <-- Décorateur correctement aligné
+def add_referral():  # <-- Fonction correctement alignée
     try:
         data = request.json
         referrer_id = str(data.get('referrer_id'))  # Celui qui a partagé le lien

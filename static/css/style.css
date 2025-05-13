@@ -164,17 +164,21 @@ body {
 .claim-button:not([disabled]):hover .button-icon {
   transform: scale(1.1);
 }
+
+/* Ajout d'un message d'erreur */
 .error {
     color: #ff4444;
     font-style: italic;
 }
+
+/* Section parrainage - Nouvelles classes */
 .referral-header {
     display: flex;
     justify-content: flex-end;
     padding: 8px;
     margin-bottom: 10px;
     font-weight: bold;
-    color: #6e8efb;
+    color: var(--primary);
 }
 
 .referral-item {

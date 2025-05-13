@@ -67,6 +67,7 @@ def update_user():
         data = request.json
         user_id = str(data.get('user_id'))
         username = data.get('username', 'User')
+        referrer_id = str(data.get('referrer_id', ''))  # Ajoutez ceci
         
         service = get_sheets_service()
         result = service.spreadsheets().values().get(
@@ -83,7 +84,7 @@ def update_user():
                 user_id,
                 '0',
                 '',
-                user_id  # Code de parrainage complet
+                referrer_id if referrer_id else ''  # Modifiez cette ligne
             ]
             service.spreadsheets().values().append(
                 spreadsheetId=SPREADSHEET_ID,
@@ -91,6 +92,15 @@ def update_user():
                 valueInputOption='USER_ENTERED',
                 body={'values': [new_user]}
             ).execute()
+            
+            # Si referrer_id existe, ajoutez une entrée dans Referrals
+            if referrer_id:
+                service.spreadsheets().values().append(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range=RANGES['referrals'],
+                    valueInputOption='USER_ENTERED',
+                    body={'values': [[referrer_id, user_id, '0', datetime.now().strftime('%Y-%m-%d %H:%M:%S')]]}
+                ).execute()
         
         return jsonify({
             'status': 'success',
@@ -228,20 +238,23 @@ def claim():
                     body={'values': [[str(new_balance), now_str]]}
                 ).execute()
             else:
-                new_user = [
-                    now_str,
-                    data.get('username', f'User{user_id[:5]}'),
-                    user_id,
-                    str(points),
-                    now_str,
-                    user_id
-                ]
-                service.spreadsheets().values().append(
-                    spreadsheetId=SPREADSHEET_ID,
-                    range=RANGES['users'],
-                    valueInputOption='USER_ENTERED',
-                    body={'values': [new_user]}
-                ).execute()
+    # Récupérer le referrer_id depuis les paramètres de la requête
+    referrer_id = data.get('referrer_id')  # Ajoutez ceci
+    
+    new_user = [
+        now_str,
+        data.get('username', f'User{user_id[:5]}'),
+        user_id,
+        str(points),
+        now_str,
+        referrer_id if referrer_id else ''  # Modifiez cette ligne - mettez referrer_id ou vide
+    ]
+    service.spreadsheets().values().append(
+        spreadsheetId=SPREADSHEET_ID,
+        range=RANGES['users'],
+        valueInputOption='USER_ENTERED',
+        body={'values': [new_user]}
+    ).execute()
             
             # 4. Mise à jour du parrain si existe
             if referrer_id:
@@ -361,23 +374,39 @@ def get_referrals():
         logger.error(f"Erreur get_referrals: {str(e)}")
         return jsonify({'status': 'error'}), 500
 
-@app.route('/add-referral', methods=['POST'])  # <-- Décorateur correctement aligné
-def add_referral():  # <-- Fonction correctement alignée
+@app.route('/add-referral', methods=['POST'])
+def add_referral():
     try:
         data = request.json
-        referrer_id = str(data.get('referrer_id'))  # Celui qui a partagé le lien
-        referred_id = str(data.get('referred_id'))  # Le nouveau user
-
+        referrer_id = str(data.get('referrer_id'))
+        referred_id = str(data.get('referred_id'))
+        
         service = get_sheets_service()
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        # 1. Enregistre le lien parrain-filleul
+        # 1. Enregistrez dans Referrals
         service.spreadsheets().values().append(
             spreadsheetId=SPREADSHEET_ID,
-            range=RANGES['referrals'],
+            range='Referrals!A2:D',
             valueInputOption='USER_ENTERED',
-            body={'values': [[referrer_id, referred_id, '0', now]]}  # 0 points initiaux
+            body={'values': [[referrer_id, referred_id, 0, now]]}
         ).execute()
+
+        # 2. Mettez à jour le ReferralCode dans Users
+        users_data = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range='Users!A2:F'
+        ).execute().get('values', [])
+
+        for i, row in enumerate(users_data):
+            if len(row) > 2 and row[2] == referred_id:  # Trouver le user par User_ID
+                service.spreadsheets().values().update(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range=f'Users!F{i+2}',  # Colonne F = ReferralCode
+                    valueInputOption='USER_ENTERED',
+                    body={'values': [[referrer_id]]}
+                ).execute()
+                break
 
         return jsonify({'status': 'success'})
     except Exception as e:

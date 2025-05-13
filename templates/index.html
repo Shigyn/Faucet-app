@@ -341,78 +341,85 @@
     }
 
     function initTelegramWebApp() {
-        const tg = window.Telegram.WebApp;
-        
-        if (!tg.initData || !tg.initDataUnsafe?.user?.id) {
-            console.error("Données Telegram incomplètes");
-            return;
-        }
+    const tg = window.Telegram.WebApp;
 
-        tg.expand();
-        tg.ready();
-        document.getElementById('telegram-alert').style.display = 'none';
-        
-        const user = tg.initDataUnsafe.user;
-        currentUserId = user.id.toString();
-        currentUsername = user.username || 
-                       [user.first_name, user.last_name].filter(Boolean).join(' ') || 
-                       "Joueur";
-        
-        document.getElementById('username-display').textContent = currentUsername;
-        console.log(`Utilisateur initialisé: ${currentUsername} (${currentUserId})`);
-
-        fetch(`${API_BASE_URL}/update-user`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                user_id: currentUserId,
-                username: currentUsername,
-                initData: tg.initData
-            })
-        })
-        .then(response => {
-            if (!response.ok) throw new Error("Erreur serveur");
-            startAutoRefresh();
-            loadData();
-        })
-        .catch(error => {
-            console.error("Erreur d'enregistrement:", error);
-            showToast("Erreur de connexion", 3000, 'error');
-        });
+    if (!tg.initData || !tg.initDataUnsafe?.user?.id) {
+        console.error("Données Telegram incomplètes");
+        return;
     }
 
-    async function loadData() {
-        console.log("Début du chargement des données...");
-        initClaimButton();
-        
-        try {
-            const [balance, tasks, referrals] = await Promise.all([
-                fetchBalance(),
-                fetchTasks(),
-                fetchReferrals()
-            ]);
+    tg.expand();
+    tg.ready();
+    document.getElementById('telegram-alert').style.display = 'none';
 
-            console.log("Données reçues:", {balance, tasks, referrals});
-            
-            // Vérification des données
-            if (!balance || balance.status === 'error') {
-                throw new Error(balance?.message || "Erreur de chargement du solde");
+    const user = tg.initDataUnsafe.user;
+    currentUserId = user.id.toString();
+    currentUsername = user.username ||
+                    [user.first_name, user.last_name].filter(Boolean).join(' ') ||
+                    "Joueur";
+
+    document.getElementById('username-display').textContent = currentUsername;
+    console.log(`Utilisateur initialisé: ${currentUsername} (${currentUserId})`);
+
+    const referrer_id = tg.initDataUnsafe.start_param || '';
+
+    fetch(`${API_BASE_URL}/update-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            user_id: currentUserId,
+            username: currentUsername,
+            referrer_id: referrer_id,
+            initData: tg.initData
+        })
+    })
+    .then(response => {
+        if (!response.ok) throw new Error("Erreur serveur");
+        startAutoRefresh();
+        loadData();
+    })
+    .catch(error => {
+        console.error("Erreur d'enregistrement:", error);
+        showToast("Erreur de connexion", 3000, 'error');
+    });
+}
+
+async function loadData() {
+    console.log("Début du chargement des données...");
+    initClaimButton();
+
+    try {
+        const [balance, tasks, referrals] = await Promise.all([
+            fetchBalance(),
+            fetchTasks(),
+            fetchReferrals()
+        ]);
+
+        console.log("Données reçues:", { balance, tasks, referrals });
+
+        if (!balance || balance.status === 'error') {
+            throw new Error(balance?.message || "Erreur de chargement du solde");
+        }
+
+        updateUI({
+            balance: balance,
+            tasks: tasks?.status === 'error' ? { tasks: [] } : tasks,
+            referrals: referrals?.status === 'error' ? { referrals: [] } : referrals
+        });
+
+        if (balance.last_claim) {
+            const lastClaim = new Date(balance.last_claim);
+            const cooldownEnd = new Date(lastClaim.getTime() + 5 * 60000);
+
+            if (Date.now() < cooldownEnd.getTime()) {
+                cooldownManager.startCooldown(currentUserId, cooldownEnd);
             }
-
-            updateUI({ 
-                balance: balance,
-                tasks: tasks?.status === 'error' ? {tasks: []} : tasks,
-                referrals: referrals?.status === 'error' ? {referrals: []} : referrals
-            });
-
-            if (balance.last_claim) {
-                const lastClaim = new Date(balance.last_claim);
-                const cooldownEnd = new Date(lastClaim.getTime() + 5*60000);
-                
-                if (Date.now() < cooldownEnd.getTime()) {
-                    cooldownManager.startCooldown(currentUserId, cooldownEnd);
-                }
-            }
+        }
+    } catch (error) {
+        console.error("Erreur lors du chargement des données:", error);
+        showToast("Erreur lors du chargement", 3000, 'error');
+    }
+}
             
             updateClaimButton();
         } catch (error) {

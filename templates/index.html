@@ -339,7 +339,8 @@
 
         function initTelegramWebApp() {
     const tg = window.Telegram.WebApp;
-    
+
+    // Si les données Telegram sont présentes
     if (!tg.initData || !tg.initDataUnsafe?.user?.id) {
         console.error("Données Telegram incomplètes");
         return;
@@ -348,38 +349,40 @@
     tg.expand();
     tg.ready();
     document.getElementById('telegram-alert').style.display = 'none';
-    
+
+    // Récupérer l'utilisateur Telegram
     const user = tg.initDataUnsafe.user;
     currentUserId = user.id.toString();
     currentUsername = user.username || 
                        [user.first_name, user.last_name].filter(Boolean).join(' ') || 
                        "Joueur";
 
-    // Extraction du ReferralCode depuis l'URL 'start'
-    const referralCode = new URLSearchParams(tg.initData).get('start') || null;
-    
-    document.getElementById('username-display').textContent = currentUsername;
+    // Extraire le ReferralCode (paramètre 'start' de l'URL)
+    const urlParams = new URLSearchParams(window.location.search);
+    const referralCode = urlParams.get('start') || null;  // Récupère le paramètre 'start' de l'URL
+
     console.log(`Utilisateur initialisé: ${currentUsername} (${currentUserId}), ReferralCode: ${referralCode}`);
 
-    fetch(`${API_BASE_URL}/update-user`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            user_id: currentUserId,
-            username: currentUsername,
-            referral_code: referralCode,  // Envoie le code de parrainage
-            initData: tg.initData
-        })
+    // Envoyer les données à l'API
+    fetch('https://script.google.com/macros/s/AKfycbzprODTEql_p-A4WczXqJWOUyZUmsx1QiXwo7nbdPaP6De_CU1XU7KDJ_sUpcK2hfRULA/exec', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        user_id: currentUserId,
+        username: currentUsername,
+        referral_code: referralCode,  // Passer le code de parrainage
+        initData: tg.initData
     })
-    .then(response => {
-        if (!response.ok) throw new Error("Erreur serveur");
-        startAutoRefresh();
-        loadData();
-    })
-    .catch(error => {
-        console.error("Erreur d'enregistrement:", error);
-        showToast("Erreur de connexion", 3000, 'error');
-    });
+})
+.then(response => {
+    if (!response.ok) throw new Error("Erreur serveur");
+    startAutoRefresh();  // Par exemple, pour actualiser l'interface
+    loadData();           // Pour recharger des données si nécessaire
+})
+.catch(error => {
+    console.error("Erreur d'enregistrement:", error);
+    showToast("Erreur de connexion", 3000, 'error');
+});
 }
 
         // Gestion des données

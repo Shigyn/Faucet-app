@@ -198,15 +198,15 @@ def claim():
         now = datetime.now()
         now_str = now.strftime('%Y-%m-%d %H:%M:%S')
         cooldown_minutes = 5
-        
+
         service = get_sheets_service()
-        
+
         # 1. Vérifier si l'utilisateur a un parrain
         referrals_data = service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID,
             range=RANGES['referrals']
         ).execute().get('values', [])
-        
+
         referrer_id = None
         for row in referrals_data:
             if len(row) >= 2 and row[1] == user_id:  # row[1] = referred_id
@@ -216,21 +216,21 @@ def claim():
         # 2. Générer les points
         points = random.randint(10, 100)
         referrer_bonus = int(points * 0.1) if referrer_id else 0  # 10% pour le parrain
-        
+
         with sheet_lock:
-            # 3. Mise à jour de l'utilisateur (comme avant)
+            # 3. Mise à jour de l'utilisateur
             users_data = service.spreadsheets().values().get(
                 spreadsheetId=SPREADSHEET_ID,
                 range=RANGES['users']
             ).execute().get('values', [])
-            
+
             user_row = next((row for row in users_data if len(row) > 2 and row[2] == user_id), None)
-            
+
             if user_row:
                 row_num = users_data.index(user_row) + 2
                 current_balance = int(user_row[3]) if len(user_row) > 3 else 0
                 new_balance = current_balance + points
-                
+
                 service.spreadsheets().values().update(
                     spreadsheetId=SPREADSHEET_ID,
                     range=f'Users!D{row_num}:E{row_num}',
@@ -238,24 +238,25 @@ def claim():
                     body={'values': [[str(new_balance), now_str]]}
                 ).execute()
             else:
-    # Récupérer le referrer_id depuis les paramètres de la requête
-    referrer_id = data.get('referrer_id')  # Ajoutez ceci
-    
-    new_user = [
-        now_str,
-        data.get('username', f'User{user_id[:5]}'),
-        user_id,
-        str(points),
-        now_str,
-        referrer_id if referrer_id else ''  # Modifiez cette ligne - mettez referrer_id ou vide
-    ]
-    service.spreadsheets().values().append(
-        spreadsheetId=SPREADSHEET_ID,
-        range=RANGES['users'],
-        valueInputOption='USER_ENTERED',
-        body={'values': [new_user]}
-    ).execute()
-            
+                # Nouvel utilisateur : créer une entrée
+                referrer_id = data.get('referrer_id')  # Ajoutez ceci
+
+                new_user = [
+                    now_str,
+                    data.get('username', f'User{user_id[:5]}'),
+                    user_id,
+                    str(points),
+                    now_str,
+                    referrer_id if referrer_id else ''
+                ]
+                service.spreadsheets().values().append(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range=RANGES['users'],
+                    valueInputOption='USER_ENTERED',
+                    body={'values': [new_user]}
+                ).execute()
+                new_balance = points  # nécessaire pour le return
+
             # 4. Mise à jour du parrain si existe
             if referrer_id:
                 referrer_row = next((row for row in users_data if len(row) > 2 and row[2] == referrer_id), None)
@@ -263,21 +264,21 @@ def claim():
                     ref_row_num = users_data.index(referrer_row) + 2
                     ref_current_balance = int(referrer_row[3]) if len(referrer_row) > 3 else 0
                     ref_new_balance = ref_current_balance + referrer_bonus
-                    
+
                     service.spreadsheets().values().update(
                         spreadsheetId=SPREADSHEET_ID,
                         range=f'Users!D{ref_row_num}',
                         valueInputOption='USER_ENTERED',
                         body={'values': [[str(ref_new_balance)]]}
                     ).execute()
-                    
+
                     # Mettre à jour le bonus dans la table Referrals
                     for i, row in enumerate(referrals_data):
                         if len(row) >= 2 and row[0] == referrer_id and row[1] == user_id:
                             referral_row_num = i + 2
                             current_bonus = int(row[2]) if len(row) > 2 and row[2].isdigit() else 0
                             new_bonus = current_bonus + referrer_bonus
-                            
+
                             service.spreadsheets().values().update(
                                 spreadsheetId=SPREADSHEET_ID,
                                 range=f'Referrals!C{referral_row_num}',
@@ -285,7 +286,7 @@ def claim():
                                 body={'values': [[str(new_bonus)]]}
                             ).execute()
                             break
-            
+
             # 5. Enregistrer la transaction
             service.spreadsheets().values().append(
                 spreadsheetId=SPREADSHEET_ID,
@@ -293,7 +294,7 @@ def claim():
                 valueInputOption='USER_ENTERED',
                 body={'values': [[user_id, str(points), 'claim', now_str]]}
             ).execute()
-            
+
             if referrer_id:
                 service.spreadsheets().values().append(
                     spreadsheetId=SPREADSHEET_ID,
@@ -301,7 +302,7 @@ def claim():
                     valueInputOption='USER_ENTERED',
                     body={'values': [[referrer_id, str(referrer_bonus), 'referral_bonus', now_str]]}
                 ).execute()
-        
+
         return jsonify({
             'status': 'success',
             'new_balance': new_balance,
@@ -310,7 +311,7 @@ def claim():
             'referrer_bonus': referrer_bonus if referrer_id else 0,
             'cooldown_end': (now + timedelta(minutes=cooldown_minutes)).timestamp()
         })
-        
+
     except Exception as e:
         logger.error(f"Erreur claim: {str(e)}")
         return jsonify({

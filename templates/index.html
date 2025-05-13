@@ -322,23 +322,7 @@
     let currentBalance = 0;
     let refreshInterval;
 	
-	// Dans ton script Telegram WebApp :
-const urlParams = new URLSearchParams(window.location.search);
-const referrerId = urlParams.get('ref');
-const currentUserId = Telegram.WebApp.initDataUnsafe.user.id;  // ID du user actuel
-
-if (referrerId) {
-    fetch('/add-referral', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            referrer_id: referrerId,
-            referred_id: currentUserId
-        })
-    });
-}
-
-    function initApp() {
+	    function initApp() {
         console.log("Initialisation de l'application...");
         
         if (window.Telegram?.WebApp?.initData) {

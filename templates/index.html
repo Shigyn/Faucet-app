@@ -415,23 +415,19 @@ async function loadData() {
                 cooldownManager.startCooldown(currentUserId, cooldownEnd);
             }
         }
+
+        updateClaimButton(); // ✅ Bien placé ici à la fin du try
+
     } catch (error) {
         console.error("Erreur lors du chargement des données:", error);
-        showToast("Erreur lors du chargement", 3000, 'error');
+        showToast(error.message || "Erreur de chargement", 3000, 'error');
+
+        document.getElementById('balance-value').textContent = 'Erreur';
+        document.getElementById('last-claim-value').textContent = '-';
+        document.getElementById('tasks-list').innerHTML = '<p class="error">Échec du chargement</p>';
+        document.getElementById('referrals-container').innerHTML = '<p class="error">Échec du chargement</p>';
     }
 }
-            
-            updateClaimButton();
-        } catch (error) {
-            console.error("Erreur de chargement:", error);
-            showToast(error.message || "Erreur de chargement", 3000, 'error');
-            
-            document.getElementById('balance-value').textContent = 'Erreur';
-            document.getElementById('last-claim-value').textContent = '-';
-            document.getElementById('tasks-list').innerHTML = '<p class="error">Échec du chargement</p>';
-            document.getElementById('referrals-container').innerHTML = '<p class="error">Échec du chargement</p>';
-        }
-    }
 
     async function fetchBalance() {
         try {

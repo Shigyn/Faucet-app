@@ -52,13 +52,16 @@ def get_sheets_service():
         raise
 
 async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.is_bot:
+    await update.message.reply_text("❌ Les bots ne peuvent pas s'inscrire")
+    return
+    
     try:
         user_id = str(update.effective_user.id)
         username = update.effective_user.username or f"User{user_id[:5]}"
         referral_id = context.args[0] if context.args else None
         
         logger.info(f"Nouvel utilisateur: {user_id}, parrain: {referral_id}")
-        
         service = get_sheets_service()
         
         # Vérifier si l'utilisateur existe déjà
@@ -78,6 +81,28 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 '',   # Last claim
                 referral_id if referral_id else ''  # Referral ID
             ]
+            
+            # Après avoir récupéré les données users_data
+user_exists = False
+user_row_index = None
+
+for i, row in enumerate(users_data):
+    if row and len(row) > 2 and row[2] == user_id:  # Colonne C (User_ID)
+        user_exists = True
+        user_row_index = i + 1  # +1 car les sheets commencent à 1
+        break
+
+if user_exists:
+    # Mettre à jour le Referrer_ID si vide même pour un utilisateur existant
+    if referral_id and (len(users_data[user_row_index-1]) < 6 or not users_data[user_row_index-1][5]):
+        # Mettre à jour la colonne Referrer_ID (colonne F)
+        service.spreadsheets().values().update(
+            spreadsheetId=SPREADSHEET_ID,
+            range=f"{RANGES['users']}!F{user_row_index}",
+            valueInputOption='USER_ENTERED',
+            body={'values': [[referral_id]]}
+        ).execute()
+        logger.info(f"Referrer_ID mis à jour pour l'utilisateur {user_id}")
             
             # Ajouter le nouvel utilisateur
             service.spreadsheets().values().append(
@@ -140,7 +165,7 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🎉 Bienvenue dans TronQuest Airdrop!\n"
             f"Ton ID: {user_id}\n"
             f"Parrain: {referral_id if referral_id else 'Aucun'}\n\n"
-            "Clique ici pour commencer: https://ton-lien-webapp.com"
+            f"Clique ici pour commencer: https://t.me/CRYPTORATS_BOT?startapp=ref_{user_id}"
         )
         
     except Exception as e:
@@ -151,51 +176,61 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def update_user():
     try:
         data = request.json
+
         user_id = str(data.get('user_id'))
         username = data.get('username', 'User')
-        referrer_id = str(data.get('referrer_id', ''))  # Ajoutez ceci
-        
+        referrer_id = str(data.get('referrer_id') or '')  # <-- plus clair
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
         service = get_sheets_service()
-        result = service.spreadsheets().values().get(
+
+        # Récupérer la liste des utilisateurs
+        user_data = service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID,
             range=RANGES['users']
         ).execute()
-        
-        user_exists = any(row[2] == user_id for row in result.get('values', []) if len(row) > 2)
-        
+        user_rows = user_data.get('values', [])
+
+        # Vérifie si l'utilisateur existe déjà (colonne 2 = user_id)
+        user_exists = any(len(row) > 2 and row[2] == user_id for row in user_rows)
+
         if not user_exists:
-            new_user = [
-                datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                username,
-                user_id,
-                '0',
-                '',
-                referrer_id if referrer_id else ''  # Modifiez cette ligne
+            new_user_row = [
+                now_str,         # Date de création
+                username,        # Nom d'utilisateur
+                user_id,         # ID utilisateur
+                '0',             # Balance initiale
+                '',              # Dernier claim (vide)
+                referrer_id      # ID du parrain (si transmis)
             ]
+
+            # Ajoute l'utilisateur dans la feuille "users"
             service.spreadsheets().values().append(
                 spreadsheetId=SPREADSHEET_ID,
                 range=RANGES['users'],
                 valueInputOption='USER_ENTERED',
-                body={'values': [new_user]}
+                body={'values': [new_user_row]}
             ).execute()
-            
-            # Si referrer_id existe, ajoutez une entrée dans Referrals
+
+            # Si un parrain est présent, l’ajouter dans la feuille "referrals"
             if referrer_id:
+                referral_row = [referrer_id, user_id, '0', now_str]
                 service.spreadsheets().values().append(
                     spreadsheetId=SPREADSHEET_ID,
                     range=RANGES['referrals'],
                     valueInputOption='USER_ENTERED',
-                    body={'values': [[referrer_id, user_id, '0', datetime.now().strftime('%Y-%m-%d %H:%M:%S')]]}
+                    body={'values': [referral_row]}
                 ).execute()
-        
+
         return jsonify({
             'status': 'success',
             'user_id': user_id,
             'username': username
         })
+
     except Exception as e:
         logger.error(f"Erreur update_user: {str(e)}")
-        return jsonify({'status': 'error'}), 500
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/complete-task', methods=['POST'])
 def complete_task():
@@ -305,7 +340,7 @@ def claim():
 
         # 2. Générer les points
         points = random.randint(10, 100)
-        referrer_bonus = int(points * 0.1) if referrer_id else 0  # 10% pour le parrain
+        referrer_bonus = int(points * 0.05) if referrer_id else 0  # 5% pour le parrain
 
         with sheet_lock:
             # 3. Mise à jour de l'utilisateur
@@ -374,6 +409,15 @@ def claim():
                                 body={'values': [[str(new_bonus)]]}
                             ).execute()
                             break
+                    
+                    # Ajouter dans Referrals si manquant
+                    if not any(row for row in referrals_data if len(row) >= 2 and row[0] == referrer_id and row[1] == user_id):
+                        service.spreadsheets().values().append(
+                            spreadsheetId=SPREADSHEET_ID,
+                            range=RANGES['referrals'],
+                            valueInputOption='USER_ENTERED',
+                            body={'values': [[referrer_id, user_id, str(referrer_bonus), now_str]]}
+                        ).execute()
 
             # 5. Enregistrer la transaction
             service.spreadsheets().values().append(
@@ -437,31 +481,39 @@ def get_referrals():
     try:
         user_id = str(request.json.get('user_id'))
         service = get_sheets_service()
+
         result = service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID,
             range=RANGES['referrals']
         ).execute()
-        
+
         referrals = []
         total_bonus = 0
+
         for row in result.get('values', []):
             if len(row) >= 3 and row[0] == user_id:
-                bonus = int(row[2]) if row[2].isdigit() else 0
+                try:
+                    bonus = int(row[2])
+                except ValueError:
+                    bonus = 0
+
                 total_bonus += bonus
                 referrals.append({
                     'user_id': row[1],
                     'points_earned': bonus,
                     'timestamp': row[3] if len(row) > 3 else None
                 })
-        
+
         return jsonify({
-            'status': 'success', 
+            'status': 'success',
             'referrals': referrals,
             'total_bonus': total_bonus
         })
+
     except Exception as e:
         logger.error(f"Erreur get_referrals: {str(e)}")
-        return jsonify({'status': 'error'}), 500
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 @app.route('/add-referral', methods=['POST'])
 def add_referral():

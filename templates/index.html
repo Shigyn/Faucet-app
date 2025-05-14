@@ -350,23 +350,28 @@
             document.getElementById('telegram-alert').style.display = 'none';
             
             const user = tg.initDataUnsafe.user;
-            currentUserId = user.id.toString();
-            currentUsername = user.username || 
-                           [user.first_name, user.last_name].filter(Boolean).join(' ') || 
-                           "Joueur";
-            
-            document.getElementById('username-display').textContent = currentUsername;
-            console.log(`Utilisateur initialisé: ${currentUsername} (${currentUserId})`);
+currentUserId = user.id.toString();
+currentUsername = user.username || 
+               [user.first_name, user.last_name].filter(Boolean).join(' ') || 
+               "Joueur";
 
-            fetch(`${API_BASE_URL}/update-user`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    user_id: currentUserId,
-                    username: currentUsername,
-                    initData: tg.initData
-                })
-            })
+// 🔗 Vérifie si un code de parrainage est présent
+const urlParams = new URLSearchParams(window.location.search);
+const referralCode = urlParams.get("ref");
+
+console.log(`Utilisateur initialisé: ${currentUsername} (${currentUserId})`);
+if (referralCode) console.log("Code de parrainage détecté:", referralCode);
+
+fetch(`${API_BASE_URL}/update-user`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        user_id: currentUserId,
+        username: currentUsername,
+        initData: tg.initData,
+        referral_code: referralCode
+    })
+})
             .then(response => {
                 if (!response.ok) throw new Error("Erreur serveur");
                 startAutoRefresh();

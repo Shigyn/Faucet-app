@@ -53,8 +53,8 @@ def get_sheets_service():
 
 async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.is_bot:
-    await update.message.reply_text("❌ Les bots ne peuvent pas s'inscrire")
-    return
+        await update.message.reply_text("❌ Les bots ne peuvent pas s'inscrire")
+        return
     
     try:
         user_id = str(update.effective_user.id)
@@ -82,28 +82,6 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 referral_id if referral_id else ''  # Referral ID
             ]
             
-            # Après avoir récupéré les données users_data
-user_exists = False
-user_row_index = None
-
-for i, row in enumerate(users_data):
-    if row and len(row) > 2 and row[2] == user_id:  # Colonne C (User_ID)
-        user_exists = True
-        user_row_index = i + 1  # +1 car les sheets commencent à 1
-        break
-
-if user_exists:
-    # Mettre à jour le Referrer_ID si vide même pour un utilisateur existant
-    if referral_id and (len(users_data[user_row_index-1]) < 6 or not users_data[user_row_index-1][5]):
-        # Mettre à jour la colonne Referrer_ID (colonne F)
-        service.spreadsheets().values().update(
-            spreadsheetId=SPREADSHEET_ID,
-            range=f"{RANGES['users']}!F{user_row_index}",
-            valueInputOption='USER_ENTERED',
-            body={'values': [[referral_id]]}
-        ).execute()
-        logger.info(f"Referrer_ID mis à jour pour l'utilisateur {user_id}")
-            
             # Ajouter le nouvel utilisateur
             service.spreadsheets().values().append(
                 spreadsheetId=SPREADSHEET_ID,
@@ -111,22 +89,22 @@ if user_exists:
                 valueInputOption='USER_ENTERED',
                 body={'values': [new_user]}
             ).execute()
-            
+
             if referral_id:
                 # Récupérer le solde actuel du parrain
                 referrer_data = service.spreadsheets().values().get(
                     spreadsheetId=SPREADSHEET_ID,
                     range=f"{RANGES['users']}!C:D"
                 ).execute()
-                
+
                 referrer_balance = '0'
                 for row in referrer_data.get('values', []):
                     if len(row) > 1 and row[0] == referral_id:
                         referrer_balance = row[1]
                         break
                 
-                # Calculer les 10% que gagne le parrain
-                points_gagnes = float(referrer_balance) * 0.1
+                # Calculer les 5% que gagne le parrain
+                points_gagnes = float(referrer_balance) * 0.05  # 5% au lieu de 10%
                 
                 # Enregistrer le parrainage avec les nouvelles colonnes
                 service.spreadsheets().values().append(
@@ -135,15 +113,14 @@ if user_exists:
                     valueInputOption='USER_ENTERED',
                     body={'values': [[
                         referral_id,       # Referrer_ID
-                        user_id,            # Referred_ID
-                        referrer_balance,   # Total_Ref_Points (solde du filleul)
-                        str(points_gagnes), # Points_gagnés (10% du solde du filleul)
+                        user_id,           # Referred_ID
+                        referrer_balance,  # Total_Ref_Points (solde du filleul)
+                        str(points_gagnes), # Points_gagnés (5% du solde du filleul)
                         datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # Date
                     ]]}
                 ).execute()
                 
                 # Mettre à jour le solde du parrain
-                # (On suppose que la colonne Balance est la 4ème colonne - index 3)
                 cells = service.spreadsheets().values().get(
                     spreadsheetId=SPREADSHEET_ID,
                     range=RANGES['users'],

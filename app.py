@@ -79,6 +79,7 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 referral_id if referral_id else ''  # Referral ID
             ]
             
+            # Ajouter le nouvel utilisateur
             service.spreadsheets().values().append(
                 spreadsheetId=SPREADSHEET_ID,
                 range=RANGES['users'],
@@ -87,13 +88,53 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ).execute()
             
             if referral_id:
-                # Enregistrer le parrainage
+                # Récupérer le solde actuel du parrain
+                referrer_data = service.spreadsheets().values().get(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range=f"{RANGES['users']}!C:D"
+                ).execute()
+                
+                referrer_balance = '0'
+                for row in referrer_data.get('values', []):
+                    if len(row) > 1 and row[0] == referral_id:
+                        referrer_balance = row[1]
+                        break
+                
+                # Calculer les 10% que gagne le parrain
+                points_gagnes = float(referrer_balance) * 0.1
+                
+                # Enregistrer le parrainage avec les nouvelles colonnes
                 service.spreadsheets().values().append(
                     spreadsheetId=SPREADSHEET_ID,
                     range=RANGES['referrals'],
                     valueInputOption='USER_ENTERED',
-                    body={'values': [[referral_id, user_id, '0', datetime.now().strftime('%Y-%m-%d %H:%M:%S')]]}
+                    body={'values': [[
+                        referral_id,       # Referrer_ID
+                        user_id,            # Referred_ID
+                        referrer_balance,   # Total_Ref_Points (solde du filleul)
+                        str(points_gagnes), # Points_gagnés (10% du solde du filleul)
+                        datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # Date
+                    ]]}
                 ).execute()
+                
+                # Mettre à jour le solde du parrain
+                # (On suppose que la colonne Balance est la 4ème colonne - index 3)
+                cells = service.spreadsheets().values().get(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range=RANGES['users'],
+                ).execute()
+                
+                for i, row in enumerate(cells.get('values', [])):
+                    if len(row) > 2 and row[2] == referral_id:
+                        # Trouvé le parrain, mettre à jour son solde
+                        new_balance = float(row[3]) + points_gagnes
+                        service.spreadsheets().values().update(
+                            spreadsheetId=SPREADSHEET_ID,
+                            range=f"{RANGES['users']}!D{i+1}",  # Colonne D (balance)
+                            valueInputOption='USER_ENTERED',
+                            body={'values': [[str(new_balance)]]}
+                        ).execute()
+                        break
         
         await update.message.reply_text(
             "🎉 Bienvenue dans TronQuest Airdrop!\n"
@@ -105,19 +146,6 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Erreur dans handle_start: {str(e)}")
         await update.message.reply_text("❌ Une erreur est survenue. Contacte le support.")
-
-# Routes Flask existantes (conservées sans modification)
-@app.route('/')
-def home():
-    return render_template('index.html')
-
-@app.route('/start', methods=['GET'])
-def start():
-    return jsonify({
-        'status': 'success',
-        'message': 'Welcome to TronQuest Airdrop!',
-        'buttons': [{'text': 'Open', 'url': 'https://t.me/CRYPTORATS_bot'}]
-    })
 
 @app.route('/update-user', methods=['POST'])
 def update_user():

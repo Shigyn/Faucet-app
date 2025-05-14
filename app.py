@@ -288,6 +288,10 @@ def get_balance():
         logger.error(f"Erreur get_balance: {str(e)}")
         return jsonify({'status': 'error'}), 500
 
+@app.route('/')
+def home():
+    return render_template('index.html')  # Si tu veux afficher un fichier HTML spécifique
+
 @app.route('/claim', methods=['POST'])
 def claim():
     try:

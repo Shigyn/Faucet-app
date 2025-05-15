@@ -361,15 +361,27 @@ def complete_task():
         return jsonify({'status': 'error'}), 500
 
 def get_user_row_and_index(service, user_id):
-    result = service.spreadsheets().values().get(
-        spreadsheetId=SPREADSHEET_ID,
-        range=RANGES['users']
-    ).execute()
-    rows = result.get('values', [])
-    for i, row in enumerate(rows):
-        if len(row) > 2 and row[2] == user_id:
-            return row, i+2  # ligne dans Sheets (1-based + header)
-    return None, None
+    try:
+        logger.info(f"Fetching sheet data for user_id: {user_id}")
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=RANGES['users']
+        ).execute()
+        
+        rows = result.get('values', [])
+        logger.info(f"Found {len(rows)} rows in sheet")
+        
+        for i, row in enumerate(rows):
+            logger.debug(f"Checking row {i}: {row}")
+            if len(row) > 2 and str(row[2]) == str(user_id):
+                logger.info(f"Found user at row {i+2}")
+                return row, i+2
+                
+        logger.warning(f"User {user_id} not found in sheet")
+        return None, None
+    except Exception as e:
+        logger.error(f"Error in get_user_row_and_index: {str(e)}")
+        raise
 
 def get_last_claim_time(row):
     if len(row) > 4 and row[4]:

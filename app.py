@@ -15,25 +15,25 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from queue import Queue
 from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
 
+# === Flask app + CORS ===
 app = Flask(__name__)
 CORS(app)
 
-# Configuration
+# === Logging config ===
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+# === Config vars ===
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SPREADSHEET_ID = os.getenv('GOOGLE_SHEET_ID')
 
+# === Telegram Bot + Dispatcher ===
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 update_queue = Queue()
+dispatcher = Dispatcher(bot, update_queue, use_context=True)  # Dispatcher doit être défini AVANT handlers
 
-def log_all(update, context):
-    logger.info(f"Update reçu: {update}")
-
-dispatcher.add_handler(MessageHandler(Filters.all, log_all))
-
+# === Constants ===
 RANGES = {
     'users': 'Users!A2:F',
     'transactions': 'Transactions!A2:D',
@@ -41,34 +41,14 @@ RANGES = {
     'referrals': 'Referrals!A2:D'
 }
 
-sheet_lock = Lock()
+sheet_lock = Lock()  # Verrou pour accès Sheets
 
-def validate_telegram_webapp(data):
-    if not data or not TELEGRAM_BOT_TOKEN:
-        return False
-    return True  # À renforcer en production
+# === Telegram Handlers ===
 
-def get_sheets_service():
-    try:
-        creds_json = os.getenv('GOOGLE_CREDS')
-        creds = service_account.Credentials.from_service_account_info(
-            json.loads(creds_json), scopes=SCOPES)
-        return build('sheets', 'v4', credentials=creds)
-    except Exception as e:
-        logger.error(f"Erreur Google Sheets: {str(e)}")
-        raise
+def log_all(update, context):
+    logger.info(f"Update reçu: {update}")
 
-@app.route('/')
-def home():
-    return render_template('index.html')
-    
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), bot)
-    dispatcher.process_update(update)
-    return 'ok'
-  
-dispatcher = Dispatcher(bot, update_queue, use_context=True)
+dispatcher.add_handler(MessageHandler(Filters.all, log_all))  # Log toutes les updates
 
 def start_command(update, context):
     logger.info(f"/start reçu de {update.effective_user.id} avec args={context.args}")
@@ -81,8 +61,7 @@ def start_command(update, context):
     
     base_url = "https://faucet-app.onrender.com"
     if refid:
-        # URL avec refid pour la webapp, mais pas montré dans le message texte
-        url = f"{base_url}/?refid={refid}"
+        url = f"{base_url}/?refid={refid}"  # URL avec refid
     else:
         url = base_url
 
@@ -91,7 +70,6 @@ def start_command(update, context):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    # Message simple, pas de mention explicite du refid
     welcome_text = "Bienvenue sur TronQuest Airdrop! Collectez vos tokens chaque jour."
     
     update.message.reply_text(
@@ -99,15 +77,42 @@ def start_command(update, context):
         reply_markup=reply_markup
     )
     
-    # Traitement en back (log, enregistrer referral, etc)
     if refid:
         logger.info(f"Nouvel utilisateur via referral {refid}")
-        # Appelle ici ta fonction d'import/referral par exemple
-        # import_referral(update.effective_user.id, refid)
-        
-dispatcher.add_handler(CommandHandler("start", start_command))
+        # Appel possible à import_referral ici
 
-@app.route('/import-ref', methods=['POST'])  # <-- Ce bloc doit être hors de la fonction home
+dispatcher.add_handler(CommandHandler("start", start_command))  # Handler /start
+
+# === Fonctions utilitaires ===
+
+def validate_telegram_webapp(data):
+    if not data or not TELEGRAM_BOT_TOKEN:
+        return False
+    return True  # TODO: Renforcer validation en production
+
+def get_sheets_service():
+    try:
+        creds_json = os.getenv('GOOGLE_CREDS')
+        creds = service_account.Credentials.from_service_account_info(
+            json.loads(creds_json), scopes=SCOPES)
+        return build('sheets', 'v4', credentials=creds)
+    except Exception as e:
+        logger.error(f"Erreur Google Sheets: {str(e)}")
+        raise
+
+# === Flask routes ===
+
+@app.route('/')
+def home():
+    return render_template('index.html')
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    dispatcher.process_update(update)  # Process Telegram update
+    return 'ok'
+
+@app.route('/import-ref', methods=['POST'])
 def import_ref():
     try:
         data = request.json
@@ -154,12 +159,11 @@ def import_ref():
 
 @app.route('/welcome', methods=['GET'])
 def welcome():
-    startuserid = request.args.get('startuserid', '')  # récupère le paramètre startuserid s'il existe
+    startuserid = request.args.get('startuserid', '')  # Get param
     base_url = 'https://t.me/CRYPTORATS_bot'
     
-    # Si startuserid existe, on l'ajoute en paramètre startuserid à l'URL du bot Telegram
     if startuserid:
-        url = f"{base_url}?start={startuserid}"
+        url = f"{base_url}?start={startuserid}"  # URL avec param startuserid
     else:
         url = base_url
     
@@ -194,7 +198,7 @@ def update_user():
                 user_id,
                 '0',
                 '',
-                user_id  # Code de parrainage complet
+                user_id  # Code parrainage complet
             ]
             service.spreadsheets().values().append(
                 spreadsheetId=SPREADSHEET_ID,
@@ -221,7 +225,7 @@ def complete_task():
         points = int(data.get('points', 0))
         
         service = get_sheets_service()
-        with sheet_lock:
+        with sheet_lock:  # Verrou sur accès Sheets
             # Mise à jour du solde
             result = service.spreadsheets().values().get(
                 spreadsheetId=SPREADSHEET_ID,
@@ -258,158 +262,5 @@ def complete_task():
         logger.error(f"Erreur complete_task: {str(e)}")
         return jsonify({'status': 'error'}), 500
 
-@app.route('/get-balance', methods=['POST'])
-def get_balance():
-    try:
-        data = request.json
-        user_id = str(data.get('user_id'))
-        
-        service = get_sheets_service()
-        result = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range=RANGES['users']
-        ).execute()
-        
-        for row in result.get('values', []):
-            if len(row) > 2 and row[2] == user_id:
-                return jsonify({
-                    'status': 'success',
-                    'balance': int(row[3]) if len(row) > 3 else 0,
-                    'last_claim': row[4] if len(row) > 4 else None,
-                    'username': row[1] if len(row) > 1 else 'User',
-                    'referral_code': row[5] if len(row) > 5 else user_id
-                })
-        
-        return jsonify({
-            'status': 'success',
-            'balance': 0,
-            'last_claim': None,
-            'username': 'New User',
-            'referral_code': user_id
-        })
-    except Exception as e:
-        logger.error(f"Erreur get_balance: {str(e)}")
-        return jsonify({'status': 'error'}), 500
-
-@app.route('/claim', methods=['POST'])
-def claim():
-    try:
-        data = request.json
-        user_id = str(data.get('user_id'))
-        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        points = random.randint(10, 100)
-        
-        service = get_sheets_service()
-        
-        # Trouver l'utilisateur
-        result = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range=RANGES['users']
-        ).execute()
-        
-        rows = result.get('values', [])
-        user_index = None
-        
-        for i, row in enumerate(rows):
-            if len(row) > 2 and row[2] == user_id:
-                user_index = i
-                break
-        
-        # Mise à jour ou création
-        with sheet_lock:
-            if user_index is not None:
-                row_num = user_index + 2
-                current_balance = int(rows[user_index][3]) if len(rows[user_index]) > 3 else 0
-                new_balance = current_balance + points
-                
-                service.spreadsheets().values().update(
-                    spreadsheetId=SPREADSHEET_ID,
-                    range=f'Users!D{row_num}:E{row_num}',
-                    valueInputOption='USER_ENTERED',
-                    body={'values': [[str(new_balance), now]]}
-                ).execute()
-            else:
-                new_user = [
-                    now,
-                    data.get('username', f'User{user_id[:5]}'),
-                    user_id,
-                    str(points),
-                    now,
-                    user_id  # Code complet de parrainage
-                ]
-                service.spreadsheets().values().append(
-                    spreadsheetId=SPREADSHEET_ID,
-                    range=RANGES['users'],
-                    valueInputOption='USER_ENTERED',
-                    body={'values': [new_user]}
-                ).execute()
-                new_balance = points
-            
-            # Ajouter transaction
-            service.spreadsheets().values().append(
-                spreadsheetId=SPREADSHEET_ID,
-                range=RANGES['transactions'],
-                valueInputOption='USER_ENTERED',
-                body={'values': [[user_id, str(points), 'claim', now]]}
-            ).execute()
-        
-        return jsonify({
-            'status': 'success',
-            'new_balance': new_balance,
-            'last_claim': now,
-            'points_earned': points
-        })
-    except Exception as e:
-        logger.error(f"Erreur claim: {str(e)}")
-        return jsonify({'status': 'error'}), 500
-
-@app.route('/get-tasks', methods=['POST'])
-def get_tasks():
-    try:
-        service = get_sheets_service()
-        result = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range=RANGES['tasks']
-        ).execute()
-        
-        tasks = []
-        for row in result.get('values', []):
-            if len(row) >= 4:
-                tasks.append({
-                    'id': row[0],
-                    'name': row[1],
-                    'reward': int(row[2]) if row[2].isdigit() else 0,
-                    'description': row[3]
-                })
-        
-        return jsonify({'status': 'success', 'tasks': tasks})
-    except Exception as e:
-        logger.error(f"Erreur get_tasks: {str(e)}")
-        return jsonify({'status': 'error'}), 500
-
-@app.route('/get-referrals', methods=['POST'])
-def get_referrals():
-    try:
-        user_id = str(request.json.get('user_id'))
-        service = get_sheets_service()
-        result = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range=RANGES['referrals']
-        ).execute()
-        
-        referrals = []
-        for row in result.get('values', []):
-            if len(row) >= 3 and row[0] == user_id:
-                referrals.append({
-                    'user_id': row[1],
-                    'points_earned': int(row[2]) if row[2].isdigit() else 0,
-                    'timestamp': row[3] if len(row) > 3 else None
-                })
-        
-        return jsonify({'status': 'success', 'referrals': referrals})
-    except Exception as e:
-        logger.error(f"Erreur get_referrals: {str(e)}")
-        return jsonify({'status': 'error'}), 500
-
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+    app.run(host='0.0.0.0', port=5000)

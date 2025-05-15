@@ -2,6 +2,7 @@ import os
 import random
 import json
 import logging
+import threading
 from flask import Flask, request, jsonify, render_template
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
@@ -81,6 +82,7 @@ RANGES = {
     'tasks': 'Tasks!A2:D',
     'referrals': 'Referrals!A2:D'
 }
+CLAIM_COOLDOWN_MINUTES = 5  # modifier plus tard 30-60
 
 sheet_lock = Lock()  # Verrou pour accès Sheets
 
@@ -264,6 +266,180 @@ def complete_task():
         logger.error(f"Erreur complete_task: {str(e)}")
         return jsonify({'status': 'error'}), 500
 
+def get_user_row_and_index(service, user_id):
+    result = service.spreadsheets().values().get(
+        spreadsheetId=SPREADSHEET_ID,
+        range=RANGES['users']
+    ).execute()
+    rows = result.get('values', [])
+    for i, row in enumerate(rows):
+        if len(row) > 2 and row[2] == user_id:
+            return row, i+2  # ligne dans Sheets (1-based + header)
+    return None, None
+
+def get_last_claim_time(row):
+    if len(row) > 4 and row[4]:
+        try:
+            return datetime.strptime(row[4], '%Y-%m-%d %H:%M:%S')
+        except:
+            return None
+    return None
+
+def update_claim_time(service, row_num):
+    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    service.spreadsheets().values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f'Users!E{row_num}',
+        valueInputOption='USER_ENTERED',
+        body={'values': [[now_str]]}
+    ).execute()
+
+def update_balance(service, row_num, current_balance, points):
+    new_balance = current_balance + points
+    service.spreadsheets().values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f'Users!D{row_num}',
+        valueInputOption='USER_ENTERED',
+        body={'values': [[str(new_balance)]]}
+    ).execute()
+    return new_balance
+
+def add_transaction(service, user_id, points, typ='claim'):
+    service.spreadsheets().values().append(
+        spreadsheetId=SPREADSHEET_ID,
+        range=RANGES['transactions'],
+        valueInputOption='USER_ENTERED',
+        body={'values': [[user_id, str(points), typ, datetime.now().strftime('%Y-%m-%d %H:%M:%S')]]}
+    ).execute()
+
+@app.route('/claim', methods=['POST'])
+def claim():
+    try:
+        data = request.json
+        user_id = str(data.get('user_id'))
+        watchads = data.get('watchads', False)
+
+        service = get_sheets_service()
+        with sheet_lock:
+            row, row_num = get_user_row_and_index(service, user_id)
+            if not row:
+                return jsonify({'status': 'error', 'message': 'User not found'}), 404
+
+            last_claim = get_last_claim_time(row)
+            now = datetime.now()
+
+            if last_claim and now < last_claim + timedelta(minutes=CLAIM_COOLDOWN_MINUTES):
+                wait_sec = int((last_claim + timedelta(minutes=CLAIM_COOLDOWN_MINUTES) - now).total_seconds())
+                return jsonify({'status': 'error', 'message': f'Cooldown active, wait {wait_sec} seconds'}), 429
+
+            # Calcul points aléatoires
+            base_points = random.randint(10, 100)
+            points = base_points * 2 if watchads else base_points
+
+            current_balance = int(row[3]) if len(row) > 3 else 0
+
+            new_balance = update_balance(service, row_num, current_balance, points)
+            update_claim_time(service, row_num)
+            add_transaction(service, user_id, points, 'claim')
+
+        return jsonify({
+            'status': 'success',
+            'points_earned': points,
+            'new_balance': new_balance,
+            'cooldown_seconds': CLAIM_COOLDOWN_MINUTES * 60
+        })
+    except Exception as e:
+        logger.error(f"Erreur claim: {str(e)}")
+        return jsonify({'status': 'error', 'message': 'Internal error'}), 500
+
+@app.route('/balance', methods=['GET'])
+def get_balance():
+    try:
+        user_id = request.args.get('user_id')
+        service = get_sheets_service()
+        row, _ = get_user_row_and_index(service, user_id)
+        if not row:
+            return jsonify({'status': 'error', 'message': 'User not found'}), 404
+        balance = int(row[3]) if len(row) > 3 else 0
+        return jsonify({'status': 'success', 'balance': balance})
+    except Exception as e:
+        logger.error(f"Erreur get_balance: {str(e)}")
+        return jsonify({'status': 'error'}), 500
+
+@app.route('/tasks', methods=['GET'])
+def get_tasks():
+    try:
+        service = get_sheets_service()
+        tasks = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=RANGES['tasks']
+        ).execute().get('values', [])
+        # Format tasks as list of dict
+        tasks_list = []
+        for row in tasks:
+            if len(row) >= 3:
+                tasks_list.append({
+                    'task_name': row[0],
+                    'description': row[1],
+                    'points': int(row[2])
+                })
+        return jsonify({'status': 'success', 'tasks': tasks_list})
+    except Exception as e:
+        logger.error(f"Erreur get_tasks: {str(e)}")
+        return jsonify({'status': 'error'}), 500
+
+@app.route('/referrals', methods=['GET'])
+def get_referrals():
+    try:
+        user_id = request.args.get('user_id')
+        service = get_sheets_service()
+        # Récupérer tous les referrals
+        referrals = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=RANGES['referrals']
+        ).execute().get('values', [])
+
+        # Récupérer tous les users (pour trouver 2e niveau)
+        users = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=RANGES['users']
+        ).execute().get('values', [])
+
+        # Filleuls 1er niveau
+        direct_refs = [r[1] for r in referrals if len(r) > 1 and r[0] == user_id]
+
+        # Filleuls 2eme niveau
+        second_level_refs = []
+        for dref in direct_refs:
+            second_level_refs += [r[1] for r in referrals if len(r) > 1 and r[0] == dref]
+
+        # Calcul commissions (simulateur simple)
+        # Récupérer solde filleuls 1er niveau
+        def find_balance(u_id):
+            for urow in users:
+                if len(urow) > 2 and urow[2] == u_id:
+                    return int(urow[3]) if len(urow) > 3 else 0
+            return 0
+
+        first_level_commission = sum(find_balance(fid) for fid in direct_refs) * 0.10
+        second_level_commission = sum(find_balance(fid) for fid in second_level_refs) * 0.02
+
+        total_commission = first_level_commission + second_level_commission
+
+        return jsonify({
+            'status': 'success',
+            'first_level_refs': direct_refs,
+            'second_level_refs': second_level_refs,
+            'commissions': {
+                'first_level': round(first_level_commission, 2),
+                'second_level': round(second_level_commission, 2),
+                'total': round(total_commission, 2)
+            }
+        })
+    except Exception as e:
+        logger.error(f"Erreur get_referrals: {str(e)}")
+        return jsonify({'status': 'error'}), 500
+        
 # === App run ===
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

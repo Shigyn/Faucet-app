@@ -257,11 +257,15 @@ def get_tasks_frontend():
 @app.route('/get-balance', methods=['POST'])
 def get_balance():
     try:
+        # Vérification Telegram
+        if not request.headers.get('X-Telegram-Init-Data'):
+            return jsonify({'status': 'error', 'message': 'Unauthorized'}), 401
+            
         data = request.get_json()
-        if not data or 'user_id' not in data:
-            return jsonify({'status': 'error', 'message': 'user_id required'}), 400
-
-        user_id = str(data['user_id'])
+        user_id = str(data.get('user_id'))  # Conversion en string obligatoire
+        
+        # Debug critique
+        logger.info(f"Demande de solde pour user_id: {user_id} (type: {type(user_id)})")
         if user_id == 'defaultId':
             return jsonify({'status': 'error', 'message': 'Invalid user_id'}), 401    
         user_id = str(data['user_id'])

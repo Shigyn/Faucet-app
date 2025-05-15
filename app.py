@@ -52,6 +52,15 @@ def get_sheets_service():
         logger.error(f"Erreur Google Sheets: {str(e)}")
         raise
 
+def build_inline_start_button(user_id: str):
+    """
+    Crée un bouton inline Telegram avec un lien qui inclut l'user_id dans l'URL.
+    """
+    url = f"https://t.me/CRYPTORATS_BOT?start=ref_{user_id}"
+    button = InlineKeyboardButton(text="🚀 Lancer le bot", url=url)
+    keyboard = InlineKeyboardMarkup([[button]])
+    return keyboard
+
 async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.is_bot:
         await update.message.reply_text("❌ Les bots ne peuvent pas s'inscrire.")
@@ -104,9 +113,7 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         break
 
                 if referrer_row_index is not None:
-                    # Le filleul a 0 au départ, donc le parrain gagne 10% de 0 = 0.
-                    # MAIS on applique 10% dès le départ (peut être une prime fixe ou autre logique si besoin).
-                    # Pour l’exemple on crédite un **bonus fixe** de 1.0 à chaque nouveau parrainage :
+                    # Bonus fixe de 1.0 au parrain
                     bonus_points = 1.0
 
                     # Met à jour le solde du parrain
@@ -134,13 +141,15 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     logger.warning(f"⚠️ ID de parrain invalide ou non trouvé: {referral_id}")
 
-        # Message de bienvenue
+        # Message de bienvenue avec bouton inline qui inclut user_id
+        keyboard = build_inline_start_button(user_id)
         await update.message.reply_text(
             "🎉 Bienvenue dans TronQuest Airdrop!\n"
             f"🆔 Ton ID: `{user_id}`\n"
             f"🤝 Parrain: `{referral_id if referral_id else 'Aucun'}`\n\n"
-            f"🚀 Clique ici pour commencer: [Lancer le bot](https://t.me/CRYPTORATS_BOT?startapp=ref_{user_id})",
+            f"🚀 Clique sur le bouton ci-dessous pour commencer.",
             parse_mode='Markdown',
+            reply_markup=keyboard,
             disable_web_page_preview=True
         )
 

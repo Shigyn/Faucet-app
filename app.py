@@ -16,20 +16,6 @@ from telegram.ext import Dispatcher, CommandHandler
 app = Flask(__name__)
 CORS(app)
 
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), bot)
-    dispatcher.process_update(update)
-    return 'ok'
-
-def start_command(update, context):
-    context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text="Welcome to TronQuest Airdrop! Collect tokens every day..."
-    )
-
-dispatcher.add_handler(CommandHandler('start', start_command))
-
 # Configuration
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -69,6 +55,20 @@ def get_sheets_service():
 @app.route('/')
 def home():
     return render_template('index.html')
+    
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    dispatcher.process_update(update)
+    return 'ok'
+
+def start_command(update, context):
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="Welcome to TronQuest Airdrop! Collect tokens every day..."
+    )
+
+dispatcher.add_handler(CommandHandler('start', start_command))
 
 @app.route('/import-ref', methods=['POST'])  # <-- Ce bloc doit être hors de la fonction home
 def import_ref():

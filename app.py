@@ -14,6 +14,14 @@ from telegram import Update, Bot
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from queue import Queue
 from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
+import requests
+
+@app.before_first_request
+def setup_webhook():
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook"
+    webhook_url = "https://faucet-app.onrender.com/webhook"
+    response = requests.post(url, data={"url": webhook_url})
+    logger.info(f"Webhook setup response: {response.text}")
 
 # === Flask app + CORS ===
 app = Flask(__name__)
@@ -38,6 +46,7 @@ def log_all(update, context):
     logger.info(f"Update reçu: {update}")
 
 def start_command(update, context):
+    logger.info("🚀 start_command lancé")
     logger.info(f"/start reçu de {update.effective_user.id} avec args={context.args}")
     
     if update.message is None:

@@ -30,6 +30,10 @@ SPREADSHEET_ID = os.getenv('GOOGLE_SHEET_ID')
 
 # === Telegram Bot + Dispatcher ===
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
+
+def log_all(update, context):
+    logger.info(f"Update reçu: {update}")
+    
 update_queue = Queue()
 dispatcher = Dispatcher(bot, update_queue, use_context=True)  # Dispatcher doit être défini AVANT handlers
 dispatcher.add_handler(MessageHandler(Filters.all, log_all))
@@ -44,11 +48,6 @@ RANGES = {
 }
 
 sheet_lock = Lock()  # Verrou pour accès Sheets
-
-# === Telegram Handlers ===
-
-def log_all(update, context):
-    logger.info(f"Update reçu: {update}")
 
 def start_command(update, context):
     logger.info(f"/start reçu de {update.effective_user.id} avec args={context.args}")

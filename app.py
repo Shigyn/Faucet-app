@@ -67,39 +67,39 @@ def get_sheets_service():
 @app.route('/')
 def home():
     return render_template('index.html')
-    
-    @app.route('/import-ref', methods=['POST'])
+
+@app.route('/import-ref', methods=['POST'])  # <-- Ce bloc doit être hors de la fonction home
 def import_ref():
     try:
         data = request.json
         user_id = str(data.get('user_id'))
         ref_id = str(data.get('ref_id'))
-        
+
         if user_id == ref_id:
             return jsonify({'status': 'error', 'message': 'You cannot refer yourself'}), 400
-        
+
         service = get_sheets_service()
-        
+
         # Vérifier si le référé existe déjà
         users = service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID,
             range=RANGES['users']
         ).execute().get('values', [])
-        
+
         # Vérifier si le parrain existe
         referrer_exists = any(row[2] == ref_id for row in users if len(row) > 2)
         if not referrer_exists:
             return jsonify({'status': 'error', 'message': 'Referrer does not exist'}), 400
-        
+
         # Vérifier si la référence existe déjà
         referrals = service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID,
             range=RANGES['referrals']
         ).execute().get('values', [])
-        
+
         if any(row[1] == user_id for row in referrals if len(row) > 1):
             return jsonify({'status': 'error', 'message': 'Already referred'}), 400
-        
+
         # Ajouter la référence
         service.spreadsheets().values().append(
             spreadsheetId=SPREADSHEET_ID,
@@ -107,7 +107,7 @@ def import_ref():
             valueInputOption='USER_ENTERED',
             body={'values': [[ref_id, user_id, '10', datetime.now().strftime('%Y-%m-%d %H:%M:%S')]]}
         ).execute()
-        
+
         return jsonify({'status': 'success', 'message': 'Referral added successfully'})
     except Exception as e:
         logger.error(f"Erreur import_ref: {str(e)}")

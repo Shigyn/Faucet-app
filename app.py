@@ -251,22 +251,28 @@ def get_tasks_frontend():
         return jsonify({'status': 'error', 'tasks': []}), 500
 
 @app.route('/get-balance', methods=['POST'])
-def get_balance_frontend():
+def get_balance():
     try:
-        data = request.json
+        data = request.get_json()
         if not data or 'user_id' not in data:
+            logger.error("Missing user_id in request")
             return jsonify({'status': 'error', 'message': 'Missing user_id'}), 400
             
         user_id = str(data['user_id'])
+        logger.info(f"Fetching balance for user: {user_id}")
+        
         service = get_sheets_service()
         row, _ = get_user_row_and_index(service, user_id)
         
         if not row:
+            logger.error(f"User not found: {user_id}")
             return jsonify({'status': 'error', 'message': 'User not found'}), 404
         
         balance = int(row[3]) if len(row) > 3 and row[3] else 0
         last_claim = row[4] if len(row) > 4 else None
         referral_code = row[5] if len(row) > 5 else user_id
+        
+        logger.info(f"Returning balance for {user_id}: {balance}")
         
         return jsonify({
             'status': 'success',
@@ -274,9 +280,8 @@ def get_balance_frontend():
             'last_claim': last_claim,
             'referral_code': referral_code
         })
-        
     except Exception as e:
-        logger.error(f"Error in get_balance: {str(e)}")
+        logger.error(f"Error in get_balance: {str(e)}", exc_info=True)
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 # Cette ligne vide est importante pour séparer les fonctions
@@ -440,94 +445,6 @@ def claim():
     except Exception as e:
         logger.error(f"Erreur claim: {str(e)}")
         return jsonify({'status': 'error', 'message': 'Internal error'}), 500
-
-@app.route('/balance', methods=['GET'])
-def get_balance():
-    try:
-        user_id = request.args.get('user_id')
-        service = get_sheets_service()
-        row, _ = get_user_row_and_index(service, user_id)
-        if not row:
-            return jsonify({'status': 'error', 'message': 'User not found'}), 404
-        balance = int(row[3]) if len(row) > 3 else 0
-        return jsonify({'status': 'success', 'balance': balance})
-    except Exception as e:
-        logger.error(f"Erreur get_balance: {str(e)}")
-        return jsonify({'status': 'error'}), 500
-
-@app.route('/tasks', methods=['GET'])
-def get_tasks():
-    try:
-        service = get_sheets_service()
-        tasks = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range=RANGES['tasks']
-        ).execute().get('values', [])
-        # Format tasks as list of dict
-        tasks_list = []
-        for row in tasks:
-            if len(row) >= 3:
-                tasks_list.append({
-                    'task_name': row[0],
-                    'description': row[1],
-                    'points': int(row[2])
-                })
-        return jsonify({'status': 'success', 'tasks': tasks_list})
-    except Exception as e:
-        logger.error(f"Erreur get_tasks: {str(e)}")
-        return jsonify({'status': 'error'}), 500
-
-@app.route('/referrals', methods=['GET'])
-def get_referrals():
-    try:
-        user_id = request.args.get('user_id')
-        service = get_sheets_service()
-        # Récupérer tous les referrals
-        referrals = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range=RANGES['referrals']
-        ).execute().get('values', [])
-
-        # Récupérer tous les users (pour trouver 2e niveau)
-        users = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range=RANGES['users']
-        ).execute().get('values', [])
-
-        # Filleuls 1er niveau
-        direct_refs = [r[1] for r in referrals if len(r) > 1 and r[0] == user_id]
-
-        # Filleuls 2eme niveau
-        second_level_refs = []
-        for dref in direct_refs:
-            second_level_refs += [r[1] for r in referrals if len(r) > 1 and r[0] == dref]
-
-        # Calcul commissions (simulateur simple)
-        # Récupérer solde filleuls 1er niveau
-        def find_balance(u_id):
-            for urow in users:
-                if len(urow) > 2 and urow[2] == u_id:
-                    return int(urow[3]) if len(urow) > 3 else 0
-            return 0
-
-        first_level_commission = sum(find_balance(fid) for fid in direct_refs) * 0.10
-        second_level_commission = sum(find_balance(fid) for fid in second_level_refs) * 0.02
-
-        total_commission = first_level_commission + second_level_commission
-
-        return jsonify({
-            'status': 'success',
-            'first_level_refs': direct_refs,
-            'second_level_refs': second_level_refs,
-            'commissions': {
-                'first_level': round(first_level_commission, 2),
-                'second_level': round(second_level_commission, 2),
-                'total': round(total_commission, 2)
-            }
-        })
-    except Exception as e:
-        logger.error(f"Erreur get_referrals: {str(e)}")
-        return jsonify({'status': 'error'}), 500
         
 # === App run ===
 if __name__ == '__main__':

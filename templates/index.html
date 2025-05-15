@@ -250,10 +250,6 @@
             ...data
         };
         
-        if (window.Telegram?.WebApp?.initData) {
-            payload.initData = window.Telegram.WebApp.initData;
-        }
-
         const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -261,14 +257,14 @@
         });
         
         if (!response.ok) {
-            const error = await response.text();
-            throw new Error(error || "Erreur API");
+            const error = await response.json();
+            throw new Error(error.message || `HTTP error! status: ${response.status}`);
         }
         
         return await response.json();
     } catch (error) {
-        console.error(`Erreur fetch ${endpoint}:`, error);
-        showToast("Erreur de connexion au serveur", 3000, 'error');
+        console.error(`Error in fetch ${endpoint}:`, error);
+        showToast("Service temporairement indisponible", 3000, 'error');
         return { status: 'error', message: error.message };
     }
 }

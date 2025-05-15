@@ -16,6 +16,12 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from queue import Queue
 from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
 import requests
+import google.api_core
+import google.auth.transport.requests
+import google.oauth2.credentials
+
+# Désactive le cache
+google.api_core.client_options.ClientOptions.disable_cache = True
 
 # === Logging config ===
 logging.basicConfig(level=logging.DEBUG)
@@ -243,10 +249,11 @@ def get_tasks_frontend():
         logger.error(f"Erreur get_tasks: {str(e)}")
         return jsonify({'status': 'error', 'tasks': []}), 500
 
-@app.route('/get-balance', methods=['POST'])
+@app.route('/get-balance', methods=['POST'])  # Doit correspondre à la méthode appelée
 def get_balance_frontend():
     try:
-        user_id = request.args.get('user_id')
+        data = request.json  # Modification ici pour accepter POST
+        user_id = str(data.get('user_id'))
         service = get_sheets_service()
         row, _ = get_user_row_and_index(service, user_id)
         if not row:

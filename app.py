@@ -220,6 +220,80 @@ def update_user():
         logger.error(f"Erreur update_user: {str(e)}")
         return jsonify({'status': 'error'}), 500
 
+@app.route('/get-tasks', methods=['GET'])
+def get_tasks_frontend():
+    try:
+        user_id = request.args.get('user_id')
+        service = get_sheets_service()
+        tasks = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=RANGES['tasks']
+        ).execute().get('values', [])
+        
+        tasks_list = []
+        for row in tasks:
+            if len(row) >= 3:
+                tasks_list.append({
+                    'name': row[0],  # Changé de task_name à name
+                    'description': row[1],
+                    'reward': int(row[2])  # Changé de points à reward
+                })
+        return jsonify({'status': 'success', 'tasks': tasks_list})
+    except Exception as e:
+        logger.error(f"Erreur get_tasks: {str(e)}")
+        return jsonify({'status': 'error', 'tasks': []}), 500
+
+@app.route('/get-balance', methods=['GET'])
+def get_balance_frontend():
+    try:
+        user_id = request.args.get('user_id')
+        service = get_sheets_service()
+        row, _ = get_user_row_and_index(service, user_id)
+        if not row:
+            return jsonify({'status': 'error', 'message': 'User not found'}), 404
+        
+        balance = int(row[3]) if len(row) > 3 else 0
+        last_claim = row[4] if len(row) > 4 else None
+        referral_code = row[5] if len(row) > 5 else user_id
+        
+        return jsonify({
+            'status': 'success',
+            'balance': balance,
+            'last_claim': last_claim,
+            'referral_code': referral_code
+        })
+    except Exception as e:
+        logger.error(f"Erreur get_balance: {str(e)}")
+        return jsonify({'status': 'error'}), 500
+        
+        @app.route('/get-referrals', methods=['GET'])
+def get_referrals_frontend():
+    try:
+        user_id = request.args.get('user_id')
+        service = get_sheets_service()
+        
+        referrals = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=RANGES['referrals']
+        ).execute().get('values', [])
+        
+        user_referrals = [
+            {
+                'user_id': row[1],
+                'points_earned': int(row[2]) if len(row) > 2 else 0,
+                'timestamp': row[3] if len(row) > 3 else None
+            }
+            for row in referrals if len(row) > 1 and row[0] == user_id
+        ]
+        
+        return jsonify({
+            'status': 'success',
+            'referrals': user_referrals
+        })
+    except Exception as e:
+        logger.error(f"Erreur get_referrals: {str(e)}")
+        return jsonify({'status': 'error', 'referrals': []}), 500
+        
 @app.route('/complete-task', methods=['POST'])
 def complete_task():
     try:

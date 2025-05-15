@@ -71,8 +71,8 @@ def start_command(update, context):
 
 update_queue = Queue()
 dispatcher = Dispatcher(bot, update_queue, use_context=True)  # Dispatcher doit être défini AVANT handlers
-dispatcher.add_handler(MessageHandler(Filters.all, log_all))
 dispatcher.add_handler(CommandHandler("start", start_command))
+dispatcher.add_handler(MessageHandler(Filters.all, log_all))
 
 # === Constants ===
 RANGES = {

@@ -51,7 +51,10 @@ def build_inline_start_button(user_id: str):
     return keyboard
 
 async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logger.info(f"Commande /start reçue de {update.effective_user.id}")
+  # Ajoute ces lignes au début de handle_start
+logger.info(f"Commande /start reçue de {update.effective_user.id}")
+logger.info(f"Type d'utilisateur: {update.effective_user.type}")
+logger.info(f"Chat type: {update.effective_chat.type}")
     
     if update.effective_user.is_bot:
         await update.message.reply_text("❌ Les bots ne peuvent pas s'inscrire.")

@@ -11,8 +11,9 @@ import hashlib
 import hmac
 from flask_cors import CORS
 from telegram import Update, Bot
-from telegram.ext import Dispatcher, CommandHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from queue import Queue
+from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
 
 app = Flask(__name__)
 CORS(app)
@@ -25,9 +26,17 @@ TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SPREADSHEET_ID = os.getenv('GOOGLE_SHEET_ID')
 
-# Ajoutez ceci après la création de l'app Flask
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
-dispatcher = Dispatcher(bot, None, use_context=True)
+update_queue = Queue()
+dispatcher = Dispatcher(bot, update_queue, use_context=True)
+
+dispatcher.add_handler(CommandHandler("start", start_command))
+
+
+def log_all(update, context):
+    logger.info(f"Update reçu: {update}")
+
+dispatcher.add_handler(MessageHandler(Filters.all, log_all))
 
 RANGES = {
     'users': 'Users!A2:F',

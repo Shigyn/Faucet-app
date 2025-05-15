@@ -58,7 +58,16 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_id = str(update.effective_user.id)
         username = update.effective_user.username or f"User{user_id[:5]}"
-        referral_id = context.args[0] if context.args else None
+        
+        # Nouvelle logique pour récupérer le referral_id
+        referral_id = None
+        if context.args:
+            # Gère les formats: /start 12345 et /start ref_12345
+            referral_arg = context.args[0]
+            if referral_arg.startswith('ref_'):
+                referral_id = referral_arg[4:]  # Enlève le préfixe ref_
+            else:
+                referral_id = referral_arg  # Prend directement l'ID
 
         logger.info(f"[START] Utilisateur: {user_id}, Parrain: {referral_id}")
         service = get_sheets_service()
@@ -122,12 +131,21 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     logger.warning(f"⚠️ ID de parrain invalide ou non trouvé: {referral_id}")
 
-        keyboard = build_inline_start_button(user_id)
+        # Modification du bouton pour utiliser le nouveau format
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton(
+                text="🚀 Lancer le bot", 
+                url=f"https://t.me/CRYPTORATS_BOT?start=ref_{user_id}"
+            )
+        ]])
+        
         await update.message.reply_text(
             "🎉 Bienvenue dans TronQuest Airdrop!\n"
             f"🆔 Ton ID: `{user_id}`\n"
             f"🤝 Parrain: `{referral_id if referral_id else 'Aucun'}`\n\n"
-            f"🚀 Clique sur le bouton ci-dessous pour commencer.",
+            "🔗 Partage ton lien de parrainage:\n"
+            f"`https://t.me/CRYPTORATS_BOT?start=ref_{user_id}`\n\n"
+            "🚀 Clique sur le bouton ci-dessous pour commencer.",
             parse_mode='Markdown',
             reply_markup=keyboard,
             disable_web_page_preview=True

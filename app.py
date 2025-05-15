@@ -29,7 +29,7 @@ RANGES = {
     'users': 'Users!A2:F',
     'transactions': 'Transactions!A2:D',
     'tasks': 'Tasks!A2:D',
-    'referrals': 'Referrals!A2:D'
+    'referrals': 'Referrals!A2:E'
 }
 
 sheet_lock = Lock()

@@ -31,9 +31,38 @@ SPREADSHEET_ID = os.getenv('GOOGLE_SHEET_ID')
 # === Telegram Bot + Dispatcher ===
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
+# === Telegram Bot + Dispatcher ===
+bot = Bot(token=TELEGRAM_BOT_TOKEN)
+
 def log_all(update, context):
     logger.info(f"Update reçu: {update}")
+
+def start_command(update, context):
+    logger.info(f"/start reçu de {update.effective_user.id} avec args={context.args}")
     
+    if update.message is None:
+        logger.error("🚨 update.message est None, impossible d'envoyer le message")
+        return
+    
+    try:
+        args = context.args
+        refid = args[0] if args else None
+        
+        base_url = "https://faucet-app.onrender.com"
+        url = f"{base_url}/?refid={refid}" if refid else base_url
+
+        keyboard = [[InlineKeyboardButton("Open App", url=url)]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        welcome_text = "Bienvenue sur TronQuest Airdrop! Collectez vos tokens chaque jour."
+        
+        update.message.reply_text(
+            text=welcome_text,
+            reply_markup=reply_markup
+        )
+    except Exception as e:
+        logger.error(f"Erreur dans start_command: {str(e)}")
+
 update_queue = Queue()
 dispatcher = Dispatcher(bot, update_queue, use_context=True)  # Dispatcher doit être défini AVANT handlers
 dispatcher.add_handler(MessageHandler(Filters.all, log_all))
@@ -48,40 +77,6 @@ RANGES = {
 }
 
 sheet_lock = Lock()  # Verrou pour accès Sheets
-
-def start_command(update, context):
-    logger.info(f"/start reçu de {update.effective_user.id} avec args={context.args}")
-    
-    if update.message is None:
-        logger.error("🚨 update.message est None, impossible d'envoyer le message")
-        return
-    
-    try:
-        # ton code pour envoyer la réponse Telegram
-        args = context.args
-        refid = args[0] if args else None
-        
-        base_url = "https://faucet-app.onrender.com"
-        if refid:
-            url = f"{base_url}/?refid={refid}"
-        else:
-            url = base_url
-
-        keyboard = [
-            [InlineKeyboardButton("Open App", url=url)]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        welcome_text = "Bienvenue sur TronQuest Airdrop! Collectez vos tokens chaque jour."
-        
-        update.message.reply_text(
-            text=welcome_text,
-            reply_markup=reply_markup
-        )
-    except Exception as e:
-        logger.error(f"Erreur dans start_command: {str(e)}")
-
-dispatcher.add_handler(CommandHandler("start", start_command))  # Handler /start
 
 # === Fonctions utilitaires ===
 

@@ -28,7 +28,6 @@ SPREADSHEET_ID = os.getenv('GOOGLE_SHEET_ID')
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 update_queue = Queue()
-dispatcher = Dispatcher(bot, update_queue, use_context=True)
 
 def log_all(update, context):
     logger.info(f"Update reçu: {update}")
@@ -69,7 +68,7 @@ def webhook():
     dispatcher.process_update(update)
     return 'ok'
   
-dispatcher.add_handler(CommandHandler("start", start_command))
+dispatcher = Dispatcher(bot, update_queue, use_context=True)
 
 def start_command(update, context):
     logger.info(f"/start reçu de {update.effective_user.id} avec args={context.args}")
@@ -105,6 +104,8 @@ def start_command(update, context):
         logger.info(f"Nouvel utilisateur via referral {refid}")
         # Appelle ici ta fonction d'import/referral par exemple
         # import_referral(update.effective_user.id, refid)
+        
+dispatcher.add_handler(CommandHandler("start", start_command))
 
 @app.route('/import-ref', methods=['POST'])  # <-- Ce bloc doit être hors de la fonction home
 def import_ref():

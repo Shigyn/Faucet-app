@@ -16,21 +16,19 @@ from telegram.ext import Dispatcher, CommandHandler
 app = Flask(__name__)
 CORS(app)
 
-# Ajoutez ceci après la création de l'app Flask
-bot = Bot(token=TELEGRAM_BOT_TOKEN)
-dispatcher = Dispatcher(bot, None, use_context=True)
-
 @app.route('/webhook', methods=['POST'])
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
     dispatcher.process_update(update)
     return 'ok'
 
-def start(update, context):
-    context.bot.send_message(chat_id=update.effective_chat.id, 
-                            text="Welcome to TronQuest Airdrop! Collect tokens every day...")
+def start_command(update, context):
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="Welcome to TronQuest Airdrop! Collect tokens every day..."
+    )
 
-dispatcher.add_handler(CommandHandler('start', start))
+dispatcher.add_handler(CommandHandler('start', start_command))
 
 # Configuration
 logging.basicConfig(level=logging.DEBUG)
@@ -39,6 +37,10 @@ logger = logging.getLogger(__name__)
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SPREADSHEET_ID = os.getenv('GOOGLE_SHEET_ID')
+
+# Ajoutez ceci après la création de l'app Flask
+bot = Bot(token=TELEGRAM_BOT_TOKEN)
+dispatcher = Dispatcher(bot, None, use_context=True)
 
 RANGES = {
     'users': 'Users!A2:F',
@@ -113,14 +115,23 @@ def import_ref():
         logger.error(f"Erreur import_ref: {str(e)}")
         return jsonify({'status': 'error'}), 500
 
-@app.route('/start', methods=['GET'])
-def start():
+@app.route('/welcome', methods=['GET'])
+def welcome():
+    startuserid = request.args.get('startuserid', '')  # récupère le paramètre startuserid s'il existe
+    base_url = 'https://t.me/CRYPTORATS_bot'
+    
+    # Si startuserid existe, on l'ajoute en paramètre startuserid à l'URL du bot Telegram
+    if startuserid:
+        url = f"{base_url}?start={startuserid}"
+    else:
+        url = base_url
+    
     return jsonify({
         'status': 'success',
         'message': 'Welcome to TronQuest Airdrop! Collect tokens every day. You will get a bonus every 3 months that will be swapped to TRX. Use your referral code to invite others!',
         'buttons': [{
             'text': 'Open',
-            'url': 'https://yourapp.com'  # Remplace par ton lien réel ou l'URL du bot
+            'url': url
         }]
     })
 

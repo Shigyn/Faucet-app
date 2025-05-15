@@ -16,16 +16,16 @@ from queue import Queue
 from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
 import requests
 
+# === Flask app + CORS ===
+app = Flask(__name__)
+CORS(app)
+
 @app.before_first_request
 def setup_webhook():
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook"
     webhook_url = "https://faucet-app.onrender.com/webhook"
     response = requests.post(url, data={"url": webhook_url})
     logger.info(f"Webhook setup response: {response.text}")
-
-# === Flask app + CORS ===
-app = Flask(__name__)
-CORS(app)
 
 # === Logging config ===
 logging.basicConfig(level=logging.DEBUG)

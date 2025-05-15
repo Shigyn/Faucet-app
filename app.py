@@ -10,9 +10,27 @@ from threading import Lock
 import hashlib
 import hmac
 from flask_cors import CORS
+from telegram import Update, Bot
+from telegram.ext import Dispatcher, CommandHandler
 
 app = Flask(__name__)
 CORS(app)
+
+# Ajoutez ceci après la création de l'app Flask
+bot = Bot(token=TELEGRAM_BOT_TOKEN)
+dispatcher = Dispatcher(bot, None, use_context=True)
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    dispatcher.process_update(update)
+    return 'ok'
+
+def start(update, context):
+    context.bot.send_message(chat_id=update.effective_chat.id, 
+                            text="Welcome to TronQuest Airdrop! Collect tokens every day...")
+
+dispatcher.add_handler(CommandHandler('start', start))
 
 # Configuration
 logging.basicConfig(level=logging.DEBUG)
@@ -49,6 +67,51 @@ def get_sheets_service():
 @app.route('/')
 def home():
     return render_template('index.html')
+    
+    @app.route('/import-ref', methods=['POST'])
+def import_ref():
+    try:
+        data = request.json
+        user_id = str(data.get('user_id'))
+        ref_id = str(data.get('ref_id'))
+        
+        if user_id == ref_id:
+            return jsonify({'status': 'error', 'message': 'You cannot refer yourself'}), 400
+        
+        service = get_sheets_service()
+        
+        # Vérifier si le référé existe déjà
+        users = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=RANGES['users']
+        ).execute().get('values', [])
+        
+        # Vérifier si le parrain existe
+        referrer_exists = any(row[2] == ref_id for row in users if len(row) > 2)
+        if not referrer_exists:
+            return jsonify({'status': 'error', 'message': 'Referrer does not exist'}), 400
+        
+        # Vérifier si la référence existe déjà
+        referrals = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=RANGES['referrals']
+        ).execute().get('values', [])
+        
+        if any(row[1] == user_id for row in referrals if len(row) > 1):
+            return jsonify({'status': 'error', 'message': 'Already referred'}), 400
+        
+        # Ajouter la référence
+        service.spreadsheets().values().append(
+            spreadsheetId=SPREADSHEET_ID,
+            range=RANGES['referrals'],
+            valueInputOption='USER_ENTERED',
+            body={'values': [[ref_id, user_id, '10', datetime.now().strftime('%Y-%m-%d %H:%M:%S')]]}
+        ).execute()
+        
+        return jsonify({'status': 'success', 'message': 'Referral added successfully'})
+    except Exception as e:
+        logger.error(f"Erreur import_ref: {str(e)}")
+        return jsonify({'status': 'error'}), 500
 
 @app.route('/start', methods=['GET'])
 def start():

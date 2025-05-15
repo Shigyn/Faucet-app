@@ -16,6 +16,15 @@ from queue import Queue
 from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
 import requests
 
+# === Logging config ===
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+# === Config vars ===
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+SPREADSHEET_ID = os.getenv('GOOGLE_SHEET_ID')
+
 # === Flask app + CORS ===
 app = Flask(__name__)
 CORS(app)
@@ -26,18 +35,6 @@ def setup_webhook():
     webhook_url = "https://faucet-app.onrender.com/webhook"
     response = requests.post(url, data={"url": webhook_url})
     logger.info(f"Webhook setup response: {response.text}")
-
-# === Logging config ===
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-
-# === Config vars ===
-TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-SPREADSHEET_ID = os.getenv('GOOGLE_SHEET_ID')
-
-# === Telegram Bot + Dispatcher ===
-bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
 # === Telegram Bot + Dispatcher ===
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
@@ -112,8 +109,9 @@ def home():
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
+    logger.info("Webhook received an update")
     update = Update.de_json(request.get_json(force=True), bot)
-    dispatcher.process_update(update)  # Process Telegram update
+    dispatcher.process_update(update)
     return 'ok'
 
 @app.route('/import-ref', methods=['POST'])
@@ -266,5 +264,6 @@ def complete_task():
         logger.error(f"Erreur complete_task: {str(e)}")
         return jsonify({'status': 'error'}), 500
 
+# === App run ===
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

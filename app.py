@@ -12,6 +12,7 @@ import hmac
 from flask_cors import CORS
 from telegram import Update, Bot
 from telegram.ext import Dispatcher, CommandHandler
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 app = Flask(__name__)
 CORS(app)
@@ -63,12 +64,35 @@ def webhook():
     return 'ok'
 
 def start_command(update, context):
+    args = context.args
+    refid = args[0] if args else None
+    
+    base_url = "https://faucet-app.onrender.com"
+    if refid:
+        # URL avec refid pour la webapp, mais pas montré dans le message texte
+        url = f"{base_url}/?refid={refid}"
+    else:
+        url = base_url
+
+    keyboard = [
+        [InlineKeyboardButton("Open App", url=url)]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # Message simple, pas de mention explicite du refid
+    welcome_text = "Bienvenue sur TronQuest Airdrop! Collectez vos tokens chaque jour."
+    
     context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="Welcome to TronQuest Airdrop! Collect tokens every day..."
+        text=welcome_text,
+        reply_markup=reply_markup
     )
-
-dispatcher.add_handler(CommandHandler('start', start_command))
+    
+    # Traitement en back (log, enregistrer referral, etc)
+    if refid:
+        logger.info(f"Nouvel utilisateur via referral {refid}")
+        # Appelle ici ta fonction d'import/referral par exemple
+        # import_referral(update.effective_user.id, refid)
 
 @app.route('/import-ref', methods=['POST'])  # <-- Ce bloc doit être hors de la fonction home
 def import_ref():

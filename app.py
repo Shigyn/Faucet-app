@@ -68,6 +68,8 @@ def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
     dispatcher.process_update(update)
     return 'ok'
+  
+dispatcher.add_handler(CommandHandler("start", start_command))
 
 def start_command(update, context):
     logger.info(f"/start reçu de {update.effective_user.id} avec args={context.args}")
@@ -103,8 +105,6 @@ def start_command(update, context):
         logger.info(f"Nouvel utilisateur via referral {refid}")
         # Appelle ici ta fonction d'import/referral par exemple
         # import_referral(update.effective_user.id, refid)
-  
-dispatcher.add_handler(CommandHandler("start", start_command))
 
 @app.route('/import-ref', methods=['POST'])  # <-- Ce bloc doit être hors de la fonction home
 def import_ref():

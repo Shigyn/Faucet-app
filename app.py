@@ -51,6 +51,8 @@ def build_inline_start_button(user_id: str):
     return keyboard
 
 async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"Commande /start reçue de {update.effective_user.id}")
+    
     if update.effective_user.is_bot:
         await update.message.reply_text("❌ Les bots ne peuvent pas s'inscrire.")
         return
@@ -65,9 +67,9 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Gère les formats: /start 12345 et /start ref_12345
             referral_arg = context.args[0]
             if referral_arg.startswith('ref_'):
-                referral_id = referral_arg[4:]  # Enlève le préfixe ref_
+                referral_id = referral_arg[4:] # Enlève le préfixe ref_
             else:
-                referral_id = referral_arg  # Prend directement l'ID
+                referral_id = referral_arg # Prend directement l'ID
 
         logger.info(f"[START] Utilisateur: {user_id}, Parrain: {referral_id}")
         service = get_sheets_service()
@@ -132,12 +134,10 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     logger.warning(f"⚠️ ID de parrain invalide ou non trouvé: {referral_id}")
 
         # Modification du bouton pour utiliser le nouveau format
-        keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton(
-                text="🚀 Lancer le bot", 
-                url=f"https://t.me/CRYPTORATS_BOT?start=ref_{user_id}"
-            )
-        ]])
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(
+            text="🚀 Lancer le bot",
+            url=f"https://t.me/CRYPTORATS_BOT?start=ref_{user_id}"
+        )]])
         
         await update.message.reply_text(
             "🎉 Bienvenue dans TronQuest Airdrop!\n"
@@ -154,6 +154,15 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"[ERREUR] handle_start: {str(e)}", exc_info=True)
         await update.message.reply_text("❌ Une erreur est survenue. Contacte le support.")
+
+# Ajout du handler pour la commande /start
+telegram_app.add_handler(CommandHandler("start", handle_start))
+
+# Fonction main pour démarrer le bot
+async def main():
+    await telegram_app.start()
+    print("Bot démarré !")
+    await telegram_app.run_polling()
 
 @app.route('/update-user', methods=['POST'])
 def update_user():

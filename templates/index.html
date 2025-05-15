@@ -207,6 +207,7 @@
 </head>
 <body>
     <header>CryptoRats</header>
+	<div id="user-welcome"></div>
 
     <div id="balance-value">0</div>
     <div id="last-claim-value">Jamais</div>
@@ -233,7 +234,7 @@
 
     <script>
         const API_BASE_URL = window.location.origin;
-        let currentUserId = 'someUserId'; // Charge selon ton app ou Telegram initData
+        let currentUserId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 'defaultId';
         let currentBalance = 0;
         let lastClaimTime = null;
         let isClaiming = false;
@@ -242,25 +243,35 @@
         let cooldownTimerId = null;
 
         // Fonction fetch générique
-        async function fetchData(endpoint) {
-            try {
-                const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: currentUserId,
-                        initData: window.Telegram?.WebApp?.initData
-                    }),
-                });
-                if (!response.ok) throw new Error("Erreur API");
-                return await response.json();
-            } catch (error) {
-                console.error(`Erreur fetch ${endpoint}:`, error);
-                if (endpoint === 'get-tasks') return { tasks: [] };
-                if (endpoint === 'get-referrals') return { referrals: [] };
-                return {};
-            }
+        async function fetchData(endpoint, data = {}) {
+    try {
+        const payload = {
+            user_id: currentUserId,
+            ...data
+        };
+        
+        if (window.Telegram?.WebApp?.initData) {
+            payload.initData = window.Telegram.WebApp.initData;
         }
+
+        const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(error || "Erreur API");
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error(`Erreur fetch ${endpoint}:`, error);
+        showToast("Erreur de connexion au serveur", 3000, 'error');
+        return { status: 'error', message: error.message };
+    }
+}
 
         async function loadData() {
             const [tasks, referrals, balanceData] = await Promise.all([
@@ -462,15 +473,39 @@
             }
         }
 
-        function startAutoRefresh() {
-            clearInterval(refreshInterval);
-            refreshInterval = setInterval(() => {
-                if (document.visibilityState === 'visible') {
-                    loadData();
-                }
-            }, 30000);
+        // Initialisation au chargement de la page
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialiser l'utilisateur
+    if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
+        currentUserId = window.Telegram.WebApp.initDataUnsafe.user.id;
+        // Ajoutez un élément avec id="user-welcome" dans votre HTML si vous voulez utiliser ceci
+        const welcomeElement = document.getElementById('user-welcome');
+        if (welcomeElement) {
+            welcomeElement.textContent = 
+                `Bienvenue, ${window.Telegram.WebApp.initDataUnsafe.user.first_name}`;
         }
+    }
 
+    // Premier chargement des données
+    loadData();
+    
+    // Démarrer l'auto-refresh
+    startAutoRefresh();
+});
+
+// Fonction d'auto-refresh
+function startAutoRefresh() {
+    // Nettoyer l'intervalle existant
+    clearInterval(refreshInterval);
+    
+    // Configurer le nouvel intervalle
+    refreshInterval = setInterval(() => {
+        // Ne rafraîchir que si la page est visible
+        if (document.visibilityState === 'visible') {
+            loadData();
+        }
+    }, 30000); // Toutes les 30 secondes
+}
         function startCooldownTimer(cooldownEnd) {
             const claimBtn = document.getElementById('claim-btn');
             if (!claimBtn) return;

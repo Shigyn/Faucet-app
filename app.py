@@ -254,13 +254,17 @@ def get_tasks_frontend():
 def get_balance_frontend():
     try:
         data = request.json
-        user_id = str(data.get('user_id'))
+        if not data or 'user_id' not in data:
+            return jsonify({'status': 'error', 'message': 'Missing user_id'}), 400
+            
+        user_id = str(data['user_id'])
         service = get_sheets_service()
         row, _ = get_user_row_and_index(service, user_id)
+        
         if not row:
             return jsonify({'status': 'error', 'message': 'User not found'}), 404
         
-        balance = int(row[3]) if len(row) > 3 else 0
+        balance = int(row[3]) if len(row) > 3 and row[3] else 0
         last_claim = row[4] if len(row) > 4 else None
         referral_code = row[5] if len(row) > 5 else user_id
         
@@ -270,9 +274,10 @@ def get_balance_frontend():
             'last_claim': last_claim,
             'referral_code': referral_code
         })
+        
     except Exception as e:
-        logger.error(f"Erreur get_balance: {str(e)}")
-        return jsonify({'status': 'error'}), 500
+        logger.error(f"Error in get_balance: {str(e)}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 # Cette ligne vide est importante pour séparer les fonctions
 @app.route('/get-referrals', methods=['POST'])

@@ -276,6 +276,33 @@ if (!currentUserId) {
     }
 }
 
+const tgWebApp = window.Telegram?.WebApp;
+
+    if (tgWebApp?.initDataUnsafe?.user) {
+      tgWebApp.expand();
+      const currentUserId = String(tgWebApp.initDataUnsafe.user.id);
+      
+      console.log("Telegram User:", {
+        id: currentUserId,
+        data: tgWebApp.initDataUnsafe
+      });
+
+      loadData(); // Cette fonction doit être définie ailleurs dans votre script
+
+    } else {
+      document.body.innerHTML = `
+        <div style="text-align:center; padding:20px;">
+          <h2>Ouvrez cette application via</h2>
+          <a href="https://t.me/CRYPTORATS_bot" style="
+            background: #0088cc;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+          ">Notre Bot Telegram</a>
+        </div>`;
+    }
+
         async function loadData() {
             const [tasks, referrals, balanceData] = await Promise.all([
                 fetchData('get-tasks'),

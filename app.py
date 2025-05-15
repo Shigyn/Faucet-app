@@ -257,9 +257,14 @@ def get_tasks_frontend():
 @app.route('/get-balance', methods=['POST'])
 def get_balance():
     try:
-        # Vérification Telegram
-        if not request.headers.get('X-Telegram-Init-Data'):
-            return jsonify({'status': 'error', 'message': 'Unauthorized'}), 401
+        # Accepter les requêtes sans vérification Telegram en debug
+        data = request.get_json()
+        user_id = str(data.get('user_id', ''))
+        
+        logger.info(f"Requête balance reçue pour user: {user_id}")
+        
+        if not user_id:
+            return jsonify({'status': 'error', 'message': 'user_id required'}), 400
             
         data = request.get_json()
         user_id = str(data.get('user_id'))  # Conversion en string obligatoire

@@ -735,6 +735,17 @@ fetch(`${API_BASE_URL}/update-user`, {
 
         // Démarrer l'application
         document.addEventListener('DOMContentLoaded', initApp);
+		
+		window.onload = function () {
+    const tg = window.Telegram.WebApp;
+    const startParam = tg.initDataUnsafe.start_param;
+
+    if (startParam && startParam.startsWith("ref_")) {
+        const referralId = startParam.split("_")[1];
+        console.log("Referral ID:", referralId);
+        // Tu peux maintenant utiliser referralId pour une requête à ton backend
+    }
+};
     </script>
 </body>
 </html>

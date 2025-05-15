@@ -12,6 +12,7 @@ import hmac
 from flask_cors import CORS
 from telegram import Update, Bot
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 
 app = Flask(__name__)
 CORS(app)
@@ -53,36 +54,38 @@ def get_sheets_service():
 
 async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.is_bot:
-        await update.message.reply_text("❌ Les bots ne peuvent pas s'inscrire")
+        await update.message.reply_text("❌ Les bots ne peuvent pas s'inscrire.")
         return
-    
+
     try:
         user_id = str(update.effective_user.id)
         username = update.effective_user.username or f"User{user_id[:5]}"
         referral_id = context.args[0] if context.args else None
-        
-        logger.info(f"Nouvel utilisateur: {user_id}, parrain: {referral_id}")
+
+        logger.info(f"[START] Utilisateur: {user_id}, Parrain: {referral_id}")
         service = get_sheets_service()
-        
-        # Vérifier si l'utilisateur existe déjà
-        result = service.spreadsheets().values().get(
+
+        # Récupère tous les utilisateurs
+        users_data = service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID,
             range=RANGES['users']
         ).execute()
-        
-        user_exists = any(row[2] == user_id for row in result.get('values', []) if len(row) > 2)
-        
+        users = users_data.get('values', [])
+
+        # Vérifie si l'utilisateur existe déjà
+        user_exists = any(row[2] == user_id for row in users if len(row) > 2)
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
         if not user_exists:
+            # Ajout du nouvel utilisateur
             new_user = [
-                datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                now_str,       # Date inscription
                 username,
                 user_id,
-                '0',  # Balance
-                '',   # Last claim
-                referral_id if referral_id else ''  # Referral ID
+                '0',           # Solde initial
+                '',            # Dernier claim
+                referral_id if referral_id else ''  # ID du parrain
             ]
-            
-            # Ajouter le nouvel utilisateur
             service.spreadsheets().values().append(
                 spreadsheetId=SPREADSHEET_ID,
                 range=RANGES['users'],
@@ -91,62 +94,58 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ).execute()
 
             if referral_id:
-                # Récupérer le solde actuel du parrain
-                referrer_data = service.spreadsheets().values().get(
-                    spreadsheetId=SPREADSHEET_ID,
-                    range=f"{RANGES['users']}!C:D"
-                ).execute()
-
-                referrer_balance = '0'
-                for row in referrer_data.get('values', []):
-                    if len(row) > 1 and row[0] == referral_id:
-                        referrer_balance = row[1]
-                        break
-                
-                # Calculer les 5% que gagne le parrain
-                points_gagnes = float(referrer_balance) * 0.05  # 5% au lieu de 10%
-                
-                # Enregistrer le parrainage avec les nouvelles colonnes
-                service.spreadsheets().values().append(
-                    spreadsheetId=SPREADSHEET_ID,
-                    range=RANGES['referrals'],
-                    valueInputOption='USER_ENTERED',
-                    body={'values': [[
-                        referral_id,       # Referrer_ID
-                        user_id,           # Referred_ID
-                        referrer_balance,  # Total_Ref_Points (solde du filleul)
-                        str(points_gagnes), # Points_gagnés (5% du solde du filleul)
-                        datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # Date
-                    ]]}
-                ).execute()
-                
-                # Mettre à jour le solde du parrain
-                cells = service.spreadsheets().values().get(
-                    spreadsheetId=SPREADSHEET_ID,
-                    range=RANGES['users'],
-                ).execute()
-                
-                for i, row in enumerate(cells.get('values', [])):
+                # Cherche le parrain
+                referrer_row_index = None
+                referrer_balance = 0.0
+                for i, row in enumerate(users):
                     if len(row) > 2 and row[2] == referral_id:
-                        # Trouvé le parrain, mettre à jour son solde
-                        new_balance = float(row[3]) + points_gagnes
-                        service.spreadsheets().values().update(
-                            spreadsheetId=SPREADSHEET_ID,
-                            range=f"{RANGES['users']}!D{i+1}",  # Colonne D (balance)
-                            valueInputOption='USER_ENTERED',
-                            body={'values': [[str(new_balance)]]}
-                        ).execute()
+                        referrer_row_index = i
+                        referrer_balance = float(row[3]) if len(row) > 3 else 0.0
                         break
-        
+
+                if referrer_row_index is not None:
+                    # Le filleul a 0 au départ, donc le parrain gagne 10% de 0 = 0.
+                    # MAIS on applique 10% dès le départ (peut être une prime fixe ou autre logique si besoin).
+                    # Pour l’exemple on crédite un **bonus fixe** de 1.0 à chaque nouveau parrainage :
+                    bonus_points = 1.0
+
+                    # Met à jour le solde du parrain
+                    new_balance = referrer_balance + bonus_points
+                    service.spreadsheets().values().update(
+                        spreadsheetId=SPREADSHEET_ID,
+                        range=f"{RANGES['users']}!D{referrer_row_index + 1}",
+                        valueInputOption='USER_ENTERED',
+                        body={'values': [[str(new_balance)]]}
+                    ).execute()
+
+                    # Enregistre le parrainage
+                    service.spreadsheets().values().append(
+                        spreadsheetId=SPREADSHEET_ID,
+                        range=RANGES['referrals'],
+                        valueInputOption='USER_ENTERED',
+                        body={'values': [[
+                            referral_id,        # ID du parrain
+                            user_id,            # ID du filleul
+                            '0',                # Solde du filleul à l'inscription
+                            str(bonus_points),  # Points gagnés par le parrain
+                            now_str             # Date
+                        ]]}
+                    ).execute()
+                else:
+                    logger.warning(f"⚠️ ID de parrain invalide ou non trouvé: {referral_id}")
+
+        # Message de bienvenue
         await update.message.reply_text(
             "🎉 Bienvenue dans TronQuest Airdrop!\n"
-            f"Ton ID: {user_id}\n"
-            f"Parrain: {referral_id if referral_id else 'Aucun'}\n\n"
-            f"Clique ici pour commencer: https://t.me/CRYPTORATS_BOT?startapp=ref_{user_id}"
+            f"🆔 Ton ID: `{user_id}`\n"
+            f"🤝 Parrain: `{referral_id if referral_id else 'Aucun'}`\n\n"
+            f"🚀 Clique ici pour commencer: [Lancer le bot](https://t.me/CRYPTORATS_BOT?startapp=ref_{user_id})",
+            parse_mode='Markdown',
+            disable_web_page_preview=True
         )
-        
+
     except Exception as e:
-        logger.error(f"Erreur dans handle_start: {str(e)}")
+        logger.error(f"[ERREUR] handle_start: {str(e)}", exc_info=True)
         await update.message.reply_text("❌ Une erreur est survenue. Contacte le support.")
 
 @app.route('/update-user', methods=['POST'])

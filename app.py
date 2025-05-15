@@ -30,9 +30,6 @@ bot = Bot(token=TELEGRAM_BOT_TOKEN)
 update_queue = Queue()
 dispatcher = Dispatcher(bot, update_queue, use_context=True)
 
-dispatcher.add_handler(CommandHandler("start", start_command))
-
-
 def log_all(update, context):
     logger.info(f"Update reçu: {update}")
 
@@ -106,6 +103,8 @@ def start_command(update, context):
         logger.info(f"Nouvel utilisateur via referral {refid}")
         # Appelle ici ta fonction d'import/referral par exemple
         # import_referral(update.effective_user.id, refid)
+  
+dispatcher.add_handler(CommandHandler("start", start_command))
 
 @app.route('/import-ref', methods=['POST'])  # <-- Ce bloc doit être hors de la fonction home
 def import_ref():

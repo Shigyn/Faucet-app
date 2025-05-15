@@ -265,8 +265,9 @@ def get_balance_frontend():
     except Exception as e:
         logger.error(f"Erreur get_balance: {str(e)}")
         return jsonify({'status': 'error'}), 500
-        
-        @app.route('/get-referrals', methods=['GET'])
+
+# Cette ligne vide est importante pour séparer les fonctions
+@app.route('/get-referrals', methods=['GET'])
 def get_referrals_frontend():
     try:
         user_id = request.args.get('user_id')

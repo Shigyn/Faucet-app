@@ -229,7 +229,8 @@ def update_user():
 @app.route('/get-tasks', methods=['POST'])  
 def get_tasks_frontend():
     try:
-        user_id = request.args.get('user_id')
+        data = request.json
+        user_id = str(data.get('user_id'))
         service = get_sheets_service()
         tasks = service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID,
@@ -249,10 +250,10 @@ def get_tasks_frontend():
         logger.error(f"Erreur get_tasks: {str(e)}")
         return jsonify({'status': 'error', 'tasks': []}), 500
 
-@app.route('/get-balance', methods=['POST'])  # Doit correspondre à la méthode appelée
+@app.route('/get-balance', methods=['POST'])
 def get_balance_frontend():
     try:
-        data = request.json  # Modification ici pour accepter POST
+        data = request.json
         user_id = str(data.get('user_id'))
         service = get_sheets_service()
         row, _ = get_user_row_and_index(service, user_id)
@@ -277,7 +278,8 @@ def get_balance_frontend():
 @app.route('/get-referrals', methods=['POST'])
 def get_referrals_frontend():
     try:
-        user_id = request.args.get('user_id')
+        data = request.json
+        user_id = str(data.get('user_id'))
         service = get_sheets_service()
         
         referrals = service.spreadsheets().values().get(

@@ -36,6 +36,10 @@ SPREADSHEET_ID = os.getenv('GOOGLE_SHEET_ID')
 app = Flask(__name__)
 CORS(app)
 
+@app.route('/static/<path:filename>')
+def static_files(filename):
+    return send_from_directory('static', filename)
+    
 @app.before_first_request
 def setup_webhook():
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook"

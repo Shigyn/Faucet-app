@@ -64,6 +64,11 @@ def webhook():
     return 'ok'
 
 def start_command(update, context):
+    logger.info(f"/start reçu de {update.effective_user.id} avec args={context.args}")
+     if update.message is None:
+        logger.error("update.message est None, impossible d'envoyer le message")
+        return
+        
     args = context.args
     refid = args[0] if args else None
     
@@ -82,11 +87,10 @@ def start_command(update, context):
     # Message simple, pas de mention explicite du refid
     welcome_text = "Bienvenue sur TronQuest Airdrop! Collectez vos tokens chaque jour."
     
-    context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=welcome_text,
-        reply_markup=reply_markup
-    )
+    update.message.reply_text(
+    text=welcome_text,
+    reply_markup=reply_markup
+)
     
     # Traitement en back (log, enregistrer referral, etc)
     if refid:

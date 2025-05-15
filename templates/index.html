@@ -234,7 +234,14 @@
 
     <script>
         const API_BASE_URL = window.location.origin;
-        let currentUserId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 'defaultId';
+        let currentUserId = window.Telegram?.WebApp?.initData?.user?.id 
+                  || window.Telegram?.WebApp?.initDataUnsafe?.user?.id 
+                  || null;
+
+if (!currentUserId) {
+    showToast("Connectez-vous via Telegram", 5000, 'error');
+    return;
+}
         let currentBalance = 0;
         let lastClaimTime = null;
         let isClaiming = false;

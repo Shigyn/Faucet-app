@@ -255,9 +255,11 @@ def get_balance():
     try:
         data = request.get_json()
         if not data or 'user_id' not in data:
-            logger.error("Missing user_id in request")
-            return jsonify({'status': 'error', 'message': 'Missing user_id'}), 400
-            
+            return jsonify({'status': 'error', 'message': 'user_id required'}), 400
+
+        user_id = str(data['user_id'])
+        if user_id == 'defaultId':
+            return jsonify({'status': 'error', 'message': 'Invalid user_id'}), 401    
         user_id = str(data['user_id'])
         logger.info(f"Fetching balance for user: {user_id}")
         

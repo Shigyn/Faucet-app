@@ -220,7 +220,7 @@ def update_user():
         logger.error(f"Erreur update_user: {str(e)}")
         return jsonify({'status': 'error'}), 500
 
-@app.route('/get-tasks', methods=['GET'])
+@app.route('/get-tasks', methods=['POST'])  
 def get_tasks_frontend():
     try:
         user_id = request.args.get('user_id')
@@ -243,7 +243,7 @@ def get_tasks_frontend():
         logger.error(f"Erreur get_tasks: {str(e)}")
         return jsonify({'status': 'error', 'tasks': []}), 500
 
-@app.route('/get-balance', methods=['GET'])
+@app.route('/get-balance', methods=['POST'])
 def get_balance_frontend():
     try:
         user_id = request.args.get('user_id')
@@ -267,7 +267,7 @@ def get_balance_frontend():
         return jsonify({'status': 'error'}), 500
 
 # Cette ligne vide est importante pour séparer les fonctions
-@app.route('/get-referrals', methods=['GET'])
+@app.route('/get-referrals', methods=['POST'])
 def get_referrals_frontend():
     try:
         user_id = request.args.get('user_id')

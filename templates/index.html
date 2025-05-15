@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>CryptoRats</title>
+	<link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon">
+	
     <style>
         /* --- Ton CSS original --- */
         body {
@@ -230,7 +232,7 @@
     <button id="watch-ads-btn">Watch Ads</button>
 
     <script>
-        const API_BASE_URL = 'https://faucet-app.onrender.com'; // Remplace par ta vraie URL
+        const API_BASE_URL = window.location.origin;
         let currentUserId = 'someUserId'; // Charge selon ton app ou Telegram initData
         let currentBalance = 0;
         let lastClaimTime = null;

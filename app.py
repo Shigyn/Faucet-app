@@ -32,6 +32,8 @@ SPREADSHEET_ID = os.getenv('GOOGLE_SHEET_ID')
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 update_queue = Queue()
 dispatcher = Dispatcher(bot, update_queue, use_context=True)  # Dispatcher doit être défini AVANT handlers
+dispatcher.add_handler(MessageHandler(Filters.all, log_all))
+dispatcher.add_handler(CommandHandler("start", start_command))
 
 # === Constants ===
 RANGES = {
@@ -48,38 +50,37 @@ sheet_lock = Lock()  # Verrou pour accès Sheets
 def log_all(update, context):
     logger.info(f"Update reçu: {update}")
 
-dispatcher.add_handler(MessageHandler(Filters.all, log_all))  # Log toutes les updates
-
 def start_command(update, context):
     logger.info(f"/start reçu de {update.effective_user.id} avec args={context.args}")
+    
     if update.message is None:
-        logger.error("update.message est None, impossible d'envoyer le message")
+        logger.error("🚨 update.message est None, impossible d'envoyer le message")
         return
+    
+    try:
+        # ton code pour envoyer la réponse Telegram
+        args = context.args
+        refid = args[0] if args else None
         
-    args = context.args
-    refid = args[0] if args else None
-    
-    base_url = "https://faucet-app.onrender.com"
-    if refid:
-        url = f"{base_url}/?refid={refid}"  # URL avec refid
-    else:
-        url = base_url
+        base_url = "https://faucet-app.onrender.com"
+        if refid:
+            url = f"{base_url}/?refid={refid}"
+        else:
+            url = base_url
 
-    keyboard = [
-        [InlineKeyboardButton("Open App", url=url)]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    welcome_text = "Bienvenue sur TronQuest Airdrop! Collectez vos tokens chaque jour."
-    
-    update.message.reply_text(
-        text=welcome_text,
-        reply_markup=reply_markup
-    )
-    
-    if refid:
-        logger.info(f"Nouvel utilisateur via referral {refid}")
-        # Appel possible à import_referral ici
+        keyboard = [
+            [InlineKeyboardButton("Open App", url=url)]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        welcome_text = "Bienvenue sur TronQuest Airdrop! Collectez vos tokens chaque jour."
+        
+        update.message.reply_text(
+            text=welcome_text,
+            reply_markup=reply_markup
+        )
+    except Exception as e:
+        logger.error(f"Erreur dans start_command: {str(e)}")
 
 dispatcher.add_handler(CommandHandler("start", start_command))  # Handler /start
 

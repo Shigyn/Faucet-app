@@ -201,7 +201,7 @@ def validate_telegram():
         logger.error(f"Validation error: {str(e)}")
         return jsonify({'status': 'error'}), 500
         
-        @app.route('/init-data', methods=['POST'])
+@app.route('/init-data', methods=['POST'])
 def handle_init_data():
     try:
         data = request.json

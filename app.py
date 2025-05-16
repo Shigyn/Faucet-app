@@ -35,7 +35,10 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SPREADSHEET_ID = os.getenv('GOOGLE_SHEET_ID')
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={
+    r"/user-data": {"origins": ["https://web.telegram.org"]},
+    r"/claim": {"origins": ["https://web.telegram.org"]}
+})
 
 gunicorn_conf = {
     'workers': (os.cpu_count() or 1) * 2 + 1,
@@ -229,8 +232,10 @@ def handle_init_data():
 
 @app.route('/user-data', methods=['POST'])
 def get_user_data():
+    logger.debug("Début de /user-data")
     try:
         data = request.json
+        logger.debug(f"Données reçues: {data}")
         user_id = str(data.get('user_id'))
         
         if not user_id:

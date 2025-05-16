@@ -238,10 +238,17 @@
         let currentUserId = window.Telegram?.WebApp?.initData?.user?.id 
                   || window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
                   
-if (!currentUserId) {
-    alert("Veuillez ouvrir cette application via Telegram");
-    throw new Error("Telegram user ID required");
+if (!window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
+    document.body.innerHTML = `
+        <div style="text-align:center; padding:20px;">
+            <h2>Ouvrez cette application via</h2>
+            <a href="https://t.me/CRYPTORATS_bot" style="...">
+                Notre Bot Telegram
+            </a>
+        </div>`;
+    throw new Error("Telegram user required");
 }
+currentUserId = String(window.Telegram.WebApp.initDataUnsafe.user.id);
         let currentBalance = 0;
         let lastClaimTime = null;
         let isClaiming = false;
@@ -620,7 +627,30 @@ function createLoader() {
         }
 
         // Initialisation au chargement de la page
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        // 1. Vérifier qu'on est dans Telegram
+        if (!window.Telegram?.WebApp?.initData) {
+            showTelegramRequired();
+            return;
+        }
+
+        // 2. Valider avec le backend
+        const validation = await fetchData('validate-telegram', {
+            initData: window.Telegram.WebApp.initData
+        });
+        
+        // 3. Charger les données
+        await loadData();
+        
+        // 4. Démarrer le rafraîchissement
+        startAutoRefresh();
+        
+    } catch (error) {
+        console.error("Initialization error:", error);
+        showToast("Erreur d'initialisation", 3000, 'error');
+    }
+});
     // Initialiser l'utilisateur
     if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
         currentUserId = window.Telegram.WebApp.initDataUnsafe.user.id;

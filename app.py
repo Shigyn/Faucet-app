@@ -1,9 +1,11 @@
+# (début du fichier inchangé)
 import os
 import random
 import json
 import logging
 import threading
-from flask import Flask, request, jsonify, render_template
+import time
+from flask import Flask, request, jsonify, render_template, send_from_directory
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
 from datetime import datetime, timedelta
@@ -20,21 +22,32 @@ import google.api_core
 import google.auth.transport.requests
 import google.oauth2.credentials
 
-# Désactive le cache
 google.api_core.client_options.ClientOptions.disable_cache = True
 
-# === Logging config ===
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
-# === Config vars ===
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SPREADSHEET_ID = os.getenv('GOOGLE_SHEET_ID')
 
-# === Flask app + CORS ===
 app = Flask(__name__)
 CORS(app)
+
+gunicorn_conf = {
+    'workers': (os.cpu_count() or 1) * 2 + 1,
+    'worker_class': 'sync',
+    'timeout': 30,
+    'graceful_timeout': 30,
+    'keepalive': 5,
+    'max_requests': 1000,
+    'max_requests_jitter': 50,
+    'accesslog': '-',
+    'errorlog': '-'
+}
 
 @app.route('/static/<path:filename>')
 def static_files(filename):
@@ -42,13 +55,16 @@ def static_files(filename):
     
 @app.before_first_request
 def setup_webhook():
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook"
-    webhook_url = "https://faucet-app.onrender.com/webhook"
-    response = requests.post(url, data={"url": webhook_url})
-    logger.info(f"Webhook setup response: {response.text}")
+    if TELEGRAM_BOT_TOKEN:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook"
+        webhook_url = "https://faucet-app.onrender.com/webhook"
+        try:
+            response = requests.post(url, data={"url": webhook_url}, timeout=10)
+            logger.info(f"Webhook setup response: {response.text}")
+        except Exception as e:
+            logger.error(f"Failed to setup webhook: {str(e)}")
 
-# === Telegram Bot + Dispatcher ===
-bot = Bot(token=TELEGRAM_BOT_TOKEN)
+bot = Bot(token=TELEGRAM_BOT_TOKEN) if TELEGRAM_BOT_TOKEN else None
 
 def log_all(update, context):
     logger.info(f"Update reçu: {update}")
@@ -80,219 +96,120 @@ def start_command(update, context):
     except Exception as e:
         logger.error(f"Erreur dans start_command: {str(e)}")
 
-update_queue = Queue()
-dispatcher = Dispatcher(bot, update_queue, use_context=True)  # Dispatcher doit être défini AVANT handlers
-dispatcher.add_handler(CommandHandler("start", start_command))
-dispatcher.add_handler(MessageHandler(Filters.all, log_all))
+if bot:
+    update_queue = Queue()
+    dispatcher = Dispatcher(bot, update_queue, use_context=True)
+    dispatcher.add_handler(CommandHandler("start", start_command))
+    dispatcher.add_handler(MessageHandler(Filters.all, log_all))
 
-# === Constants ===
 RANGES = {
     'users': 'Users!A2:F',
     'transactions': 'Transactions!A2:D',
     'tasks': 'Tasks!A2:D',
     'referrals': 'Referrals!A2:D'
 }
-CLAIM_COOLDOWN_MINUTES = 5  # modifier plus tard 30-60
+CLAIM_COOLDOWN_MINUTES = 5
 
-sheet_lock = Lock()  # Verrou pour accès Sheets
+sheet_lock = Lock()
 
-# === Fonctions utilitaires ===
+def get_sheets_service_with_retry(max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            creds_json = os.getenv('GOOGLE_CREDS')
+            if not creds_json:
+                raise ValueError("GOOGLE_CREDS environment variable is missing")
+            creds = service_account.Credentials.from_service_account_info(
+                json.loads(creds_json), scopes=SCOPES)
+            return build('sheets', 'v4', credentials=creds)
+        except Exception as e:
+            logger.error(f"Attempt {attempt + 1} failed: {str(e)}")
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(2 ** attempt)
 
 def validate_telegram_webapp(data):
     if not data or not TELEGRAM_BOT_TOKEN:
         return False
-    return True  # TODO: Renforcer validation en production
+    return True
 
-def get_sheets_service():
-    try:
-        creds_json = os.getenv('GOOGLE_CREDS')
-        creds = service_account.Credentials.from_service_account_info(
-            json.loads(creds_json), scopes=SCOPES)
-        return build('sheets', 'v4', credentials=creds)
-    except Exception as e:
-        logger.error(f"Erreur Google Sheets: {str(e)}")
-        raise
+@app.before_request
+def log_request_info():
+    logger.debug(f"Request: {request.method} {request.path}")
+    if request.method == 'POST' and request.content_type == 'application/json':
+        logger.debug(f"Request body: {request.get_data()}")
 
-# === Flask routes ===
+@app.after_request
+def log_response_info(response):
+    logger.debug(f"Response: {response.status}")
+    return response
 
 @app.route('/')
 def home():
     return render_template('index.html')
 
+@app.route('/health')
+def health_check():
+    try:
+        service = get_sheets_service_with_retry()
+        service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range="Users!A1:A1"
+        ).execute()
+        return jsonify({
+            "status": "healthy",
+            "details": {
+                "sheets_connection": "ok",
+                "telegram_bot": "ok" if TELEGRAM_BOT_TOKEN else "disabled"
+            }
+        }), 200
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return jsonify({
+            "status": "unhealthy",
+            "error": str(e)
+        }), 500
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
+    if not bot:
+        return jsonify({'status': 'error', 'message': 'Telegram bot not configured'}), 500
     logger.info("Webhook received an update")
-    update = Update.de_json(request.get_json(force=True), bot)
-    dispatcher.process_update(update)
-    return 'ok'
-
-@app.route('/import-ref', methods=['POST'])
-def import_ref():
     try:
-        data = request.json
-        user_id = str(data.get('user_id'))
-        ref_id = str(data.get('ref_id'))
-
-        if user_id == ref_id:
-            return jsonify({'status': 'error', 'message': 'You cannot refer yourself'}), 400
-
-        service = get_sheets_service()
-
-        # Vérifier si le référé existe déjà
-        users = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range=RANGES['users']
-        ).execute().get('values', [])
-
-        # Vérifier si le parrain existe
-        referrer_exists = any(row[2] == ref_id for row in users if len(row) > 2)
-        if not referrer_exists:
-            return jsonify({'status': 'error', 'message': 'Referrer does not exist'}), 400
-
-        # Vérifier si la référence existe déjà
-        referrals = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range=RANGES['referrals']
-        ).execute().get('values', [])
-
-        if any(row[1] == user_id for row in referrals if len(row) > 1):
-            return jsonify({'status': 'error', 'message': 'Already referred'}), 400
-
-        # Ajouter la référence
-        service.spreadsheets().values().append(
-            spreadsheetId=SPREADSHEET_ID,
-            range=RANGES['referrals'],
-            valueInputOption='USER_ENTERED',
-            body={'values': [[ref_id, user_id, '10', datetime.now().strftime('%Y-%m-%d %H:%M:%S')]]}
-        ).execute()
-
-        return jsonify({'status': 'success', 'message': 'Referral added successfully'})
+        update = Update.de_json(request.get_json(force=True), bot)
+        dispatcher.process_update(update)
+        return 'ok'
     except Exception as e:
-        logger.error(f"Erreur import_ref: {str(e)}")
+        logger.error(f"Webhook error: {str(e)}")
         return jsonify({'status': 'error'}), 500
-
-@app.route('/welcome', methods=['GET'])
-def welcome():
-    startuserid = request.args.get('startuserid', '')  # Get param
-    base_url = 'https://t.me/CRYPTORATS_bot'
-    
-    if startuserid:
-        url = f"{base_url}?start={startuserid}"  # URL avec param startuserid
-    else:
-        url = base_url
-    
-    return jsonify({
-        'status': 'success',
-        'message': 'Welcome to TronQuest Airdrop! Collect tokens every day. You will get a bonus every 3 months that will be swapped to TRX. Use your referral code to invite others!',
-        'buttons': [{
-            'text': 'Open',
-            'url': url
-        }]
-    })
 
 @app.route('/validate-telegram', methods=['POST'])
 def validate_telegram():
     try:
         data = request.json
         init_data = data.get('initData')
-        
         if not init_data:
             return jsonify({'status': 'error', 'message': 'Missing initData'}), 400
-            
-        # Ici vous devriez implémenter une vraie validation
-        # Voir https://core.telegram.org/bots/webapps#validating-data-received-via-the-web-app
-        
+        if not isinstance(init_data, str) or len(init_data) < 10:
+            return jsonify({'status': 'error', 'message': 'Invalid initData format'}), 400
         return jsonify({'status': 'success'})
     except Exception as e:
         logger.error(f"Validation error: {str(e)}")
         return jsonify({'status': 'error'}), 500
-        
-@app.route('/update-user', methods=['POST'])
-def update_user():
-    try:
-        data = request.json
-        user_id = str(data.get('user_id'))
-        username = data.get('username', 'User')
-        
-        service = get_sheets_service()
-        result = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range=RANGES['users']
-        ).execute()
-        
-        user_exists = any(row[2] == user_id for row in result.get('values', []) if len(row) > 2)
-        
-        if not user_exists:
-            new_user = [
-                datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                username,
-                user_id,
-                '0',
-                '',
-                user_id  # Code parrainage complet
-            ]
-            service.spreadsheets().values().append(
-                spreadsheetId=SPREADSHEET_ID,
-                range=RANGES['users'],
-                valueInputOption='USER_ENTERED',
-                body={'values': [new_user]}
-            ).execute()
-        
-        return jsonify({
-            'status': 'success',
-            'user_id': user_id,
-            'username': username
-        })
-    except Exception as e:
-        logger.error(f"Erreur update_user: {str(e)}")
-        return jsonify({'status': 'error'}), 500
-
-@app.route('/get-tasks', methods=['POST'])  
-def get_tasks_frontend():
-    try:
-        data = request.json
-        user_id = str(data.get('user_id'))
-        service = get_sheets_service()
-        tasks = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range=RANGES['tasks']
-        ).execute().get('values', [])
-        
-        tasks_list = []
-        for row in tasks:
-            if len(row) >= 3:
-                tasks_list.append({
-                    'name': row[0],  # Changé de task_name à name
-                    'description': row[1],
-                    'reward': int(row[2])  # Changé de points à reward
-                })
-        return jsonify({'status': 'success', 'tasks': tasks_list})
-    except Exception as e:
-        logger.error(f"Erreur get_tasks: {str(e)}")
-        return jsonify({'status': 'error', 'tasks': []}), 500
 
 @app.route('/get-balance', methods=['POST'])
 def get_balance():
     try:
         data = request.get_json()
         user_id = str(data.get('user_id', ''))
-        
         if not user_id:
             return jsonify({'status': 'error', 'message': 'user_id required'}), 400
-            
-        logger.info(f"Fetching balance for user: {user_id}")
-        
-        service = get_sheets_service()
+        service = get_sheets_service_with_retry()
         row, _ = get_user_row_and_index(service, user_id)
-        
         if not row:
-            logger.error(f"User not found: {user_id}")
             return jsonify({'status': 'error', 'message': 'User not found'}), 404
-        
         balance = int(row[3]) if len(row) > 3 and row[3] else 0
         last_claim = row[4] if len(row) > 4 else None
         referral_code = row[5] if len(row) > 5 else user_id
-        
         return jsonify({
             'status': 'success',
             'balance': balance,
@@ -303,180 +220,176 @@ def get_balance():
         logger.error(f"Error in get_balance: {str(e)}", exc_info=True)
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-# Cette ligne vide est importante pour séparer les fonctions
-@app.route('/get-referrals', methods=['POST'])
-def get_referrals_frontend():
+@app.route('/claim', methods=['POST'])
+def claim():
     try:
-        data = request.json
-        user_id = str(data.get('user_id'))
-        service = get_sheets_service()
-        
-        referrals = service.spreadsheets().values().get(
+        data = request.get_json()
+        user_id = str(data.get('user_id', ''))
+        if not user_id:
+            return jsonify({'status': 'error', 'message': 'user_id required'}), 400
+
+        now = datetime.utcnow()
+        service = get_sheets_service_with_retry()
+        with sheet_lock:
+            row, row_number = get_user_row_and_index(service, user_id)
+            if not row:
+                return jsonify({'status': 'error', 'message': 'User not found'}), 404
+
+            last_claim_str = row[4] if len(row) > 4 else None
+            if last_claim_str:
+                last_claim = datetime.strptime(last_claim_str, "%Y-%m-%d %H:%M:%S")
+                if now - last_claim < timedelta(minutes=CLAIM_COOLDOWN_MINUTES):
+                    remaining = timedelta(minutes=CLAIM_COOLDOWN_MINUTES) - (now - last_claim)
+                    return jsonify({'status': 'error', 'message': f'Wait {remaining.seconds//60} minutes'}), 403
+
+            new_balance = int(row[3]) + 10 if len(row) > 3 and row[3] else 10
+            values = [[
+                row[0] if len(row) > 0 else '',
+                row[1] if len(row) > 1 else '',
+                user_id,
+                new_balance,
+                now.strftime("%Y-%m-%d %H:%M:%S"),
+                row[5] if len(row) > 5 else user_id
+            ]]
+            service.spreadsheets().values().update(
+                spreadsheetId=SPREADSHEET_ID,
+                range=f"Users!A{row_number}:F{row_number}",
+                valueInputOption="RAW",
+                body={"values": values}
+            ).execute()
+            return jsonify({'status': 'success', 'balance': new_balance})
+    except Exception as e:
+        logger.error(f"Error in claim: {str(e)}", exc_info=True)
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/get-tasks', methods=['POST'])
+def get_tasks():
+    try:
+        data = request.get_json()
+        user_id = str(data.get('user_id', ''))
+        if not user_id:
+            return jsonify({'status': 'error', 'message': 'user_id required'}), 400
+
+        service = get_sheets_service_with_retry()
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=RANGES['tasks']
+        ).execute()
+        tasks = result.get('values', [])
+
+        tasks_data = []
+        for task in tasks:
+            task_data = {
+                'title': task[0] if len(task) > 0 else '',
+                'description': task[1] if len(task) > 1 else '',
+                'reward': int(task[2]) if len(task) > 2 and task[2].isdigit() else 0,
+                'completed': task[3].lower() == 'true' if len(task) > 3 else False
+            }
+            tasks_data.append(task_data)
+
+        return jsonify({'status': 'success', 'tasks': tasks_data})
+    except Exception as e:
+        logger.error(f"Error in get_tasks: {str(e)}", exc_info=True)
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/get-referrals', methods=['POST'])
+def get_referrals():
+    try:
+        data = request.get_json()
+        user_id = str(data.get('user_id', ''))
+        if not user_id:
+            return jsonify({'status': 'error', 'message': 'user_id required'}), 400
+
+        service = get_sheets_service_with_retry()
+        result = service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID,
             range=RANGES['referrals']
-        ).execute().get('values', [])
-        
-        user_referrals = [
-            {
-                'user_id': row[1],
-                'points_earned': int(row[2]) if len(row) > 2 else 0,
-                'timestamp': row[3] if len(row) > 3 else None
-            }
-            for row in referrals if len(row) > 1 and row[0] == user_id
-        ]
-        
-        return jsonify({
-            'status': 'success',
-            'referrals': user_referrals
-        })
-    except Exception as e:
-        logger.error(f"Erreur get_referrals: {str(e)}")
-        return jsonify({'status': 'error', 'referrals': []}), 500
-        
-@app.route('/complete-task', methods=['POST'])
-def complete_task():
-    try:
-        data = request.json
-        user_id = str(data.get('user_id'))
-        task_name = data.get('task_name')
-        points = int(data.get('points', 0))
-        
-        service = get_sheets_service()
-        with sheet_lock:  # Verrou sur accès Sheets
-            # Mise à jour du solde
-            result = service.spreadsheets().values().get(
-                spreadsheetId=SPREADSHEET_ID,
-                range=RANGES['users']
-            ).execute()
-            
-            for i, row in enumerate(result.get('values', [])):
-                if len(row) > 2 and row[2] == user_id:
-                    row_num = i + 2
-                    current_balance = int(row[3]) if len(row) > 3 else 0
-                    new_balance = current_balance + points
-                    
-                    service.spreadsheets().values().update(
-                        spreadsheetId=SPREADSHEET_ID,
-                        range=f'Users!D{row_num}',
-                        valueInputOption='USER_ENTERED',
-                        body={'values': [[str(new_balance)]]}
-                    ).execute()
-                    break
-            
-            # Ajout transaction
-            service.spreadsheets().values().append(
-                spreadsheetId=SPREADSHEET_ID,
-                range=RANGES['transactions'],
-                valueInputOption='USER_ENTERED',
-                body={'values': [[user_id, str(points), 'task', datetime.now().strftime('%Y-%m-%d %H:%M:%S')]]}
-            ).execute()
-        
-        return jsonify({
-            'status': 'success',
-            'points_earned': points
-        })
-    except Exception as e:
-        logger.error(f"Erreur complete_task: {str(e)}")
-        return jsonify({'status': 'error'}), 500
+        ).execute()
+        referrals = result.get('values', [])
 
-def get_user_row_and_index(service, user_id):
+        user_referrals = [ref for ref in referrals if ref[0] == user_id]
+
+        return jsonify({'status': 'success', 'referrals': user_referrals})
+    except Exception as e:
+        logger.error(f"Error in get_referrals: {str(e)}", exc_info=True)
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/get-leaderboard', methods=['GET'])
+def get_leaderboard():
     try:
-        logger.info(f"Fetching sheet data for user_id: {user_id}")
+        service = get_sheets_service_with_retry()
         result = service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID,
             range=RANGES['users']
         ).execute()
-        
+        users = result.get('values', [])
+
+        leaderboard = []
+        for user in users:
+            if len(user) >= 4:
+                leaderboard.append({
+                    'username': user[1],
+                    'balance': int(user[3]) if user[3].isdigit() else 0
+                })
+
+        leaderboard = sorted(leaderboard, key=lambda x: x['balance'], reverse=True)[:10]
+
+        return jsonify({'status': 'success', 'leaderboard': leaderboard})
+    except Exception as e:
+        logger.error(f"Error in get_leaderboard: {str(e)}", exc_info=True)
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/watchads', methods=['POST'])
+def watch_ads():
+    try:
+        data = request.get_json()
+        user_id = str(data.get('user_id', ''))
+        if not user_id:
+            return jsonify({'status': 'error', 'message': 'user_id required'}), 400
+
+        service = get_sheets_service_with_retry()
+        with sheet_lock:
+            row, row_number = get_user_row_and_index(service, user_id)
+            if not row:
+                return jsonify({'status': 'error', 'message': 'User not found'}), 404
+
+            reward = 5
+            new_balance = int(row[3]) + reward if len(row) > 3 and row[3] else reward
+
+            values = [[
+                row[0] if len(row) > 0 else '',
+                row[1] if len(row) > 1 else '',
+                user_id,
+                new_balance,
+                datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                row[5] if len(row) > 5 else user_id
+            ]]
+            service.spreadsheets().values().update(
+                spreadsheetId=SPREADSHEET_ID,
+                range=f"Users!A{row_number}:F{row_number}",
+                valueInputOption="RAW",
+                body={"values": values}
+            ).execute()
+
+        return jsonify({'status': 'success', 'message': 'Ad watched, reward added', 'balance': new_balance})
+    except Exception as e:
+        logger.error(f"Error in watch_ads: {str(e)}", exc_info=True)
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+def get_user_row_and_index(service, user_id):
+    try:
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=RANGES['users']
+        ).execute()
         rows = result.get('values', [])
-        logger.info(f"Found {len(rows)} rows in sheet")
-        
         for i, row in enumerate(rows):
-            logger.debug(f"Checking row {i}: {row}")
             if len(row) > 2 and str(row[2]) == str(user_id):
-                logger.info(f"Found user at row {i+2}")
-                return row, i+2
-                
-        logger.warning(f"User {user_id} not found in sheet")
+                return row, i + 2
         return None, None
     except Exception as e:
         logger.error(f"Error in get_user_row_and_index: {str(e)}")
         raise
 
-def get_last_claim_time(row):
-    if len(row) > 4 and row[4]:
-        try:
-            return datetime.strptime(row[4], '%Y-%m-%d %H:%M:%S')
-        except:
-            return None
-    return None
-
-def update_claim_time(service, row_num):
-    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    service.spreadsheets().values().update(
-        spreadsheetId=SPREADSHEET_ID,
-        range=f'Users!E{row_num}',
-        valueInputOption='USER_ENTERED',
-        body={'values': [[now_str]]}
-    ).execute()
-
-def update_balance(service, row_num, current_balance, points):
-    new_balance = current_balance + points
-    service.spreadsheets().values().update(
-        spreadsheetId=SPREADSHEET_ID,
-        range=f'Users!D{row_num}',
-        valueInputOption='USER_ENTERED',
-        body={'values': [[str(new_balance)]]}
-    ).execute()
-    return new_balance
-
-def add_transaction(service, user_id, points, typ='claim'):
-    service.spreadsheets().values().append(
-        spreadsheetId=SPREADSHEET_ID,
-        range=RANGES['transactions'],
-        valueInputOption='USER_ENTERED',
-        body={'values': [[user_id, str(points), typ, datetime.now().strftime('%Y-%m-%d %H:%M:%S')]]}
-    ).execute()
-
-@app.route('/claim', methods=['POST'])
-def claim():
-    try:
-        data = request.json
-        user_id = str(data.get('user_id'))
-        watchads = data.get('watchads', False)
-
-        service = get_sheets_service()
-        with sheet_lock:
-            row, row_num = get_user_row_and_index(service, user_id)
-            if not row:
-                return jsonify({'status': 'error', 'message': 'User not found'}), 404
-
-            last_claim = get_last_claim_time(row)
-            now = datetime.now()
-
-            if last_claim and now < last_claim + timedelta(minutes=CLAIM_COOLDOWN_MINUTES):
-                wait_sec = int((last_claim + timedelta(minutes=CLAIM_COOLDOWN_MINUTES) - now).total_seconds())
-                return jsonify({'status': 'error', 'message': f'Cooldown active, wait {wait_sec} seconds'}), 429
-
-            # Calcul points aléatoires
-            base_points = random.randint(10, 100)
-            points = base_points * 2 if watchads else base_points
-
-            current_balance = int(row[3]) if len(row) > 3 else 0
-
-            new_balance = update_balance(service, row_num, current_balance, points)
-            update_claim_time(service, row_num)
-            add_transaction(service, user_id, points, 'claim')
-
-        return jsonify({
-            'status': 'success',
-            'points_earned': points,
-            'new_balance': new_balance,
-            'cooldown_seconds': CLAIM_COOLDOWN_MINUTES * 60
-        })
-    except Exception as e:
-        logger.error(f"Erreur claim: {str(e)}")
-        return jsonify({'status': 'error', 'message': 'Internal error'}), 500
-        
-# === App run ===
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=True)

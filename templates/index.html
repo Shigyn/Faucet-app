@@ -250,67 +250,168 @@ if (!currentUserId) {
         let cooldownTimerId = null;
 
         // Fonction fetch générique
-        async function fetchData(endpoint, data = {}) {
+        async function fetchData(endpoint, data = {}, retries = 3) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: currentUserId,
+                    ...data,
+                    initData: window.Telegram?.WebApp?.initData
+                })
+            });
+
+            if (response.status === 502 || response.status === 503) {
+                throw new Error('Server unavailable');
+            }
+
+            const result = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(result.message || `HTTP error! status: ${response.status}`);
+            }
+
+            return result;
+        } catch (error) {
+            if (attempt === retries) {
+                console.error(`Final attempt failed for ${endpoint}:`, error);
+                throw error;
+            }
+            
+            console.warn(`Attempt ${attempt} failed for ${endpoint}, retrying...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        }
+    }
+}
+
+// Remplacer la partie d'initialisation par ceci :
+const tgWebApp = window.Telegram?.WebApp;
+
+if (tgWebApp?.initData) {
+    // Développer le WebApp (pour occuper tout l'écran)
+    tgWebApp.expand();
+    
+    // Valider les données avec votre backend
+    validateTelegramData(tgWebApp.initData)
+        .then(() => {
+            currentUserId = String(tgWebApp.initDataUnsafe.user.id);
+            console.log("User ID:", currentUserId);
+            
+            // Mettre à jour l'interface utilisateur
+            const welcomeElement = document.getElementById('user-welcome');
+            if (welcomeElement && tgWebApp.initDataUnsafe.user) {
+                welcomeElement.textContent = `Bienvenue, ${tgWebApp.initDataUnsafe.user.first_name}`;
+            }
+            
+            // Maintenant charger les données
+            loadData();
+            startAutoRefresh();
+        })
+        .catch(error => {
+            console.error("Validation error:", error);
+            document.body.innerHTML = `
+                <div style="text-align:center; padding:20px;">
+                    <h2>Erreur de validation</h2>
+                    <p>Veuillez rouvrir cette application via</p>
+                    <a href="https://t.me/CRYPTORATS_bot" style="
+                        background: #0088cc;
+                        color: white;
+                        padding: 10px 20px;
+                        border-radius: 5px;
+                        text-decoration: none;
+                    ">Notre Bot Telegram</a>
+                </div>`;
+        });
+} else {
+    document.body.innerHTML = `
+        <div style="text-align:center; padding:20px;">
+            <h2>Ouvrez cette application via</h2>
+            <a href="https://t.me/CRYPTORATS_bot" style="
+                background: #0088cc;
+                color: white;
+                padding: 10px 20px;
+                border-radius: 5px;
+                text-decoration: none;
+            ">Notre Bot Telegram</a>
+        </div>`;
+}
+
+async function validateTelegramData(initData) {
     try {
-        const payload = {
-            user_id: currentUserId,
-            ...data
-        };
-        
-        const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
+        const response = await fetch(`${API_BASE_URL}/validate-telegram`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ initData })
         });
         
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || `HTTP error! status: ${response.status}`);
+            throw new Error('Validation failed');
         }
         
         return await response.json();
     } catch (error) {
-        console.error(`Error in fetch ${endpoint}:`, error);
-        showToast("Service temporairement indisponible", 3000, 'error');
-        return { status: 'error', message: error.message };
+        console.error("Validation error:", error);
+        throw error;
     }
 }
 
-const tgWebApp = window.Telegram?.WebApp;
-
-    if (tgWebApp?.initDataUnsafe?.user) {
-      tgWebApp.expand();
-      const currentUserId = String(tgWebApp.initDataUnsafe.user.id);
-      
-      console.log("Telegram User:", {
-        id: currentUserId,
-        data: tgWebApp.initDataUnsafe
-      });
-
-      loadData(); // Cette fonction doit être définie ailleurs dans votre script
-
-    } else {
-      document.body.innerHTML = `
-        <div style="text-align:center; padding:20px;">
-          <h2>Ouvrez cette application via</h2>
-          <a href="https://t.me/CRYPTORATS_bot" style="
-            background: #0088cc;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 5px;
-            text-decoration: none;
-          ">Notre Bot Telegram</a>
-        </div>`;
-    }
-
         async function loadData() {
-            const [tasks, referrals, balanceData] = await Promise.all([
-                fetchData('get-tasks'),
-                fetchData('get-referrals'),
-                fetchData('get-balance')
-            ]);
-            updateUI({ balance: balanceData, tasks, referrals });
+    try {
+        showLoading(true);
+        
+        const [balanceRes, tasksRes, referralsRes] = await Promise.all([
+            fetchData('get-balance'),
+            fetchData('get-tasks'),
+            fetchData('get-referrals')
+        ]);
+        
+        if (balanceRes.status !== 'success') {
+            throw new Error(balanceRes.message || 'Failed to load balance');
         }
+        
+        updateUI({ 
+            balance: balanceRes, 
+            tasks: tasksRes.status === 'success' ? tasksRes : null,
+            referrals: referralsRes.status === 'success' ? referralsRes : null
+        });
+    } catch (error) {
+        console.error("Load data error:", error);
+        showToast(error.message || "Erreur de chargement", 3000, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+function showLoading(show) {
+    // Implémentez un indicateur de chargement
+    const loader = document.getElementById('loading-indicator') || createLoader();
+    loader.style.display = show ? 'block' : 'none';
+}
+
+function createLoader() {
+    const loader = document.createElement('div');
+    loader.id = 'loading-indicator';
+    loader.style.position = 'fixed';
+    loader.style.top = '0';
+    loader.style.left = '0';
+    loader.style.width = '100%';
+    loader.style.height = '3px';
+    loader.style.backgroundColor = '#f5a623';
+    loader.style.zIndex = '1000';
+    loader.style.display = 'none';
+    
+    const bar = document.createElement('div');
+    bar.style.height = '100%';
+    bar.style.width = '0%';
+    bar.style.backgroundColor = '#28a745';
+    bar.style.transition = 'width 0.5s ease';
+    loader.appendChild(bar);
+    
+    document.body.appendChild(loader);
+    return loader;
+}
 
         function updateUI({ balance, tasks, referrals }) {
             if (balance) {

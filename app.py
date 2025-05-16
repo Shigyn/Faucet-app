@@ -43,10 +43,9 @@ CORS(app, resources={
 
 @app.after_request
 def after_request(response):
-    # Autorise les requêtes depuis Telegram
     response.headers.add('Access-Control-Allow-Origin', 'https://web.telegram.org')
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,X-Requested-With')
-    response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+    response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS,GET')
     response.headers.add('Access-Control-Allow-Credentials', 'true')
     return response
     

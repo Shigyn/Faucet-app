@@ -9,6 +9,8 @@
 	<button id="copy-btn" aria-label="Copier le lien de parrainage">Copier</button>
 
     <style>
+	.osano-cm-widget, .osano-cm-dialog {display: none !important;}
+	
         /* --- Ton CSS original --- */
         body {
             font-family: Arial, sans-serif;
@@ -249,6 +251,17 @@ window.addEventListener('unhandledrejection', function(e) {
 (() => {
   if (window.hasRun) return;
   window.hasRun = true;
+  
+  // Début du nouveau code à ajouter
+  setTimeout(() => {
+    if (!window.Telegram?.WebApp?.initDataUnsafe?.user) {
+      console.error("WebApp non détecté. Éléments disponibles:", {
+        Telegram: !!window.Telegram,
+        WebApp: !!window.Telegram?.WebApp,
+        User: window.Telegram?.WebApp?.initDataUnsafe?.user
+      });
+      return;
+    }
   
   console.log("⚡ Script loaded - Isolated scope");
   const tgWebApp = window.Telegram?.WebApp;

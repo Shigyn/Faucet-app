@@ -6,7 +6,8 @@
     <title>CryptoRats</title>
 	<link rel="stylesheet" href="/static/css/style.css">
 	<link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon">
-	
+	<button id="copy-btn" aria-label="Copier le lien de parrainage">Copier</button>
+
     <style>
         /* --- Ton CSS original --- */
         body {
@@ -268,9 +269,10 @@ if (!window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
 }
 currentUserId = String(window.Telegram.WebApp.initDataUnsafe.user.id);
         let currentBalance = 0;
-        let lastClaimTime = null;
+		let currentUserId = null;
         let isClaiming = false;
         let refreshInterval = null;
+		let lastClaimTime = null
         const COOLDOWN_MINUTES = 30;
         let cooldownTimerId = null;
 
@@ -397,24 +399,24 @@ async function validateTelegramData(initData) {
 }
 
         async function loadData() {
-    try {
-        // D'abord valider les données Telegram
-        const validation = await fetchData('init-data', {
-            initData: window.Telegram?.WebApp?.initData
-        });
-        
-        if (validation.status !== 'success') {
-            throw new Error('Failed to validate user');
-        }
-
-        // Ensuite charger toutes les données en une seule requête
-        const userData = await fetchData('user-data', {
-            user_id: validation.user.id
-        });
-
-        if (userData.status !== 'success') {
-            throw new Error('Failed to load user data');
-        }
+    console.log("📡 Tentative de chargement...");
+	try {
+        showLoading(true);  // affiche le loader
+      const response = await fetch('/user-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: tgWebApp.initDataUnsafe.user.id,
+          initData: tgWebApp.initData
+        })
+      });
+      console.log("📦 Réponse:", await response.json());
+    } catch (error) {
+      console.error("💥 Erreur fetch:", error);
+	} finally {
+        showLoading(false); // cache le loader
+    }
+  }
 
         // Mettre à jour l'interface
         updateUI(userData);
@@ -425,9 +427,15 @@ async function validateTelegramData(initData) {
 }
 
 function showLoading(show) {
-    // Implémentez un indicateur de chargement
     const loader = document.getElementById('loading-indicator') || createLoader();
     loader.style.display = show ? 'block' : 'none';
+    
+    const bar = loader.querySelector('div');
+    if (show) {
+        bar.style.width = '100%';  // faire croître la barre
+    } else {
+        bar.style.width = '0%';    // réinitialiser la barre
+    }
 }
 
 function createLoader() {
@@ -615,6 +623,7 @@ function createLoader() {
                         task_name: taskName,
                         points: points,
                         initData: window.Telegram?.WebApp?.initData
+						showToast(`Tâche "${taskName}" complétée ! +${points} points`, 3000, 'success');
                     })
                 });
 
@@ -844,26 +853,9 @@ function startAutoRefresh() {
         loadData();
         startAutoRefresh();
 		
-		console.log("👤 User ID:", tgWebApp.initDataUnsafe.user.id);
+		console.log("👤 User ID:", window.Telegram?.WebApp?.initDataUnsafe?.user?.id);
   
-  async function loadData() {
-    console.log("📡 Tentative de chargement...");
-    try {
-      const response = await fetch('/user-data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: tgWebApp.initDataUnsafe.user.id,
-          initData: tgWebApp.initData
-        })
-      });
-      console.log("📦 Réponse:", await response.json());
-    } catch (error) {
-      console.error("💥 Erreur fetch:", error);
-    }
-  }
-
-  loadData();
+    loadData();
 })();
 // Fin de l'isolation
     </script>

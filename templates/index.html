@@ -306,6 +306,19 @@ if (tgWebApp?.initData) {
             }
             
             // Maintenant charger les données
+            function redirectToBotWithReferral(referral) {
+    const baseBotUrl = "https://t.me/CRYPTORATS_bot";
+    // Si y'a un referral, ajoute en paramètre start
+    const url = referral ? `${baseBotUrl}?start=${referral}` : baseBotUrl;
+    return url;
+}
+
+if (window.Telegram?.WebApp) {
+    // Exemple pour récupérer user_id Telegram intégré (peut varier selon config)
+    const userId = window.Telegram.WebApp.initDataUnsafe?.user?.id || null;
+
+    validateTelegram()  // ta fonction de validation ici
+        .then(() => {
             loadData();
             startAutoRefresh();
         })
@@ -315,7 +328,7 @@ if (tgWebApp?.initData) {
                 <div style="text-align:center; padding:20px;">
                     <h2>Erreur de validation</h2>
                     <p>Veuillez rouvrir cette application via</p>
-                    <a href="https://t.me/CRYPTORATS_bot" style="
+                    <a href="${redirectToBotWithReferral(userId)}" style="
                         background: #0088cc;
                         color: white;
                         padding: 10px 20px;
@@ -325,6 +338,7 @@ if (tgWebApp?.initData) {
                 </div>`;
         });
 } else {
+    // Ici on ne peut pas récupérer user_id, donc lien simple vers bot
     document.body.innerHTML = `
         <div style="text-align:center; padding:20px;">
             <h2>Ouvrez cette application via</h2>

@@ -1,35 +1,30 @@
-# (début du fichier inchangé)
 import os
-import random
 import json
 import logging
-import threading
 import time
 from flask import Flask, request, jsonify, render_template, send_from_directory
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
 from datetime import datetime, timedelta
 from threading import Lock
-import hashlib
-import hmac
 from flask_cors import CORS
-from telegram import Update, Bot
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from queue import Queue
 from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
 import requests
-import google.api_core
-import google.auth.transport.requests
-import google.oauth2.credentials
 
+# Désactivation du cache client Google API
+import google.api_core
 google.api_core.client_options.ClientOptions.disable_cache = True
 
+# Logging configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
+# Variables d'environnement
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SPREADSHEET_ID = os.getenv('GOOGLE_SHEET_ID')
@@ -41,6 +36,7 @@ CORS(app, resources={
     r"/get-*": {"origins": ["https://web.telegram.org"]}
 })
 
+# CORS headers
 @app.after_request
 def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', 'https://web.telegram.org')
@@ -48,7 +44,8 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS,GET')
     response.headers.add('Access-Control-Allow-Credentials', 'true')
     return response
-    
+
+# Gunicorn config (si utilisé)
 gunicorn_conf = {
     'workers': (os.cpu_count() or 1) * 2 + 1,
     'worker_class': 'sync',
@@ -64,7 +61,7 @@ gunicorn_conf = {
 @app.route('/static/<path:filename>')
 def static_files(filename):
     return send_from_directory('static', filename)
-    
+
 @app.before_first_request
 def setup_webhook():
     if TELEGRAM_BOT_TOKEN:
@@ -84,34 +81,29 @@ def log_all(update, context):
 def start_command(update, context):
     logger.info("🚀 start_command lancé")
     logger.info(f"/start reçu de {update.effective_user.id} avec args={context.args}")
-    
+
     if update.message is None:
         logger.error("🚨 update.message est None, impossible d'envoyer le message")
         return
-    
+
     try:
         user_id = update.effective_user.id
         args = context.args
         refid = args[0] if args else None
-        
-        # Construire l'URL Telegram avec paramètre start=refid ou user_id
-        # Si refid existe, on l'utilise sinon on met user_id
-        start_param = refid if refid else str(user_id)
-        
-        telegram_bot_url = f"https://t.me/CRYPTORATS_bot?start={start_param}"
 
+        start_param = refid if refid else str(user_id)
+        telegram_bot_url = f"https://t.me/CRYPTORATS_bot?start={start_param}"
         keyboard = [[InlineKeyboardButton("Open Bot", url=telegram_bot_url)]]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         welcome_text = "Bienvenue sur TronQuest Airdrop! Collectez vos tokens chaque jour."
-        
+
         update.message.reply_text(
             text=welcome_text,
             reply_markup=reply_markup
         )
     except Exception as e:
         logger.error(f"Erreur dans start_command: {str(e)}")
-
 
 if bot:
     update_queue = Queue()
@@ -147,10 +139,8 @@ def get_sheets_service_with_retry(max_retries=3):
 def validate_telegram_data(init_data):
     if not init_data:
         return False
-        
-    # Implémentez la validation réelle ici
-    # Voir https://core.telegram.org/bots/webapps#validating-data-received-via-the-web-app
-    return True  # Temporaire - à remplacer
+    # TODO: Implémenter la validation selon https://core.telegram.org/bots/webapps#validating-data-received-via-the-web-app
+    return True
 
 @app.before_request
 def log_request_info():
@@ -166,7 +156,7 @@ def log_response_info(response):
 @app.route('/')
 def home():
     return render_template('index.html')
-    
+
 @app.route('/health')
 def health_check():
     try:
@@ -215,17 +205,16 @@ def validate_telegram():
     except Exception as e:
         logger.error(f"Validation error: {str(e)}")
         return jsonify({'status': 'error'}), 500
-        
+
 @app.route('/init-data', methods=['POST'])
 def handle_init_data():
     try:
         data = request.json
         init_data = data.get('initData')
-        
+
         if not init_data:
             return jsonify({'status': 'error', 'message': 'Init data required'}), 400
 
-        # Validation basique de l'utilisateur Telegram
         user_data = {}
         if 'user' in init_data:
             user_data = {
@@ -233,7 +222,7 @@ def handle_init_data():
                 'first_name': init_data['user'].get('first_name'),
                 'username': init_data['user'].get('username')
             }
-        
+
         return jsonify({
             'status': 'success',
             'user': user_data
@@ -246,41 +235,38 @@ def handle_init_data():
 def get_user_data():
     if request.method == 'OPTIONS':
         return _build_cors_preflight_response()
-    
+
     try:
         data = request.get_json()
         if not data:
             return jsonify({'status': 'error', 'message': 'No data'}), 400
 
-        # Validation Telegram
         init_data = data.get('initData')
-        if not validate_telegram_data(init_data):  # À implémenter
+        if not validate_telegram_data(init_data):
             return jsonify({'status': 'error', 'message': 'Invalid Telegram data'}), 403
 
         user_id = str(data.get('user_id'))
         logger.debug(f"🔎 Recherche user_id: {user_id}")
-        
+
         service = get_sheets_service_with_retry()
         row, _ = get_user_row_and_index(service, user_id)
-        
+
         if not row:
             logger.error(f"❌ Utilisateur {user_id} non trouvé")
             return jsonify({'status': 'error', 'message': 'User not found'}), 404
-        
+
         logger.debug(f"✅ Utilisateur trouvé: {row}")
-        
-        # Récupération des tâches
+
         tasks = service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID,
             range=RANGES['tasks']
         ).execute().get('values', [])
-        
-        # Récupération des références
+
         referrals = service.spreadsheets().values().get(
             spreadsheetId=SPREADSHEET_ID,
             range=RANGES['referrals']
         ).execute().get('values', [])
-        
+
         return jsonify({
             'status': 'success',
             'balance': int(row[3]) if len(row) > 3 and row[3] else 0,
@@ -323,17 +309,10 @@ def get_balance():
         if not row:
             return jsonify({'status': 'error', 'message': 'User not found'}), 404
         balance = int(row[3]) if len(row) > 3 and row[3] else 0
-        last_claim = row[4] if len(row) > 4 else None
-        referral_code = row[5] if len(row) > 5 else user_id
-        return jsonify({
-            'status': 'success',
-            'balance': balance,
-            'last_claim': last_claim,
-            'referral_code': referral_code
-        })
+        return jsonify({'status': 'success', 'balance': balance})
     except Exception as e:
-        logger.error(f"Error in get_balance: {str(e)}", exc_info=True)
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        logger.error(f"get_balance error: {str(e)}")
+        return jsonify({'status': 'error'}), 500
 
 @app.route('/claim', methods=['POST'])
 def claim():
@@ -343,153 +322,49 @@ def claim():
         if not user_id:
             return jsonify({'status': 'error', 'message': 'user_id required'}), 400
 
-        now = datetime.utcnow()
         service = get_sheets_service_with_retry()
+
         with sheet_lock:
-            row, row_number = get_user_row_and_index(service, user_id)
+            row, idx = get_user_row_and_index(service, user_id)
             if not row:
                 return jsonify({'status': 'error', 'message': 'User not found'}), 404
 
             last_claim_str = row[4] if len(row) > 4 else None
+            now = datetime.utcnow()
+
             if last_claim_str:
-                last_claim = datetime.strptime(last_claim_str, "%Y-%m-%d %H:%M:%S")
-                if now - last_claim < timedelta(minutes=CLAIM_COOLDOWN_MINUTES):
-                    remaining = timedelta(minutes=CLAIM_COOLDOWN_MINUTES) - (now - last_claim)
-                    return jsonify({'status': 'error', 'message': f'Wait {remaining.seconds//60} minutes'}), 403
+                try:
+                    last_claim_time = datetime.strptime(last_claim_str, "%Y-%m-%d %H:%M:%S")
+                    if now < last_claim_time + timedelta(minutes=CLAIM_COOLDOWN_MINUTES):
+                        remaining = (last_claim_time + timedelta(minutes=CLAIM_COOLDOWN_MINUTES) - now).total_seconds()
+                        return jsonify({
+                            'status': 'error',
+                            'message': f'Claim cooldown active. Try again in {int(remaining)} seconds.'
+                        }), 429
+                except Exception as e:
+                    logger.warning(f"Invalid last_claim format: {last_claim_str} ({str(e)})")
 
-            new_balance = int(row[3]) + 10 if len(row) > 3 and row[3] else 10
-            values = [[
-                row[0] if len(row) > 0 else '',
-                row[1] if len(row) > 1 else '',
-                user_id,
-                new_balance,
-                now.strftime("%Y-%m-%d %H:%M:%S"),
-                row[5] if len(row) > 5 else user_id
-            ]]
+            new_balance = int(row[3]) + 100  # Example reward
+            update_range = f"Users!D{idx + 2}"
             service.spreadsheets().values().update(
                 spreadsheetId=SPREADSHEET_ID,
-                range=f"Users!A{row_number}:F{row_number}",
-                valueInputOption="RAW",
-                body={"values": values}
+                range=update_range,
+                valueInputOption='USER_ENTERED',
+                body={'values': [[str(new_balance)]]}
             ).execute()
-            return jsonify({'status': 'success', 'balance': new_balance})
-    except Exception as e:
-        logger.error(f"Error in claim: {str(e)}", exc_info=True)
-        return jsonify({'status': 'error', 'message': str(e)}), 500
 
-@app.route('/get-tasks', methods=['POST'])
-def get_tasks():
-    try:
-        data = request.get_json()
-        user_id = str(data.get('user_id', ''))
-        if not user_id:
-            return jsonify({'status': 'error', 'message': 'user_id required'}), 400
-
-        service = get_sheets_service_with_retry()
-        result = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range=RANGES['tasks']
-        ).execute()
-        tasks = result.get('values', [])
-
-        tasks_data = []
-        for task in tasks:
-            task_data = {
-                'title': task[0] if len(task) > 0 else '',
-                'description': task[1] if len(task) > 1 else '',
-                'reward': int(task[2]) if len(task) > 2 and task[2].isdigit() else 0,
-                'completed': task[3].lower() == 'true' if len(task) > 3 else False
-            }
-            tasks_data.append(task_data)
-
-        return jsonify({'status': 'success', 'tasks': tasks_data})
-    except Exception as e:
-        logger.error(f"Error in get_tasks: {str(e)}", exc_info=True)
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-@app.route('/get-referrals', methods=['POST'])
-def get_referrals():
-    try:
-        data = request.get_json()
-        user_id = str(data.get('user_id', ''))
-        if not user_id:
-            return jsonify({'status': 'error', 'message': 'user_id required'}), 400
-
-        service = get_sheets_service_with_retry()
-        result = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range=RANGES['referrals']
-        ).execute()
-        referrals = result.get('values', [])
-
-        user_referrals = [ref for ref in referrals if ref[0] == user_id]
-
-        return jsonify({'status': 'success', 'referrals': user_referrals})
-    except Exception as e:
-        logger.error(f"Error in get_referrals: {str(e)}", exc_info=True)
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-@app.route('/get-leaderboard', methods=['GET'])
-def get_leaderboard():
-    try:
-        service = get_sheets_service_with_retry()
-        result = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range=RANGES['users']
-        ).execute()
-        users = result.get('values', [])
-
-        leaderboard = []
-        for user in users:
-            if len(user) >= 4:
-                leaderboard.append({
-                    'username': user[1],
-                    'balance': int(user[3]) if user[3].isdigit() else 0
-                })
-
-        leaderboard = sorted(leaderboard, key=lambda x: x['balance'], reverse=True)[:10]
-
-        return jsonify({'status': 'success', 'leaderboard': leaderboard})
-    except Exception as e:
-        logger.error(f"Error in get_leaderboard: {str(e)}", exc_info=True)
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-@app.route('/watchads', methods=['POST'])
-def watch_ads():
-    try:
-        data = request.get_json()
-        user_id = str(data.get('user_id', ''))
-        if not user_id:
-            return jsonify({'status': 'error', 'message': 'user_id required'}), 400
-
-        service = get_sheets_service_with_retry()
-        with sheet_lock:
-            row, row_number = get_user_row_and_index(service, user_id)
-            if not row:
-                return jsonify({'status': 'error', 'message': 'User not found'}), 404
-
-            reward = 5
-            new_balance = int(row[3]) + reward if len(row) > 3 and row[3] else reward
-
-            values = [[
-                row[0] if len(row) > 0 else '',
-                row[1] if len(row) > 1 else '',
-                user_id,
-                new_balance,
-                datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-                row[5] if len(row) > 5 else user_id
-            ]]
+            update_range_time = f"Users!E{idx + 2}"
             service.spreadsheets().values().update(
                 spreadsheetId=SPREADSHEET_ID,
-                range=f"Users!A{row_number}:F{row_number}",
-                valueInputOption="RAW",
-                body={"values": values}
+                range=update_range_time,
+                valueInputOption='USER_ENTERED',
+                body={'values': [[now.strftime("%Y-%m-%d %H:%M:%S")]]}
             ).execute()
 
-        return jsonify({'status': 'success', 'message': 'Ad watched, reward added', 'balance': new_balance})
+            return jsonify({'status': 'success', 'new_balance': new_balance})
     except Exception as e:
-        logger.error(f"Error in watch_ads: {str(e)}", exc_info=True)
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        logger.error(f"claim error: {str(e)}")
+        return jsonify({'status': 'error'}), 500
 
 def get_user_row_and_index(service, user_id):
     try:
@@ -498,13 +373,13 @@ def get_user_row_and_index(service, user_id):
             range=RANGES['users']
         ).execute()
         rows = result.get('values', [])
-        for i, row in enumerate(rows):
-            if len(row) > 2 and str(row[2]) == str(user_id):
-                return row, i + 2
+        for idx, row in enumerate(rows):
+            if len(row) > 0 and row[0] == user_id:
+                return row, idx
         return None, None
     except Exception as e:
-        logger.error(f"Error in get_user_row_and_index: {str(e)}")
-        raise
+        logger.error(f"get_user_row_and_index error: {str(e)}")
+        return None, None
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)

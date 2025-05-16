@@ -627,30 +627,68 @@ function createLoader() {
         }
 
         // Initialisation au chargement de la page
+console.log("⚡ Script loaded");
+console.log("Telegram WebApp:", window.Telegram?.WebApp);
+
+// Version simplifiée et sécurisée de l'initialisation
 document.addEventListener('DOMContentLoaded', async () => {
+    console.log("🚀 DOM loaded");
+    
     try {
-        // 1. Vérifier qu'on est dans Telegram
+        // 1. Vérification basique de Telegram
         if (!window.Telegram?.WebApp?.initData) {
-            showTelegramRequired();
+            console.error("❌ Pas de données Telegram");
+            showTelegramRequiredMessage();
             return;
         }
 
-        // 2. Valider avec le backend
-        const validation = await fetchData('validate-telegram', {
-            initData: window.Telegram.WebApp.initData
-        });
-        
-        // 3. Charger les données
-        await loadData();
-        
-        // 4. Démarrer le rafraîchissement
-        startAutoRefresh();
+        // 2. Affichez les données utilisateur pour debug
+        const tgUser = window.Telegram.WebApp.initDataUnsafe?.user;
+        console.log("👤 User:", tgUser);
+        if (!tgUser?.id) {
+            console.error("❌ ID utilisateur manquant");
+            return;
+        }
+
+        // 3. Testez un appel API simple
+        console.log("🔗 Test API...");
+        const testResponse = await fetch('/health');
+        console.log("🏥 Health check:", await testResponse.json());
+
+        // 4. Chargez les données utilisateur
+        console.log("📡 Loading user data...");
+        await loadUserData();
         
     } catch (error) {
-        console.error("Initialization error:", error);
-        showToast("Erreur d'initialisation", 3000, 'error');
+        console.error("💥 Crash:", error);
     }
 });
+
+async function loadUserData() {
+    const response = await fetch('/user-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            user_id: window.Telegram.WebApp.initDataUnsafe.user.id,
+            initData: window.Telegram.WebApp.initData
+        })
+    });
+    const data = await response.json();
+    console.log("📊 User data:", data);
+    updateUI(data);
+}
+
+function showTelegramRequiredMessage() {
+    document.body.innerHTML = `
+        <div style="text-align:center; padding:20px;">
+            <h2>Ouvrez via Telegram</h2>
+            <p>Cette application doit être lancée depuis le bot Telegram.</p>
+            <a href="https://t.me/CRYPTORATS_bot" 
+               style="background:#0088cc; color:white; padding:10px 20px; border-radius:5px;">
+               Ouvrir dans Telegram
+            </a>
+        </div>`;
+}
     // Initialiser l'utilisateur
     if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
         currentUserId = window.Telegram.WebApp.initDataUnsafe.user.id;

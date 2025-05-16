@@ -151,9 +151,13 @@ def log_response_info(response):
     logger.debug(f"Response: {response.status}")
     return response
 
-@app.route('/')
-def home():
-    return render_template('index.html')
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def catch_all(path):
+    logger.error(f"⚠️ Route non gérée appelée: /{path}")
+    logger.error(f"Headers: {dict(request.headers)}")
+    logger.error(f"Méthode: {request.method}")
+    return "Not Found", 404
 
 @app.route('/health')
 def health_check():

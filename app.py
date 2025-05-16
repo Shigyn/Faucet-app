@@ -78,13 +78,17 @@ def start_command(update, context):
         return
     
     try:
+        user_id = update.effective_user.id
         args = context.args
         refid = args[0] if args else None
         
-        base_url = "https://faucet-app.onrender.com"
-        url = f"{base_url}/?refid={refid}" if refid else base_url
+        # Construire l'URL Telegram avec paramètre start=refid ou user_id
+        # Si refid existe, on l'utilise sinon on met user_id
+        start_param = refid if refid else str(user_id)
+        
+        telegram_bot_url = f"https://t.me/CRYPTORATS_bot?start={start_param}"
 
-        keyboard = [[InlineKeyboardButton("Open App", url=url)]]
+        keyboard = [[InlineKeyboardButton("Open Bot", url=telegram_bot_url)]]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         welcome_text = "Bienvenue sur TronQuest Airdrop! Collectez vos tokens chaque jour."
@@ -95,6 +99,7 @@ def start_command(update, context):
         )
     except Exception as e:
         logger.error(f"Erreur dans start_command: {str(e)}")
+
 
 if bot:
     update_queue = Queue()

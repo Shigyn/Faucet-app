@@ -373,28 +373,29 @@ async function validateTelegramData(initData) {
 
         async function loadData() {
     try {
-        showLoading(true);
-        
-        const [balanceRes, tasksRes, referralsRes] = await Promise.all([
-            fetchData('get-balance'),
-            fetchData('get-tasks'),
-            fetchData('get-referrals')
-        ]);
-        
-        if (balanceRes.status !== 'success') {
-            throw new Error(balanceRes.message || 'Failed to load balance');
-        }
-        
-        updateUI({ 
-            balance: balanceRes, 
-            tasks: tasksRes.status === 'success' ? tasksRes : null,
-            referrals: referralsRes.status === 'success' ? referralsRes : null
+        // D'abord valider les données Telegram
+        const validation = await fetchData('init-data', {
+            initData: window.Telegram?.WebApp?.initData
         });
+        
+        if (validation.status !== 'success') {
+            throw new Error('Failed to validate user');
+        }
+
+        // Ensuite charger toutes les données en une seule requête
+        const userData = await fetchData('user-data', {
+            user_id: validation.user.id
+        });
+
+        if (userData.status !== 'success') {
+            throw new Error('Failed to load user data');
+        }
+
+        // Mettre à jour l'interface
+        updateUI(userData);
     } catch (error) {
-        console.error("Load data error:", error);
+        console.error("Load error:", error);
         showToast(error.message || "Erreur de chargement", 3000, 'error');
-    } finally {
-        showLoading(false);
     }
 }
 

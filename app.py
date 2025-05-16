@@ -200,6 +200,82 @@ def validate_telegram():
     except Exception as e:
         logger.error(f"Validation error: {str(e)}")
         return jsonify({'status': 'error'}), 500
+        
+        @app.route('/init-data', methods=['POST'])
+def handle_init_data():
+    try:
+        data = request.json
+        init_data = data.get('initData')
+        
+        if not init_data:
+            return jsonify({'status': 'error', 'message': 'Init data required'}), 400
+
+        # Validation basique de l'utilisateur Telegram
+        user_data = {}
+        if 'user' in init_data:
+            user_data = {
+                'id': init_data['user'].get('id'),
+                'first_name': init_data['user'].get('first_name'),
+                'username': init_data['user'].get('username')
+            }
+        
+        return jsonify({
+            'status': 'success',
+            'user': user_data
+        })
+    except Exception as e:
+        logger.error(f"Init data error: {str(e)}")
+        return jsonify({'status': 'error'}), 500
+
+@app.route('/user-data', methods=['POST'])
+def get_user_data():
+    try:
+        data = request.json
+        user_id = str(data.get('user_id'))
+        
+        if not user_id:
+            return jsonify({'status': 'error', 'message': 'user_id required'}), 400
+
+        service = get_sheets_service_with_retry()
+        row, _ = get_user_row_and_index(service, user_id)
+        if not row:
+            return jsonify({'status': 'error', 'message': 'User not found'}), 404
+        
+        # Récupération des tâches
+        tasks = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=RANGES['tasks']
+        ).execute().get('values', [])
+        
+        # Récupération des références
+        referrals = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=RANGES['referrals']
+        ).execute().get('values', [])
+        
+        return jsonify({
+            'status': 'success',
+            'balance': int(row[3]) if len(row) > 3 and row[3] else 0,
+            'last_claim': row[4] if len(row) > 4 else None,
+            'referral_code': row[5] if len(row) > 5 else user_id,
+            'tasks': [
+                {
+                    'name': task[0],
+                    'description': task[1],
+                    'reward': int(task[2])
+                } for task in tasks if len(task) >= 3
+            ],
+            'referrals': [
+                {
+                    'user_id': ref[1],
+                    'points': int(ref[2]) if len(ref) > 2 else 0,
+                    'date': ref[3] if len(ref) > 3 else None
+                } for ref in referrals if len(ref) > 1 and ref[0] == user_id
+            ]
+        })
+    except Exception as e:
+        logger.error(f"User data error: {str(e)}")
+        return jsonify({'status': 'error'}), 500
 
 @app.route('/get-balance', methods=['POST'])
 def get_balance():

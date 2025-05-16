@@ -234,6 +234,24 @@
     <button id="watch-ads-btn">Watch Ads</button>
 
     <script>
+// Début de l'isolation
+(() => {
+  if (window.hasRun) return;
+  window.hasRun = true;
+  
+  console.log("⚡ Script loaded - Isolated scope");
+  const tgWebApp = window.Telegram?.WebApp;
+
+  if (!tgWebApp?.initData) {
+    document.body.innerHTML = `
+      <div style="text-align:center; padding:20px;">
+        <h2>Ouvrez via Telegram</h2>
+        <a href="https://t.me/CRYPTORATS_bot" style="...">
+          Ouvrir dans Telegram
+        </a>
+      </div>`;
+    return;
+  }
         const API_BASE_URL = window.location.origin;
         let currentUserId = window.Telegram?.WebApp?.initData?.user?.id 
                   || window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
@@ -825,6 +843,29 @@ function startAutoRefresh() {
         // Initial load
         loadData();
         startAutoRefresh();
+		
+		console.log("👤 User ID:", tgWebApp.initDataUnsafe.user.id);
+  
+  async function loadData() {
+    console.log("📡 Tentative de chargement...");
+    try {
+      const response = await fetch('/user-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: tgWebApp.initDataUnsafe.user.id,
+          initData: tgWebApp.initData
+        })
+      });
+      console.log("📦 Réponse:", await response.json());
+    } catch (error) {
+      console.error("💥 Erreur fetch:", error);
+    }
+  }
+
+  loadData();
+})();
+// Fin de l'isolation
     </script>
 </body>
 </html>

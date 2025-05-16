@@ -190,6 +190,23 @@ def welcome():
         }]
     })
 
+@app.route('/validate-telegram', methods=['POST'])
+def validate_telegram():
+    try:
+        data = request.json
+        init_data = data.get('initData')
+        
+        if not init_data:
+            return jsonify({'status': 'error', 'message': 'Missing initData'}), 400
+            
+        # Ici vous devriez implémenter une vraie validation
+        # Voir https://core.telegram.org/bots/webapps#validating-data-received-via-the-web-app
+        
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        logger.error(f"Validation error: {str(e)}")
+        return jsonify({'status': 'error'}), 500
+        
 @app.route('/update-user', methods=['POST'])
 def update_user():
     try:
@@ -257,23 +274,12 @@ def get_tasks_frontend():
 @app.route('/get-balance', methods=['POST'])
 def get_balance():
     try:
-        # Accepter les requêtes sans vérification Telegram en debug
         data = request.get_json()
         user_id = str(data.get('user_id', ''))
-        
-        logger.info(f"Requête balance reçue pour user: {user_id}")
         
         if not user_id:
             return jsonify({'status': 'error', 'message': 'user_id required'}), 400
             
-        data = request.get_json()
-        user_id = str(data.get('user_id'))  # Conversion en string obligatoire
-        
-        # Debug critique
-        logger.info(f"Demande de solde pour user_id: {user_id} (type: {type(user_id)})")
-        if user_id == 'defaultId':
-            return jsonify({'status': 'error', 'message': 'Invalid user_id'}), 401    
-        user_id = str(data['user_id'])
         logger.info(f"Fetching balance for user: {user_id}")
         
         service = get_sheets_service()
@@ -286,8 +292,6 @@ def get_balance():
         balance = int(row[3]) if len(row) > 3 and row[3] else 0
         last_claim = row[4] if len(row) > 4 else None
         referral_code = row[5] if len(row) > 5 else user_id
-        
-        logger.info(f"Returning balance for {user_id}: {balance}")
         
         return jsonify({
             'status': 'success',

@@ -144,10 +144,13 @@ def get_sheets_service_with_retry(max_retries=3):
                 raise
             time.sleep(2 ** attempt)
 
-def validate_telegram_webapp(data):
-    if not data or not TELEGRAM_BOT_TOKEN:
+def validate_telegram_data(init_data):
+    if not init_data:
         return False
-    return True
+        
+    # Implémentez la validation réelle ici
+    # Voir https://core.telegram.org/bots/webapps#validating-data-received-via-the-web-app
+    return True  # Temporaire - à remplacer
 
 @app.before_request
 def log_request_info():
@@ -239,16 +242,20 @@ def handle_init_data():
         logger.error(f"Init data error: {str(e)}")
         return jsonify({'status': 'error'}), 500
 
-@app.route('/user-data', methods=['POST'])
+@app.route('/user-data', methods=['POST', 'OPTIONS'])
 def get_user_data():
-    logger.debug("🔍 /user-data appelé")
+    if request.method == 'OPTIONS':
+        return _build_cors_preflight_response()
+    
     try:
-        data = request.json
-        logger.debug(f"Données reçues: {data}")
-        
+        data = request.get_json()
         if not data:
-            logger.error("❌ Pas de données reçues")
             return jsonify({'status': 'error', 'message': 'No data'}), 400
+
+        # Validation Telegram
+        init_data = data.get('initData')
+        if not validate_telegram_data(init_data):  # À implémenter
+            return jsonify({'status': 'error', 'message': 'Invalid Telegram data'}), 403
 
         user_id = str(data.get('user_id'))
         logger.debug(f"🔎 Recherche user_id: {user_id}")
@@ -295,8 +302,14 @@ def get_user_data():
             ]
         })
     except Exception as e:
-        logger.error(f"User data error: {str(e)}")
+        logger.error(f"Error: {str(e)}")
         return jsonify({'status': 'error'}), 500
+
+def _build_cors_preflight_response():
+    response = jsonify({'status': 'cors_preflight'})
+    response.headers.add("Access-Control-Allow-Origin", "https://web.telegram.org")
+    response.headers.add("Access-Control-Allow-Headers", "Content-Type,Telegram-Data")
+    return response
 
 @app.route('/get-balance', methods=['POST'])
 def get_balance():

@@ -37,7 +37,8 @@ SPREADSHEET_ID = os.getenv('GOOGLE_SHEET_ID')
 app = Flask(__name__)
 CORS(app, resources={
     r"/user-data": {"origins": ["https://web.telegram.org"]},
-    r"/claim": {"origins": ["https://web.telegram.org"]}
+    r"/claim": {"origins": ["https://web.telegram.org"]},
+    r"/get-*": {"origins": ["https://web.telegram.org"]}
 })
 
 gunicorn_conf = {
@@ -232,19 +233,26 @@ def handle_init_data():
 
 @app.route('/user-data', methods=['POST'])
 def get_user_data():
-    logger.debug("Début de /user-data")
+    logger.debug("🔍 /user-data appelé")
     try:
         data = request.json
         logger.debug(f"Données reçues: {data}")
-        user_id = str(data.get('user_id'))
         
-        if not user_id:
-            return jsonify({'status': 'error', 'message': 'user_id required'}), 400
+        if not data:
+            logger.error("❌ Pas de données reçues")
+            return jsonify({'status': 'error', 'message': 'No data'}), 400
 
+        user_id = str(data.get('user_id'))
+        logger.debug(f"🔎 Recherche user_id: {user_id}")
+        
         service = get_sheets_service_with_retry()
         row, _ = get_user_row_and_index(service, user_id)
+        
         if not row:
+            logger.error(f"❌ Utilisateur {user_id} non trouvé")
             return jsonify({'status': 'error', 'message': 'User not found'}), 404
+        
+        logger.debug(f"✅ Utilisateur trouvé: {row}")
         
         # Récupération des tâches
         tasks = service.spreadsheets().values().get(

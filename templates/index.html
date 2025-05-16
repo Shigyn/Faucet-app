@@ -235,6 +235,16 @@
     <button id="watch-ads-btn">Watch Ads</button>
 
     <script>
+	window.addEventListener('error', function(e) {
+    console.error('Global error:', e.error);
+    showToast('Une erreur est survenue', 3000, 'error');
+});
+
+window.addEventListener('unhandledrejection', function(e) {
+    console.error('Unhandled rejection:', e.reason);
+    showToast('Erreur de chargement', 3000, 'error');
+});
+
 // Début de l'isolation
 (() => {
   if (window.hasRun) return;
@@ -253,28 +263,67 @@
       </div>`;
     return;
   }
-        const API_BASE_URL = window.location.origin;
-        let currentUserId = window.Telegram?.WebApp?.initData?.user?.id 
-                  || window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-                  
-if (!window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
+
+// Début de l'isolation
+(() => {
+  if (window.hasRun) return;
+  window.hasRun = true;
+  
+  console.log("⚡ Script loaded - Isolated scope");
+  const tgWebApp = window.Telegram?.WebApp;
+
+  // 1. Configuration de base
+  const API_BASE_URL = window.location.origin;
+  const COOLDOWN_MINUTES = 30;
+
+  // 2. Fonction d'affichage de l'écran d'erreur
+  function showTelegramRequiredScreen() {
     document.body.innerHTML = `
-        <div style="text-align:center; padding:20px;">
-            <h2>Ouvrez cette application via</h2>
-            <a href="https://t.me/CRYPTORATS_bot" style="...">
-                Notre Bot Telegram
-            </a>
-        </div>`;
+      <div style="text-align:center; padding:20px;">
+        <h2>Ouvrez cette application via</h2>
+        <a href="https://t.me/CRYPTORATS_bot" 
+          style="background:#0088cc; color:white; padding:10px 20px; border-radius:5px; text-decoration:none;">
+          Notre Bot Telegram
+        </a>
+        <p style="margin-top:20px; color:#ff4444;">
+          Erreur : L'application doit être ouverte via Telegram
+        </p>
+      </div>`;
     throw new Error("Telegram user required");
-}
-currentUserId = String(window.Telegram.WebApp.initDataUnsafe.user.id);
-        let currentBalance = 0;
-		let currentUserId = null;
-        let isClaiming = false;
-        let refreshInterval = null;
-		let lastClaimTime = null
-        const COOLDOWN_MINUTES = 30;
-        let cooldownTimerId = null;
+  }
+
+  // 3. Validation et initialisation de l'utilisateur
+  function initTelegramUser() {
+    if (!tgWebApp?.initData) {
+      showTelegramRequiredScreen();
+      return null;
+    }
+
+    const user = tgWebApp.initData?.user || tgWebApp.initDataUnsafe?.user;
+    
+    if (!user?.id) {
+      showTelegramRequiredScreen();
+      return null;
+    }
+
+    // Développe l'application Web Telegram
+    tgWebApp.expand();
+    
+    // Log pour débogage
+    console.log('Utilisateur Telegram initialisé:', user.id, user.username);
+    
+    return String(user.id); // Garantit que l'ID est une string
+  }
+
+  // 4. Initialisation des variables globales
+  const currentUserId = initTelegramUser();
+  if (!currentUserId) return; // Arrête si utilisateur invalide
+
+  let currentBalance = 0;
+  let isClaiming = false;
+  let refreshInterval = null;
+  let lastClaimTime = null; 
+  let cooldownTimerId = null;
 
         // Fonction fetch générique
         async function fetchData(endpoint, data = {}, retries = 3) {

@@ -447,31 +447,39 @@ async function validateTelegramData(initData) {
     }
 }
 
-        async function loadData() {
-    console.log("📡 Tentative de chargement...");
-	try {
-        showLoading(true);  // affiche le loader
-      const response = await fetch('/user-data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: tgWebApp.initDataUnsafe.user.id,
-          initData: tgWebApp.initData
-        })
-      });
-      console.log("📦 Réponse:", await response.json());
-    } catch (error) {
-      console.error("💥 Erreur fetch:", error);
-	} finally {
-        showLoading(false); // cache le loader
-    }
-  }
+async function loadData() {
+    console.log("🔄 Starting data load...");
+    try {
+        const requestData = {
+            user_id: window.Telegram.WebApp.initDataUnsafe.user.id,
+            initData: window.Telegram.WebApp.initData
+        };
 
-        // Mettre à jour l'interface
-        updateUI(userData);
+        console.log("Request payload:", requestData);
+
+        const response = await fetch('/user-data', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify(requestData)
+        });
+
+        console.log("HTTP Status:", response.status);
+        
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`HTTP error: ${response.status} - ${error}`);
+        }
+
+        const data = await response.json();
+        console.log("API Response:", data);
+        
+        updateUI(data);
     } catch (error) {
-        console.error("Load error:", error);
-        showToast(error.message || "Erreur de chargement", 3000, 'error');
+        console.error("💥 Load error:", error);
+        showToast("Erreur de chargement", 3000, 'error');
     }
 }
 

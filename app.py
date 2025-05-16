@@ -41,6 +41,15 @@ CORS(app, resources={
     r"/get-*": {"origins": ["https://web.telegram.org"]}
 })
 
+@app.after_request
+def after_request(response):
+    # Autorise les requêtes depuis Telegram
+    response.headers.add('Access-Control-Allow-Origin', 'https://web.telegram.org')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,X-Requested-With')
+    response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
+    
 gunicorn_conf = {
     'workers': (os.cpu_count() or 1) * 2 + 1,
     'worker_class': 'sync',
